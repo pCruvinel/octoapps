@@ -103,7 +103,6 @@ export class FinanciamentosService {
       throw new Error(`Erro ao salvar tabela de amortização: ${result.errors.join(', ')}`);
     }
 
-    console.log(`✅ Saved ${result.rowsSaved} ${cenario} rows using ${result.strategy} in ${result.batches} batches`);
   }
 
   /**

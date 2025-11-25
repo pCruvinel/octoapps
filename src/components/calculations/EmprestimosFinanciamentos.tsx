@@ -220,7 +220,6 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
       await handleSave();
 
       // Executar análise
-      console.log('🔍 Executando análise prévia de empréstimo...');
       const resultadoAnalise = analisarEmprestimoPrevia({
         valorFinanciado: dataToSave.totalFinanciado,
         numeroParcelas: dataToSave.quantidadeParcelas,
@@ -290,7 +289,6 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
       await handleSave();
 
       // Executar análise completa
-      console.log('📊 Gerando relatório completo de empréstimo...');
       const resultadoAnalise = analisarEmprestimoPrevia({
         valorFinanciado: dataToSave.totalFinanciado,
         numeroParcelas: dataToSave.quantidadeParcelas,

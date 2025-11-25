@@ -40,7 +40,6 @@ export async function safeSaveAmortizacao(
   };
 
   try {
-    console.log(`📊 safeSaveAmortizacao: Starting save for ${cenario} (${rows.length} rows)`);
 
     // Step 1: Verificar se existem dados antigos
     const { data: existingRows, error: checkError } = await supabase
@@ -53,11 +52,9 @@ export async function safeSaveAmortizacao(
       console.error('❌ Error checking existing rows:', checkError);
       result.errors.push(`Check error: ${checkError.message}`);
     } else {
-      console.log(`   Found ${existingRows?.length || 0} existing rows`);
     }
 
     // Step 2: Deletar dados antigos
-    console.log(`🗑️  Deleting old ${cenario} rows...`);
     const { error: deleteError, count: deletedCount } = await supabase
       .from('financiamentos_amortizacao')
       .delete({ count: 'exact' })
@@ -69,7 +66,6 @@ export async function safeSaveAmortizacao(
       result.errors.push(`Delete error: ${deleteError.message}`);
       // Não jogar erro - vamos tentar upsert mais tarde
     } else {
-      console.log(`✅ Deleted ${deletedCount || 0} rows`);
     }
 
     // Step 3: Preparar dados para inserção
@@ -79,7 +75,6 @@ export async function safeSaveAmortizacao(
       cenario,
     }));
 
-    console.log(`💾 Inserting ${rowsToInsert.length} rows in batches of ${batchSize}...`);
 
     // Step 4: Processar em batches
     const totalBatches = Math.ceil(rowsToInsert.length / batchSize);
@@ -90,7 +85,6 @@ export async function safeSaveAmortizacao(
       const batchNum = Math.floor(i / batchSize) + 1;
       result.batches++;
 
-      console.log(`   📦 Batch ${batchNum}/${totalBatches}: ${batch.length} rows`);
 
       // Tentar INSERT primeiro (mais eficiente)
       if (!useUpsert) {
@@ -118,7 +112,6 @@ export async function safeSaveAmortizacao(
               result.errors.push(`Batch ${batchNum} upsert error: ${upsertError.message}`);
               throw new Error(`Failed to save batch ${batchNum}: ${upsertError.message}`);
             } else {
-              console.log(`   ✅ Batch ${batchNum} saved via UPSERT`);
               result.rowsSaved += batch.length;
             }
           } else {
@@ -128,7 +121,6 @@ export async function safeSaveAmortizacao(
             throw new Error(`Failed to insert batch ${batchNum}: ${insertError.message}`);
           }
         } else {
-          console.log(`   ✅ Batch ${batchNum} inserted successfully`);
           result.rowsSaved += batch.length;
         }
       } else {
@@ -145,14 +137,12 @@ export async function safeSaveAmortizacao(
           result.errors.push(`Batch ${batchNum} upsert error: ${upsertError.message}`);
           throw new Error(`Failed to upsert batch ${batchNum}: ${upsertError.message}`);
         } else {
-          console.log(`   ✅ Batch ${batchNum} upserted successfully`);
           result.rowsSaved += batch.length;
         }
       }
     }
 
     result.success = true;
-    console.log(`✅ safeSaveAmortizacao completed: ${result.rowsSaved} rows saved using ${result.strategy}`);
 
     return result;
   } catch (error) {

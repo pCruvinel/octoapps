@@ -157,11 +157,9 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       }));
 
       // Save all amortization tables sequentially to avoid conflicts
-      console.log('💾 Saving amortization tables...');
       await financiamentosService.saveAmortizacao(financiamentoId, 'AP01', amortizacaoAP01);
       await financiamentosService.saveAmortizacao(financiamentoId, 'AP05', amortizacaoAP05);
       await financiamentosService.saveAmortizacao(financiamentoId, 'AP03', amortizacaoAP03);
-      console.log('✅ All amortization tables saved successfully');
 
       return financiamentoId;
     } catch (error) {
@@ -174,7 +172,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
   useEffect(() => {
     const loadCase = async () => {
       if (calcId) {
-        console.log('📥 Loading case with ID:', calcId);
         try {
           setLoading(true);
           const financiamento = await financiamentosService.getById(calcId);
@@ -185,7 +182,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
             return;
           }
 
-          console.log('✅ Case loaded successfully:', financiamento);
 
           // Map database fields to form data
           setFormData({
@@ -214,17 +210,14 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           });
 
           toast.success('Dados do caso carregados para edição');
-          console.log('🔓 Loading state set to false');
         } catch (error) {
           console.error('❌ Error loading case:', error);
           toast.error('Erro ao carregar caso');
           onNavigate('calculations');
         } finally {
           setLoading(false);
-          console.log('🔓 Loading state set to false (finally block)');
         }
       } else {
-        console.log('ℹ️ No calcId provided, creating new case');
       }
     };
 
@@ -306,13 +299,10 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
   };
 
   const handleSave = async () => {
-    console.log('🔵 handleSave clicked');
     if (!validarFormulario()) {
-      console.log('❌ Validation failed');
       return;
     }
 
-    console.log('✅ Validation passed, saving...');
     setLoading(true);
     try {
       // Prepare data for database (convert currency strings to numbers)
@@ -366,13 +356,10 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
   };
 
   const handleAnalysis = async () => {
-    console.log('🔵 handleAnalysis clicked');
     if (!validarFormulario()) {
-      console.log('❌ Validation failed');
       return;
     }
 
-    console.log('✅ Validation passed, starting analysis...');
     setLoading(true);
     try {
       // Importar as funções do motor de cálculo
@@ -388,10 +375,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       const { FaixaTaxa, EncargosMensais } = await import('@/types/calculation.types');
 
       // Preparar parâmetros
-      console.log('🔍 DEBUG - Valores do FormData (ANTES do parseNumber):');
-      console.log('valorFinanciado (raw):', formData.valorFinanciado);
-      console.log('taxaMensalContrato (raw):', formData.taxaMensalContrato);
-      console.log('taxaMensalMercado (raw):', formData.taxaMensalMercado);
 
       const pv = parseNumber(formData.valorFinanciado);
       const n = parseInt(formData.quantidadeParcelas);
@@ -401,13 +384,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       const horizonteMeses = parseInt(formData.horizonteMeses);
 
       // DEBUG
-      console.log('🔍 DEBUG - Parâmetros da Análise Prévia (DEPOIS do parseNumber):');
-      console.log('PV:', pv);
-      console.log('n:', n);
-      console.log('Primeiro Venc:', primeiroVenc);
-      console.log('Taxa Contrato:', taxaContratoMensal);
-      console.log('Taxa Mercado:', taxaMercadoMensal);
-      console.log('Horizonte:', horizonteMeses);
 
       // Calcular data final com base no horizonte
       const dataInicio = new Date(primeiroVenc);
@@ -435,10 +411,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       ];
 
       // Criar encargos da primeira parcela
-      console.log('🔍 DEBUG - Encargos ANTES do parseNumber:');
-      console.log('MIP (raw):', formData.mip);
-      console.log('DFI (raw):', formData.dfi);
-      console.log('TCA (raw):', formData.tca);
 
       const encargosMensais = [
         {
@@ -451,10 +423,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
         },
       ];
 
-      console.log('🔍 DEBUG - Encargos DEPOIS do parseNumber:');
-      console.log('MIP:', encargosMensais[0].MIP);
-      console.log('DFI:', encargosMensais[0].DFI);
-      console.log('TCA:', encargosMensais[0].TCA);
 
       // Gerar cenário AP01 (Cobrado)
       const ap01 = gerarCenarioAP01({
@@ -484,15 +452,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       const ap03 = gerarCenarioAP03(ap01, ap05, taxaContratoMensal, taxaMercadoMensal);
 
       // DEBUG - Resultados
-      console.log('📊 DEBUG - Resultados dos Cenários:');
-      console.log('AP01 Total Pago:', ap01.totais.totalPago);
-      console.log('AP01 Total Juros:', ap01.totais.totalJuros);
-      console.log('AP01 Total Taxas:', ap01.totais.totalTaxas);
-      console.log('AP01 Linhas na tabela:', ap01.tabela.length);
-      console.log('AP05 Total Devido:', ap05.totais.totalDevido);
-      console.log('AP05 Total Juros:', ap05.totais.totalJuros);
-      console.log('AP05 Linhas na tabela:', ap05.tabela.length);
-      console.log('AP03 Diferença:', ap03.totais.totalRestituir);
 
       // Save calculation results to database
       const savedId = await saveCalculationResults(ap01, ap05, ap03, taxaContratoMensal, taxaMercadoMensal);
@@ -529,13 +488,10 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
   };
 
   const handleGenerateReport = async () => {
-    console.log('🔵 handleGenerateReport clicked');
     if (!validarFormulario()) {
-      console.log('❌ Validation failed');
       return;
     }
 
-    console.log('✅ Validation passed, generating report...');
     setLoading(true);
     try {
       // Importar as funções do motor de cálculo
@@ -1010,7 +966,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           <Button
             variant="outline"
             onClick={() => {
-              console.log('🖱️ Botão Análise Prévia clicado | disabled:', loading);
               handleAnalysis();
             }}
             disabled={loading}
@@ -1026,7 +981,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           </Button>
           <Button
             onClick={() => {
-              console.log('🖱️ Botão Gerar Relatório clicado | disabled:', loading);
               handleGenerateReport();
             }}
             disabled={loading}
@@ -1042,7 +996,6 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           </Button>
           <Button
             onClick={() => {
-              console.log('🖱️ Botão Salvar clicado | disabled:', loading);
               handleSave();
             }}
             disabled={loading}

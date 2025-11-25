@@ -41,11 +41,6 @@ function AppContent() {
   }, [theme]);
 
   const navigate = (route: string, id?: string, data?: any) => {
-    console.log('🧭 App.navigate chamado:');
-    console.log('  route:', route);
-    console.log('  id:', id);
-    console.log('  data:', data);
-
     setCurrentRoute(route);
     setSelectedId(id || null);
     setRouteData(data || null); // Armazenar dados da rota

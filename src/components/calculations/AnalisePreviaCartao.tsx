@@ -19,12 +19,8 @@ export function AnalisePreviaCartao({ calcId, onNavigate, data }: AnalisePreviaC
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('🔍 AnalisePreviaCartao useEffect - data:', data);
-    console.log('🔍 AnalisePreviaCartao useEffect - calcId:', calcId);
-
     if (data) {
       // Usar dados já calculados que vieram do CartaoCredito
-      console.log('📊 Recebendo dados de análise prévia de cartão...', data);
       setAnalise(data);
       setLoading(false);
       toast.success('Análise prévia carregada!');

@@ -83,11 +83,6 @@ export function calcularEmprestimoPRICE(
     encargosRecorrentes = {},
   } = params;
 
-  console.log('📊 Calculando empréstimo PRICE...');
-  console.log(`  Valor financiado: R$ ${valorFinanciado.toFixed(2)}`);
-  console.log(`  Parcelas: ${numeroParcelas}`);
-  console.log(`  Taxa cobrada: ${(taxaMensalCobrada * 100).toFixed(2)}%`);
-  console.log(`  Taxa mercado: ${(taxaMensalMercado * 100).toFixed(2)}%`);
 
   // Calcular total de encargos iniciais
   const totalEncargosIniciais = Object.values(encargosIniciais).reduce((sum, val) => sum + (val || 0), 0);
@@ -138,10 +133,6 @@ export function calcularEmprestimoPRICE(
     sobretaxaPP: (taxaMensalCobrada - taxaMensalMercado) * 100,
   };
 
-  console.log('✅ Cálculo PRICE concluído!');
-  console.log(`  Parcela cobrada: R$ ${cenarioCobrado.valorParcela.toFixed(2)}`);
-  console.log(`  Parcela devida: R$ ${cenarioDevido.valorParcela.toFixed(2)}`);
-  console.log(`  Diferença total: R$ ${comparativo.diferencaTotal.toFixed(2)}`);
 
   return {
     cenarioCobrado,
@@ -533,7 +524,6 @@ export function analisarEmprestimoPrevia(
     throw new Error('Taxa mensal cobrada e taxa de mercado são obrigatórias');
   }
 
-  console.log('🔍 Realizando análise prévia de empréstimo...');
 
   // Calcular usando PRICE (único sistema implementado por ora)
   const meses = mesesAnalise || numeroParcelas;
@@ -580,9 +570,6 @@ export function analisarEmprestimoPrevia(
     encargosIrregulares.push(`Sobretaxa elevada: ${sobretaxaPP.toFixed(2)} p.p. acima do mercado.`);
   }
 
-  console.log('✅ Análise prévia concluída!');
-  console.log(`  Diferença (restituição): R$ ${diferencaRestituicao.toFixed(2)}`);
-  console.log(`  CET cobrado: ${(resultado.cet.cetMensalCobrado * 100).toFixed(2)}% a.m.`);
 
   return {
     valorFinanciado,

@@ -314,7 +314,6 @@ export function CartaoCredito({ calcId, onNavigate }: CartaoCreditoProps) {
     try {
       setLoading(true);
       const dataToSave = prepareDataForSave();
-      console.log('💾 Dados preparados para salvar (handleAnalysis):', dataToSave);
 
       // Salvar dados primeiro (criar ou atualizar)
       let currentCartaoId = cartaoId;
@@ -365,9 +364,7 @@ export function CartaoCredito({ calcId, onNavigate }: CartaoCreditoProps) {
       };
 
       // Executar análise usando motor de cálculo
-      console.log('📊 Parâmetros enviados para o motor:', parametrosAnalise);
       const resultadoAnalise = analisarCartaoPrevia(parametrosAnalise);
-      console.log('📊 Resultado da análise:', resultadoAnalise);
 
       // Helper para limitar valores ao máximo do banco (numeric(10,6) = max 9999.999999)
       const limitValue = (value: number, max: number = 9999.999999): number => {
@@ -477,7 +474,6 @@ export function CartaoCredito({ calcId, onNavigate }: CartaoCreditoProps) {
       };
 
       // Executar análise completa
-      console.log('📊 Gerando relatório completo de cartão...');
       const resultadoAnalise = analisarCartaoPrevia(parametrosAnalise);
 
       // Helper para limitar valores ao máximo do banco

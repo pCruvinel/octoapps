@@ -538,7 +538,6 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status">Status</Label>
-              <Select value={contact.status} onValueChange={(value) => console.log(value)}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>

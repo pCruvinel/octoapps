@@ -10,3 +10,33 @@ dist
 
 # Vite build
 build
+
+# Documentação de IA e Checkpoints
+CHECKPOINT.md
+TESTE-REAL.md
+**/GUIA-*.md
+src/guidelines/
+src/Attributions.md
+
+# Scripts SQL auxiliares (não código de produção)
+*.sql
+
+# Planilhas Excel
+*.xlsx
+*.xls
+
+# Arquivos temporários de desenvolvimento
+*.log
+*.temp
+*.tmp
+
+# IDE e editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS específicos
+.DS_Store
+Thumbs.db

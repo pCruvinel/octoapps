@@ -170,9 +170,6 @@ export interface RelatorioCompletoCartao {
 export function analisarCartaoPrevia(
   params: AnaliseCartaoRequest
 ): AnaliseCartaoResponse {
-  console.log('🔍 Iniciando análise prévia agregada de cartão...');
-  console.log(`  Credor: ${params.credor}`);
-  console.log(`  Devedor: ${params.devedor}`);
 
   // ========================================================================
   // 1. DETERMINAR TAXA DO CONTRATO (mensal)
@@ -180,7 +177,6 @@ export function analisarCartaoPrevia(
 
   const taxa_contrato_am = params.jurosRotativo; // já vem em decimal
 
-  console.log(`  Taxa do contrato: ${(taxa_contrato_am * 100).toFixed(2)}% a.m.`);
 
   // ========================================================================
   // 2. TAXA MÉDIA DE MERCADO (BACEN)
@@ -190,7 +186,6 @@ export function analisarCartaoPrevia(
     params.taxaMercadoMensal ||
     obterTaxaMediaBacen(params.data_inicio_analise, params.data_calculo);
 
-  console.log(`  Taxa BACEN: ${(taxa_bacen_am * 100).toFixed(2)}% a.m.`);
 
   // ========================================================================
   // 3. CÁLCULO DE SOBRETAXA
@@ -207,7 +202,6 @@ export function analisarCartaoPrevia(
   // Exemplo: 20% - 10% = 10 pontos percentuais
   const sobretaxa_pp = taxa_contrato_am - taxa_bacen_am; // em decimal
 
-  console.log(
     `  Sobretaxa: ${(sobretaxa_pp * 100).toFixed(2)} p.p. (${sobretaxa_percentual.toFixed(2)}%)`
   );
 
@@ -223,8 +217,6 @@ export function analisarCartaoPrevia(
     params.mesesAnalise ||
     calcularMesesEntreDatas(params.data_inicio_analise, params.data_calculo);
 
-  console.log(`  Capital: R$ ${P.toFixed(2)}`);
-  console.log(`  Período: ${n} meses`);
 
   // Simulação com pagamento mínimo (15% do saldo + juros)
   // Mês a mês: Saldo_novo = Saldo_antigo + Juros - Pagamento_mínimo
@@ -261,9 +253,6 @@ export function analisarCartaoPrevia(
   const juros_bacen = total_juros_bacen;
   const delta_juros = Math.max(0, juros_contrato - juros_bacen);
 
-  console.log(`  Juros contrato: R$ ${juros_contrato.toFixed(2)}`);
-  console.log(`  Juros BACEN: R$ ${juros_bacen.toFixed(2)}`);
-  console.log(`  Diferença (apenas juros): R$ ${delta_juros.toFixed(2)}`);
 
   // ========================================================================
   // 5. ENCARGOS ADICIONAIS (Mora, Multa, IOF)
@@ -286,9 +275,6 @@ export function analisarCartaoPrevia(
   // 5.3. IOF (valor mensal informado, multiplicado pelo período)
   const totalIOFCobrado = (params.iofValor || 0) * n;
 
-  console.log(`  Mora: R$ ${totalJurosMoraCobrado.toFixed(2)}`);
-  console.log(`  Multa: R$ ${totalMultaCobrada.toFixed(2)}`);
-  console.log(`  IOF: R$ ${totalIOFCobrado.toFixed(2)}`);
 
   // ========================================================================
   // 6. TOTAIS DE ENCARGOS
@@ -305,10 +291,6 @@ export function analisarCartaoPrevia(
   // Diferença = Quanto a mais foi cobrado
   const diferencaRestituicao = totalEncargosCobrados - totalEncargosDevidos;
 
-  console.log(`  ═════════════════════════════════════════`);
-  console.log(`  TOTAL ENCARGOS COBRADOS: R$ ${totalEncargosCobrados.toFixed(2)}`);
-  console.log(`  TOTAL ENCARGOS DEVIDOS: R$ ${totalEncargosDevidos.toFixed(2)}`);
-  console.log(`  DIFERENÇA (RESTITUIÇÃO): R$ ${diferencaRestituicao.toFixed(2)}`);
 
   // ========================================================================
   // 7. CLASSIFICAÇÃO DE ABUSIVIDADE
@@ -326,7 +308,6 @@ export function analisarCartaoPrevia(
     classificacao = 'Extremamente acima da média de mercado';
   }
 
-  console.log(`  Classificação: ${classificacao}`);
 
   // ========================================================================
   // 8. DETECTAR ENCARGOS ABUSIVOS
@@ -379,10 +360,7 @@ export function analisarCartaoPrevia(
   // CET anual = (1 + CET_mensal)^12 - 1
   const cetAnual = Math.pow(1 + cetMensal, 12) - 1;
 
-  console.log(`  CET Mensal: ${(cetMensal * 100).toFixed(2)}%`);
-  console.log(`  CET Anual: ${(cetAnual * 100).toFixed(2)}%`);
 
-  console.log('✅ Análise prévia concluída!\n');
 
   // ========================================================================
   // 10. RETORNAR RESULTADO (formato esperado pela UI)
@@ -445,17 +423,12 @@ export function gerarRelatorioCompleto(
   params: AnaliseCartaoRequest,
   analisePrevia: AnaliseCartaoResponse
 ): RelatorioCompletoCartao {
-  console.log('📊 Gerando relatório completo com tabela SAC...');
 
   const P = params.valor_principal || params.saldo_devedor;
   const n_tabela = params.prazo_meses_simulacao || 24;
   const i_contrato = analisePrevia.taxaMediaCobrada;
   const i_bacen = analisePrevia.taxaMercado;
 
-  console.log(`  Capital: R$ ${P.toFixed(2)}`);
-  console.log(`  Meses: ${n_tabela}`);
-  console.log(`  Taxa contrato: ${(i_contrato * 100).toFixed(2)}% a.m.`);
-  console.log(`  Taxa BACEN: ${(i_bacen * 100).toFixed(2)}% a.m.`);
 
   // ========================================================================
   // SISTEMA SAC: Amortização Constante
@@ -508,8 +481,6 @@ export function gerarRelatorioCompleto(
     total_juros_mercado += J_k_m;
   }
 
-  console.log(`  Total juros contrato (SAC): R$ ${total_juros_contrato.toFixed(2)}`);
-  console.log(`  Total juros mercado (SAC): R$ ${total_juros_mercado.toFixed(2)}`);
 
   // ========================================================================
   // CÁLCULO DE VALORES TOTAIS
@@ -520,10 +491,6 @@ export function gerarRelatorioCompleto(
   const valor_a_restituir_simples = Math.max(0, total_juros_contrato - total_juros_mercado);
   const valor_a_restituir_dobro = 2 * valor_a_restituir_simples;
 
-  console.log(`  Valor total contrato: R$ ${valor_total_contrato.toFixed(2)}`);
-  console.log(`  Valor total mercado: R$ ${valor_total_mercado.toFixed(2)}`);
-  console.log(`  Restituição simples: R$ ${valor_a_restituir_simples.toFixed(2)}`);
-  console.log(`  Restituição em dobro: R$ ${valor_a_restituir_dobro.toFixed(2)}`);
 
   // ========================================================================
   // GERAR TEXTOS EXPLICATIVOS
@@ -652,7 +619,6 @@ Para ação judicial, recomenda-se:
 • Perícia contábil para validação dos cálculos
   `.trim();
 
-  console.log('✅ Relatório completo gerado!\n');
 
   return {
     linhas_amortizacao: linhas,

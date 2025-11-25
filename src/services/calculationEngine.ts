@@ -687,12 +687,10 @@ export async function buscarTRComCache(
 
   // Verificar cache
   if (trCache.has(chaveCache)) {
-    console.log('TR carregada do cache');
     return trCache.get(chaveCache)!;
   }
 
   // Buscar da API
-  console.log('Buscando TR da API do Banco Central...');
   const trSeries = await buscarTRBancoCentral(dataInicial, dataFinal);
 
   // Salvar no cache
