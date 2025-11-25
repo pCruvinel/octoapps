@@ -3,3 +3,10 @@ dist
 .env
 .env.local
 .env.production
+
+# Vercel
+.vercel
+*.vercel
+
+# Vite build
+build
