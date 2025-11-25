@@ -42,21 +42,70 @@ export function useAuth() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthState({
-        user: session?.user ?? null,
-        session,
-        loading: false,
-      });
-
-      if (session?.user) {
-        loadUserProfile(session.user.id);
-      } else {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'TOKEN_REFRESHED') {
+        // Token renovado com sucesso
+        setAuthState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+        });
+      } else if (event === 'SIGNED_OUT') {
+        // Limpar estado local
+        setAuthState({ user: null, session: null, loading: false });
         setProfile(null);
+      } else if (event === 'USER_UPDATED') {
+        // Atualizar dados do usuário
+        if (session?.user) {
+          loadUserProfile(session.user.id);
+        }
+      } else {
+        // Outros eventos
+        setAuthState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+        });
+
+        if (session?.user) {
+          loadUserProfile(session.user.id);
+        } else {
+          setProfile(null);
+        }
       }
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Verificação periódica de renovação de token
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        const expiresAt = session.expires_at;
+        if (!expiresAt) return;
+
+        const now = Math.floor(Date.now() / 1000);
+        const timeUntilExpiry = expiresAt - now;
+
+        // Se faltam menos de 5 minutos para expirar, tenta renovar
+        if (timeUntilExpiry < 300) {
+          const { error } = await supabase.auth.refreshSession();
+
+          if (error) {
+            // Se não conseguir renovar, faz logout
+            await signOut();
+          }
+        }
+      }
+    };
+
+    // Verifica a cada 1 minuto
+    const interval = setInterval(checkSession, 60000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadUserProfile = async (userId: string) => {
@@ -135,13 +184,27 @@ export function useAuth() {
   };
 
   const signOut = async () => {
+    // 1. Limpa PRIMEIRO o localStorage do Supabase (antes de chamar signOut)
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith('sb-')) {
+        localStorage.removeItem(key);
+      }
+    });
+    sessionStorage.clear();
+
+    // 2. Limpa o estado React (força re-render)
+    setAuthState({ user: null, session: null, loading: false });
+    setProfile(null);
+
+    // 3. Tenta fazer logout no servidor (ignora erros silenciosamente)
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      return { error: null };
+      await supabase.auth.signOut();
     } catch (error) {
-      return { error: error as AuthError };
+      // Ignora erros (ex: 403 com token expirado)
     }
+
+    return { error: null };
   };
 
   const resetPassword = async (email: string) => {

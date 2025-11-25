@@ -37,6 +37,10 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <header className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-4">
@@ -129,7 +133,7 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => signOut()}>
+            <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="w-4 h-4 mr-2" />
               Sair
             </DropdownMenuItem>
