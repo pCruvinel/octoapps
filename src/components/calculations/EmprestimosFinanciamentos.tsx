@@ -6,66 +6,362 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
+import { emprestimosService } from '@/services/emprestimos.service';
+import { analisarEmprestimoPrevia } from '@/services/calculationEngine.emprestimo';
+import type { TipoEmprestimo, SistemaAmortizacao } from '@/types/calculation.types';
 
 interface EmprestimosFinanciamentosProps {
   calcId: string | null;
-  onNavigate: (route: string, id?: string) => void;
+  onNavigate: (route: string, id?: string, data?: any) => void;
 }
 
 export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFinanciamentosProps) {
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [emprestimoId, setEmprestimoId] = useState<string | null>(calcId);
+
   const [formData, setFormData] = useState({
     credor: '',
     devedor: '',
-    tipoContrato: '',
-    dataCalculo: '',
+    numeroProcesso: '',
+    contratoNum: '',
+    tipoEmprestimo: 'Pessoal' as TipoEmprestimo,
+    sistemaAmortizacao: 'PRICE' as SistemaAmortizacao,
     totalFinanciado: '',
-    valorParcela: '',
     quantidadeParcelas: '',
     dataPrimeiraParcela: '',
     dataContrato: '',
+    taxaMensalContrato: '',
+    taxaMensalMercado: '3.00', // 3% padrão
+    tac: '',
+    tec: '',
+    tarifaCadastro: '',
+    seguroPrestamista: '',
+    iofPrincipal: '',
+    observacoes: '',
   });
 
   // Carregar dados quando estiver editando
   useEffect(() => {
     if (calcId) {
-      // Simular carregamento de dados
-      setFormData({
-        credor: 'Financeira Beta LTDA',
-        devedor: 'Pedro Santos',
-        tipoContrato: 'emprestimo-pessoal',
-        dataCalculo: '2025-01-15',
-        totalFinanciado: 'R$ 15.000,00',
-        valorParcela: 'R$ 550,00',
-        quantidadeParcelas: '36',
-        dataPrimeiraParcela: '2024-02-15',
-        dataContrato: '2024-01-15',
-      });
-      toast.info('Dados do caso carregados para edição');
+      loadEmprestimoData(calcId);
     }
   }, [calcId]);
+
+  /**
+   * Carrega dados do empréstimo do banco
+   */
+  const loadEmprestimoData = async (id: string) => {
+    try {
+      setLoading(true);
+      const emprestimo = await emprestimosService.getById(id);
+
+      if (!emprestimo) {
+        toast.error('Empréstimo não encontrado');
+        onNavigate('calculations');
+        return;
+      }
+
+      setFormData({
+        credor: emprestimo.credor || '',
+        devedor: emprestimo.devedor || '',
+        numeroProcesso: emprestimo.numeroProcesso || '',
+        contratoNum: emprestimo.contratoNum || '',
+        tipoEmprestimo: emprestimo.tipoEmprestimo,
+        sistemaAmortizacao: emprestimo.sistemaAmortizacao,
+        totalFinanciado: emprestimo.totalFinanciado?.toString() || '',
+        quantidadeParcelas: emprestimo.quantidadeParcelas?.toString() || '',
+        dataPrimeiraParcela: emprestimo.dataPrimeiraParcela?.split('T')[0] || '',
+        dataContrato: emprestimo.dataContrato?.split('T')[0] || '',
+        taxaMensalContrato: (emprestimo.taxaMensalContrato * 100)?.toFixed(4) || '',
+        taxaMensalMercado: emprestimo.taxaMensalMercado ? (emprestimo.taxaMensalMercado * 100).toFixed(2) : '3.00',
+        tac: emprestimo.tac?.toString() || '',
+        tec: emprestimo.tec?.toString() || '',
+        tarifaCadastro: emprestimo.tarifaCadastro?.toString() || '',
+        seguroPrestamista: emprestimo.seguroPrestamista?.toString() || '',
+        iofPrincipal: emprestimo.iofPrincipal?.toString() || '',
+        observacoes: emprestimo.observacoes || '',
+      });
+
+      toast.success('Dados carregados com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar dados: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  /**
+   * Valida o formulário
+   */
+  const validateForm = (): boolean => {
+    if (!formData.credor?.trim()) {
+      toast.error('Credor é obrigatório');
+      return false;
+    }
+
+    if (!formData.devedor?.trim()) {
+      toast.error('Devedor é obrigatório');
+      return false;
+    }
+
+    const valor = parseFloat(formData.totalFinanciado.replace(/[^\d,.-]/g, '').replace(',', '.'));
+    if (!valor || valor <= 0) {
+      toast.error('Valor financiado deve ser maior que zero');
+      return false;
+    }
+
+    const parcelas = parseInt(formData.quantidadeParcelas);
+    if (!parcelas || parcelas <= 0) {
+      toast.error('Número de parcelas inválido');
+      return false;
+    }
+
+    const taxa = parseFloat(formData.taxaMensalContrato.replace(',', '.'));
+    if (taxa === undefined || taxa < 0) {
+      toast.error('Taxa mensal é obrigatória');
+      return false;
+    }
+
+    if (!formData.dataPrimeiraParcela) {
+      toast.error('Data da primeira parcela é obrigatória');
+      return false;
+    }
+
+    return true;
+  };
+
+  /**
+   * Prepara dados para salvar
+   */
+  const prepareDataForSave = () => {
+    const parseNumber = (value: string): number => {
+      if (!value) return 0;
+      return parseFloat(value.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+    };
+
+    const parsePercent = (value: string): number => {
+      if (!value) return 0;
+      const num = parseFloat(value.replace(',', '.')) || 0;
+      return num / 100;
+    };
+
+    return {
+      credor: formData.credor,
+      devedor: formData.devedor,
+      numeroProcesso: formData.numeroProcesso || undefined,
+      contratoNum: formData.contratoNum || undefined,
+      tipoEmprestimo: formData.tipoEmprestimo,
+      sistemaAmortizacao: formData.sistemaAmortizacao,
+      totalFinanciado: parseNumber(formData.totalFinanciado),
+      quantidadeParcelas: parseInt(formData.quantidadeParcelas),
+      dataPrimeiraParcela: formData.dataPrimeiraParcela,
+      dataContrato: formData.dataContrato || undefined,
+      taxaMensalContrato: parsePercent(formData.taxaMensalContrato),
+      taxaMensalMercado: parsePercent(formData.taxaMensalMercado),
+      tac: parseNumber(formData.tac) || undefined,
+      tec: parseNumber(formData.tec) || undefined,
+      tarifaCadastro: parseNumber(formData.tarifaCadastro) || undefined,
+      seguroPrestamista: parseNumber(formData.seguroPrestamista) || undefined,
+      iofPrincipal: parseNumber(formData.iofPrincipal) || undefined,
+      observacoes: formData.observacoes || undefined,
+    };
+  };
+
+  /**
+   * Salva os dados no banco
+   */
   const handleSave = async () => {
-    setLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setLoading(false);
-    toast.success('Dados salvos com sucesso!');
+    if (!validateForm()) return;
+
+    try {
+      setSaving(true);
+      const dataToSave = prepareDataForSave();
+
+      if (emprestimoId) {
+        await emprestimosService.update(emprestimoId, dataToSave);
+        toast.success('Dados atualizados com sucesso!');
+      } else {
+        const novoEmprestimo = await emprestimosService.create(dataToSave);
+        setEmprestimoId(novoEmprestimo.id);
+        toast.success('Empréstimo criado com sucesso!');
+      }
+    } catch (error: any) {
+      console.error('Erro ao salvar:', error);
+      toast.error('Erro ao salvar: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleAnalysis = () => {
-    toast.success('Iniciando análise prévia...');
-    setTimeout(() => onNavigate('calc-analise', '1'), 500);
+  /**
+   * Inicia análise prévia
+   */
+  const handleAnalysis = async () => {
+    if (!emprestimoId) {
+      toast.error('Salve os dados antes de iniciar a análise');
+      return;
+    }
+
+    if (!validateForm()) return;
+
+    try {
+      setLoading(true);
+      const dataToSave = prepareDataForSave();
+
+      // Salvar dados primeiro
+      await handleSave();
+
+      // Executar análise
+      console.log('🔍 Executando análise prévia de empréstimo...');
+      const resultadoAnalise = analisarEmprestimoPrevia({
+        valorFinanciado: dataToSave.totalFinanciado,
+        numeroParcelas: dataToSave.quantidadeParcelas,
+        taxaMensalCobrada: dataToSave.taxaMensalContrato,
+        taxaMensalMercado: dataToSave.taxaMensalMercado,
+        sistemaAmortizacao: dataToSave.sistemaAmortizacao,
+        encargosIniciais: (dataToSave.tac || 0) + (dataToSave.tec || 0) + (dataToSave.tarifaCadastro || 0),
+        encargosRecorrentes: dataToSave.seguroPrestamista || 0,
+        mesesAnalise: 12,
+      });
+
+      // Salvar resultados no banco
+      await emprestimosService.updateCalculatedResults(emprestimoId, {
+        total_juros_cobrado: resultadoAnalise.totalJurosCobrado,
+        total_juros_devido: resultadoAnalise.totalJurosDevido,
+        diferenca_restituicao: resultadoAnalise.diferencaRestituicao,
+        total_encargos: resultadoAnalise.totalEncargos,
+        valor_total_pago: resultadoAnalise.totalJurosCobrado + dataToSave.totalFinanciado,
+        valor_total_devido: resultadoAnalise.totalJurosDevido + dataToSave.totalFinanciado,
+        sobretaxa_pp: resultadoAnalise.sobretaxaPP,
+        cet_mensal: resultadoAnalise.cetMensal,
+        cet_anual: resultadoAnalise.cetAnual,
+        tac_tec_irregular: resultadoAnalise.tacTecIrregular,
+        encargos_irregulares: resultadoAnalise.encargosIrregulares,
+      });
+
+      // Atualizar status
+      await emprestimosService.updateStatus(emprestimoId, 'Em Análise');
+
+      // Preparar dados para AnalisePreviaResponse
+      const analysisData = {
+        taxaContratoAM: resultadoAnalise.taxaCobradaMensal,
+        taxaMercadoAM: resultadoAnalise.taxaMercadoMensal,
+        sobretaxaPP: resultadoAnalise.sobretaxaPP,
+        valorTotalPago: resultadoAnalise.totalJurosCobrado + dataToSave.totalFinanciado,
+        valorDevido: resultadoAnalise.totalJurosDevido + dataToSave.totalFinanciado,
+        diferencaRestituicao: resultadoAnalise.diferencaRestituicao,
+        formatted: resultadoAnalise.formatted,
+      };
+
+      toast.success('Análise prévia concluída com sucesso!');
+      onNavigate('calc-analise', emprestimoId, analysisData);
+    } catch (error: any) {
+      console.error('Erro ao iniciar análise:', error);
+      toast.error('Erro ao iniciar análise: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleGenerateReport = () => {
-    toast.success('Gerando relatório completo...');
-    setTimeout(() => onNavigate('calc-relatorio', '1'), 500);
+  /**
+   * Gera relatório completo
+   */
+  const handleGenerateReport = async () => {
+    if (!emprestimoId) {
+      toast.error('Salve os dados antes de gerar o relatório');
+      return;
+    }
+
+    if (!validateForm()) return;
+
+    try {
+      setLoading(true);
+      const dataToSave = prepareDataForSave();
+
+      // Salvar dados
+      await handleSave();
+
+      // Executar análise completa
+      console.log('📊 Gerando relatório completo de empréstimo...');
+      const resultadoAnalise = analisarEmprestimoPrevia({
+        valorFinanciado: dataToSave.totalFinanciado,
+        numeroParcelas: dataToSave.quantidadeParcelas,
+        taxaMensalCobrada: dataToSave.taxaMensalContrato,
+        taxaMensalMercado: dataToSave.taxaMensalMercado,
+        sistemaAmortizacao: dataToSave.sistemaAmortizacao,
+        encargosIniciais: (dataToSave.tac || 0) + (dataToSave.tec || 0),
+        encargosRecorrentes: dataToSave.seguroPrestamista || 0,
+      });
+
+      // Salvar todos os resultados
+      await emprestimosService.updateCalculatedResults(emprestimoId, {
+        total_juros_cobrado: resultadoAnalise.totalJurosCobrado,
+        total_juros_devido: resultadoAnalise.totalJurosDevido,
+        diferenca_restituicao: resultadoAnalise.diferencaRestituicao,
+        total_encargos: resultadoAnalise.totalEncargos,
+        valor_total_pago: resultadoAnalise.totalJurosCobrado + dataToSave.totalFinanciado,
+        valor_total_devido: resultadoAnalise.totalJurosDevido + dataToSave.totalFinanciado,
+        sobretaxa_pp: resultadoAnalise.sobretaxaPP,
+        cet_mensal: resultadoAnalise.cetMensal,
+        cet_anual: resultadoAnalise.cetAnual,
+        tac_tec_irregular: resultadoAnalise.tacTecIrregular,
+        encargos_irregulares: resultadoAnalise.encargosIrregulares,
+      });
+
+      // Atualizar status para Concluído
+      await emprestimosService.updateStatus(emprestimoId, 'Concluído');
+
+      // Preparar dados do relatório
+      const relatorioData = {
+        credor: dataToSave.credor,
+        devedor: dataToSave.devedor,
+        contratoNum: dataToSave.contratoNum || 'N/A',
+        metodologia: `Análise de Empréstimo - Sistema ${dataToSave.sistemaAmortizacao}`,
+        cards: {
+          valorPrincipal: dataToSave.totalFinanciado,
+          totalJuros: resultadoAnalise.totalJurosCobrado,
+          totalTaxas: resultadoAnalise.totalEncargos,
+          valorTotalDevido: resultadoAnalise.totalJurosDevido + dataToSave.totalFinanciado,
+          totalRestituir: resultadoAnalise.diferencaRestituicao,
+        },
+        comparativo: {
+          taxaContratoAM: resultadoAnalise.taxaCobradaMensal,
+          taxaMercadoAM: resultadoAnalise.taxaMercadoMensal,
+          sobretaxaPP: resultadoAnalise.sobretaxaPP,
+        },
+        tabelaAmortizacao: [],
+        formatted: {
+          cards: {
+            valorPrincipal: resultadoAnalise.formatted?.valorFinanciado || '',
+            totalJuros: resultadoAnalise.formatted?.totalJurosCobrado || '',
+            totalTaxas: `R$ ${resultadoAnalise.totalEncargos.toFixed(2)}`,
+            valorTotalDevido: resultadoAnalise.formatted?.totalJurosDevido || '',
+            totalRestituir: resultadoAnalise.formatted?.diferencaRestituicao || '',
+          },
+          comparativo: {
+            taxaContratoAM: resultadoAnalise.formatted?.taxaCobradaMensal || '',
+            taxaMercadoAM: resultadoAnalise.formatted?.taxaMercadoMensal || '',
+            sobretaxaPP: resultadoAnalise.formatted?.sobretaxaPP || '',
+          },
+        },
+      };
+
+      toast.success('Relatório completo gerado com sucesso!');
+      onNavigate('calc-relatorio', emprestimoId, relatorioData);
+    } catch (error: any) {
+      console.error('Erro ao gerar relatório:', error);
+      toast.error('Erro ao gerar relatório: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -1,0 +1,309 @@
+/**
+ * Testes Unitários para o Componente RelatorioCompleto
+ */
+
+import { describe, test, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { RelatorioCompleto } from '../RelatorioCompleto';
+import type { RelatorioCompletoResponse } from '@/types/calculation.types';
+
+// Mock do componente de toast
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
+
+describe('RelatorioCompleto - Renderização', () => {
+  const mockData: RelatorioCompletoResponse = {
+    credor: 'Banco Teste S.A.',
+    devedor: 'João da Silva',
+    contratoNum: '2018-000123',
+    metodologia: 'SAC com TR — AP01 (Cobrado) vs AP05 (Devido)',
+    cards: {
+      valorPrincipal: 302400,
+      totalJuros: 20325.6,
+      totalTaxas: 1982.4,
+      valorTotalDevido: 32388,
+      totalRestituir: 7997.16,
+    },
+    comparativo: {
+      taxaContratoAM: 0.005654145387,
+      taxaMercadoAM: 0.004,
+      sobretaxaPP: 0.001654145387,
+    },
+    tabelaAmortizacao: [
+      {
+        mes: 1,
+        data: '2018-06-21',
+        valorOriginalParcela: 2551.55,
+        valorCorrigido: 2551.55,
+        juros: 1711.55,
+        amortizacao: 840,
+        saldoDevedor: 301921.32,
+      },
+      {
+        mes: 2,
+        data: '2018-07-21',
+        valorOriginalParcela: 2546.78,
+        valorCorrigido: 2546.78,
+        juros: 1706.78,
+        amortizacao: 840,
+        saldoDevedor: 301081.32,
+      },
+    ],
+    formatted: {
+      cards: {
+        valorPrincipal: 'R$ 302.400,00',
+        totalJuros: 'R$ 20.325,60',
+        totalTaxas: 'R$ 1.982,40',
+        valorTotalDevido: 'R$ 32.388,00',
+        totalRestituir: 'R$ 7.997,16',
+      },
+      comparativo: {
+        taxaContratoAM: '0,5654%',
+        taxaMercadoAM: '0,4000%',
+        sobretaxaPP: '0,1654%',
+      },
+    },
+  };
+
+  const mockNavigate = vi.fn();
+
+  test('renderiza todas as seções principais', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    // Verificar seções principais
+    expect(screen.getByText('Relatório Completo de Cálculo')).toBeInTheDocument();
+    expect(screen.getByText('Dados do Credor, Devedor e do Processo')).toBeInTheDocument();
+    expect(screen.getByText('Detalhes de Encargos')).toBeInTheDocument();
+    expect(screen.getByText('Comparativo de Taxas')).toBeInTheDocument();
+    expect(screen.getByText('Tabela de Amortização')).toBeInTheDocument();
+  });
+
+  test('exibe dados de identificação corretamente', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    expect(screen.getByText('Banco Teste S.A.')).toBeInTheDocument();
+    expect(screen.getByText('João da Silva')).toBeInTheDocument();
+    expect(screen.getByText('2018-000123')).toBeInTheDocument();
+    expect(screen.getByText('SAC com TR — AP01 (Cobrado) vs AP05 (Devido)')).toBeInTheDocument();
+  });
+
+  test('exibe cards de resumo com valores formatados', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    expect(screen.getByText('R$ 302.400,00')).toBeInTheDocument();
+    expect(screen.getByText('R$ 20.325,60')).toBeInTheDocument();
+    expect(screen.getByText('R$ 1.982,40')).toBeInTheDocument();
+    expect(screen.getByText('R$ 32.388,00')).toBeInTheDocument();
+    expect(screen.getByText('R$ 7.997,16')).toBeInTheDocument();
+  });
+
+  test('exibe comparativo de taxas formatado', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    expect(screen.getByText('0,5654%')).toBeInTheDocument();
+    expect(screen.getByText('0,4000%')).toBeInTheDocument();
+    expect(screen.getByText('0,1654%')).toBeInTheDocument();
+  });
+
+  test('renderiza tabela de amortização com dados corretos', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    // Verificar cabeçalhos da tabela
+    expect(screen.getByText('Mês')).toBeInTheDocument();
+    expect(screen.getByText('Data')).toBeInTheDocument();
+    expect(screen.getByText('Prestação')).toBeInTheDocument();
+    expect(screen.getByText('Juros')).toBeInTheDocument();
+    expect(screen.getByText('Amortização')).toBeInTheDocument();
+    expect(screen.getByText('Saldo Devedor')).toBeInTheDocument();
+
+    // Verificar dados da primeira linha
+    expect(screen.getByText('1')).toBeInTheDocument();
+    expect(screen.getByText('21/06/2018')).toBeInTheDocument(); // Data formatada corretamente
+
+    // Verificar dados da segunda linha
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('21/07/2018')).toBeInTheDocument();
+  });
+
+  test('formata datas corretamente sem problema de timezone', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    // A função formatarData deve converter corretamente YYYY-MM-DD → DD/MM/YYYY
+    expect(screen.getByText('21/06/2018')).toBeInTheDocument();
+    expect(screen.getByText('21/07/2018')).toBeInTheDocument();
+
+    // Não deve haver datas com dia errado (20/06/2018 seria incorreto)
+    expect(screen.queryByText('20/06/2018')).not.toBeInTheDocument();
+  });
+
+  test('exibe mensagem quando não há dados', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} />);
+
+    expect(screen.getByText(/Nenhum dado de relatório disponível/)).toBeInTheDocument();
+  });
+
+  test('exibe mensagem quando tabela está vazia', () => {
+    const emptyData: RelatorioCompletoResponse = {
+      ...mockData,
+      tabelaAmortizacao: [],
+    };
+
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={emptyData} />);
+
+    expect(screen.getByText('Nenhum dado disponível')).toBeInTheDocument();
+  });
+
+  test('botão "Voltar" chama onNavigate corretamente', () => {
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
+
+    const backButton = screen.getByRole('button', { name: /Voltar para Lista de Casos/i });
+    expect(backButton).toBeInTheDocument();
+
+    backButton.click();
+    expect(mockNavigate).toHaveBeenCalledWith('calculations');
+  });
+
+  test('renderiza valores N/A quando dados não estão disponíveis', () => {
+    const partialData: RelatorioCompletoResponse = {
+      credor: '',
+      devedor: '',
+      contratoNum: '',
+      metodologia: '',
+      cards: {
+        valorPrincipal: 0,
+        totalJuros: 0,
+        totalTaxas: 0,
+        valorTotalDevido: 0,
+        totalRestituir: 0,
+      },
+      comparativo: {
+        taxaContratoAM: 0,
+        taxaMercadoAM: 0,
+        sobretaxaPP: 0,
+      },
+      tabelaAmortizacao: [],
+    };
+
+    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={partialData} />);
+
+    // Deve exibir N/A para campos vazios
+    const naElements = screen.getAllByText('N/A');
+    expect(naElements.length).toBeGreaterThan(0);
+  });
+});
+
+describe('RelatorioCompleto - Formatação de Valores', () => {
+  test('valores monetários na tabela são formatados corretamente', () => {
+    const mockData: RelatorioCompletoResponse = {
+      credor: 'Teste',
+      devedor: 'Teste',
+      contratoNum: '123',
+      metodologia: 'SAC',
+      cards: {
+        valorPrincipal: 100000,
+        totalJuros: 10000,
+        totalTaxas: 1000,
+        valorTotalDevido: 111000,
+        totalRestituir: 5000,
+      },
+      comparativo: {
+        taxaContratoAM: 0.01,
+        taxaMercadoAM: 0.008,
+        sobretaxaPP: 0.002,
+      },
+      tabelaAmortizacao: [
+        {
+          mes: 1,
+          data: '2020-01-01',
+          valorOriginalParcela: 1234.56,
+          valorCorrigido: 1234.56,
+          juros: 987.65,
+          amortizacao: 246.91,
+          saldoDevedor: 99753.09,
+        },
+      ],
+    };
+
+    render(<RelatorioCompleto calcId="test" onNavigate={vi.fn()} data={mockData} />);
+
+    // Verificar que valores são formatados como moeda brasileira
+    // Os valores exatos na tabela dependem da função formatarMoeda
+    const tableElement = screen.getByRole('table');
+    expect(tableElement).toBeInTheDocument();
+  });
+});
+
+describe('RelatorioCompleto - Acessibilidade', () => {
+  test('tabela tem estrutura semântica correta', () => {
+    const mockData: RelatorioCompletoResponse = {
+      credor: 'Teste',
+      devedor: 'Teste',
+      contratoNum: '123',
+      metodologia: 'SAC',
+      cards: {
+        valorPrincipal: 100000,
+        totalJuros: 10000,
+        totalTaxas: 1000,
+        valorTotalDevido: 111000,
+        totalRestituir: 5000,
+      },
+      comparativo: {
+        taxaContratoAM: 0.01,
+        taxaMercadoAM: 0.008,
+        sobretaxaPP: 0.002,
+      },
+      tabelaAmortizacao: [
+        {
+          mes: 1,
+          data: '2020-01-01',
+          valorOriginalParcela: 1000,
+          valorCorrigido: 1000,
+          juros: 500,
+          amortizacao: 500,
+          saldoDevedor: 99500,
+        },
+      ],
+    };
+
+    render(<RelatorioCompleto calcId="test" onNavigate={vi.fn()} data={mockData} />);
+
+    const table = screen.getByRole('table');
+    expect(table).toBeInTheDocument();
+
+    const rows = screen.getAllByRole('row');
+    expect(rows.length).toBeGreaterThan(1); // Header + pelo menos 1 data row
+  });
+
+  test('botões têm labels acessíveis', () => {
+    const mockData: RelatorioCompletoResponse = {
+      credor: 'Teste',
+      devedor: 'Teste',
+      contratoNum: '123',
+      metodologia: 'SAC',
+      cards: {
+        valorPrincipal: 100000,
+        totalJuros: 10000,
+        totalTaxas: 1000,
+        valorTotalDevido: 111000,
+        totalRestituir: 5000,
+      },
+      comparativo: {
+        taxaContratoAM: 0.01,
+        taxaMercadoAM: 0.008,
+        sobretaxaPP: 0.002,
+      },
+      tabelaAmortizacao: [],
+    };
+
+    render(<RelatorioCompleto calcId="test" onNavigate={vi.fn()} data={mockData} />);
+
+    expect(screen.getByRole('button', { name: /Voltar para Lista de Casos/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Exportar Relatório/i })).toBeInTheDocument();
+  });
+});

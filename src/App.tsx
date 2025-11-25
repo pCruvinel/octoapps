@@ -17,6 +17,7 @@ import { FinanciamentoImobiliario } from './components/calculations/Financiament
 import { CartaoCredito } from './components/calculations/CartaoCredito';
 import { EmprestimosFinanciamentos } from './components/calculations/EmprestimosFinanciamentos';
 import { AnalisePrevia } from './components/calculations/AnalisePrevia';
+import { AnalisePreviaCartao } from './components/calculations/AnalisePreviaCartao';
 import { RelatorioCompleto } from './components/calculations/RelatorioCompleto';
 import { UploadContratos } from './components/calculations/UploadContratos';
 import { PeticoesList } from './components/peticoes/PeticoesList';
@@ -40,6 +41,11 @@ function AppContent() {
   }, [theme]);
 
   const navigate = (route: string, id?: string, data?: any) => {
+    console.log('🧭 App.navigate chamado:');
+    console.log('  route:', route);
+    console.log('  id:', id);
+    console.log('  data:', data);
+
     setCurrentRoute(route);
     setSelectedId(id || null);
     setRouteData(data || null); // Armazenar dados da rota
@@ -98,6 +104,10 @@ function AppContent() {
       case 'calc-emprestimos':
         return <EmprestimosFinanciamentos calcId={selectedId} onNavigate={navigate} />;
       case 'calc-analise':
+        return <AnalisePrevia calcId={selectedId} onNavigate={navigate} data={routeData} />;
+      case 'calc-analise-cartao':
+        // DEPRECATED: Agora usa 'calc-analise' (UI unificada)
+        // Mantido para compatibilidade com casos antigos
         return <AnalisePrevia calcId={selectedId} onNavigate={navigate} data={routeData} />;
       case 'calc-relatorio':
         return <RelatorioCompleto calcId={selectedId} onNavigate={navigate} data={routeData} />;
