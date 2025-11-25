@@ -202,9 +202,6 @@ export function analisarCartaoPrevia(
   // Exemplo: 20% - 10% = 10 pontos percentuais
   const sobretaxa_pp = taxa_contrato_am - taxa_bacen_am; // em decimal
 
-    `  Sobretaxa: ${(sobretaxa_pp * 100).toFixed(2)} p.p. (${sobretaxa_percentual.toFixed(2)}%)`
-  );
-
   // ========================================================================
   // 4. SIMULAÇÃO MACRO DE JUROS COM PAGAMENTO MÍNIMO
   // ========================================================================
