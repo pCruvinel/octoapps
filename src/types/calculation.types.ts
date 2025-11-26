@@ -869,10 +869,11 @@ export interface OutraTarifaEmprestimo {
 export interface LinhaAmortizacaoEmprestimo {
   mes: number;
   dataVencimento: string; // YYYY-MM-DD
+  saldoDevedorInicial: number; // Saldo devedor no início do período
   valorParcela: number;
   juros: number;
   amortizacao: number;
-  saldoDevedor: number;
+  saldoDevedor: number; // Saldo devedor no final do período
 
   // Correção monetária (se aplicável)
   indiceCorrecao?: number;
@@ -930,6 +931,7 @@ export interface Emprestimo {
   taxaMensalMercado?: number;
   taxaJurosMora?: number;
   multaAtraso?: number;
+  cdi?: number; // Percentual do CDI (ex: 1.00 = 100% CDI)
 
   // Encargos iniciais
   tac?: number; // VEDADA
@@ -943,12 +945,17 @@ export interface Emprestimo {
   seguroPrestamista?: number;
   seguroProtecaoFinanceira?: number;
   seguroDesemprego?: number;
+  seguros?: number; // Outros seguros não categorizados
   comissaoFlat?: number;
+  tarifas?: number; // Outras tarifas não categorizadas
   outrasTarifas: OutraTarifaEmprestimo[];
 
   // IOF
   iofPrincipal?: number;
   iofAdicional?: number;
+
+  // Outros encargos
+  outrosEncargos?: number; // Encargos não categorizados
 
   // CET
   cetMensal?: number;
@@ -1013,6 +1020,7 @@ export interface EmprestimoInsert {
   taxaMensalMercado?: number;
   taxaJurosMora?: number;
   multaAtraso?: number;
+  cdi?: number;
   indiceCorrecao?: IndiceCorrecao;
   percentualIndexador?: number;
 
@@ -1026,13 +1034,17 @@ export interface EmprestimoInsert {
   seguroPrestamista?: number;
   seguroProtecaoFinanceira?: number;
   seguroDesemprego?: number;
+  seguros?: number;
   comissaoFlat?: number;
+  tarifas?: number;
   outrasTarifas?: OutraTarifaEmprestimo[];
   iofPrincipal?: number;
   iofAdicional?: number;
+  outrosEncargos?: number;
 
   observacoes?: string;
   criadoPor?: string;
+  dataCalculo?: string;
 }
 
 /**
@@ -1059,6 +1071,8 @@ export interface EmprestimoUpdate {
   taxaMensalMercado?: number;
   taxaJurosMora?: number;
   multaAtraso?: number;
+  cdi?: number;
+  dataCalculo?: string;
 
   tac?: number;
   tec?: number;
@@ -1070,11 +1084,14 @@ export interface EmprestimoUpdate {
   seguroPrestamista?: number;
   seguroProtecaoFinanceira?: number;
   seguroDesemprego?: number;
+  seguros?: number;
   comissaoFlat?: number;
+  tarifas?: number;
   outrasTarifas?: OutraTarifaEmprestimo[];
 
   iofPrincipal?: number;
   iofAdicional?: number;
+  outrosEncargos?: number;
 
   cetMensal?: number;
   cetAnual?: number;
@@ -1106,7 +1123,8 @@ export interface CalculoEmprestimoPRICERequest {
   numeroParcelas: number;
   taxaMensalCobrada: number;
   taxaMensalMercado: number;
-  dataInicio: string; // YYYY-MM-DD
+  dataInicio: string; // YYYY-MM-DD (data da primeira parcela)
+  dataLiberacao?: string; // YYYY-MM-DD (data da liberação do crédito) - para cálculo de carência
 
   // Encargos opcionais
   encargosIniciais?: {
@@ -1163,6 +1181,13 @@ export interface CalculoEmprestimoPRICEResponse {
     cetAnualCobrado: number;
     cetMensalDevido: number;
     cetAnualDevido: number;
+  };
+
+  // Carência (opcional - só existe se dataLiberacao foi fornecida)
+  carencia?: {
+    diasCarencia: number;
+    jurosCarencia: number;
+    valorFinanciadoAjustado: number;
   };
 }
 

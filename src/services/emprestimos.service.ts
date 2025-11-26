@@ -55,26 +55,17 @@ export class EmprestimosService {
   async create(data: EmprestimoInsert): Promise<Emprestimo> {
     const userId = (await supabase.auth.getUser()).data.user?.id;
 
+    // Map camelCase to snake_case properly
+    const mapped = this.mapToDatabase(data);
+
     const { data: emprestimo, error } = await supabase
       .from('emprestimos')
       .insert({
-        ...data,
+        ...mapped,
         // Set defaults for arrays
         outras_tarifas: data.outrasTarifas || [],
         encargos_irregulares: [],
-        // Set defaults for numbers
-        tac: data.tac ?? 0,
-        tec: data.tec ?? 0,
-        tarifa_cadastro: data.tarifaCadastro ?? 0,
-        tarifa_avaliacao_bem: data.tarifaAvaliacaoBem ?? 0,
-        tarifa_registro_contrato: data.tarifaRegistroContrato ?? 0,
-        despesas_registro: data.despesasRegistro ?? 0,
-        seguro_prestamista: data.seguroPrestamista ?? 0,
-        seguro_protecao_financeira: data.seguroProtecaoFinanceira ?? 0,
-        seguro_desemprego: data.seguroDesemprego ?? 0,
-        comissao_flat: data.comissaoFlat ?? 0,
-        iof_principal: data.iofPrincipal ?? 0,
-        iof_adicional: data.iofAdicional ?? 0,
+        // Set defaults for booleans
         tac_tec_irregular: false,
         seguros_irregulares: false,
         comissao_permanencia_irregular: false,
@@ -82,13 +73,11 @@ export class EmprestimosService {
         criado_por: userId,
         data_criacao: new Date().toISOString(),
         data_atualizacao: new Date().toISOString(),
-        data_calculo: new Date().toISOString(),
+        data_calculo: data.dataCalculo || new Date().toISOString(),
         // Soft delete defaults
         ativo: true,
         excluido: false,
         status: 'Rascunho',
-        sistema_amortizacao: data.sistemaAmortizacao || 'PRICE',
-        indice_correcao: data.indiceCorrecao || 'NENHUM',
       })
       .select()
       .single();
@@ -553,6 +542,7 @@ export class EmprestimosService {
       taxaMensalMercado: row.taxa_mensal_mercado,
       taxaJurosMora: row.taxa_juros_mora,
       multaAtraso: row.multa_atraso,
+      cdi: row.cdi,
       tac: row.tac,
       tec: row.tec,
       tarifaCadastro: row.tarifa_cadastro,
@@ -562,10 +552,13 @@ export class EmprestimosService {
       seguroPrestamista: row.seguro_prestamista,
       seguroProtecaoFinanceira: row.seguro_protecao_financeira,
       seguroDesemprego: row.seguro_desemprego,
+      seguros: row.seguros,
       comissaoFlat: row.comissao_flat,
+      tarifas: row.tarifas,
       outrasTarifas: row.outras_tarifas || [],
       iofPrincipal: row.iof_principal,
       iofAdicional: row.iof_adicional,
+      outrosEncargos: row.outros_encargos,
       cetMensal: row.cet_mensal,
       cetAnual: row.cet_anual,
       totalJurosCobrado: row.total_juros_cobrado,
@@ -600,40 +593,66 @@ export class EmprestimosService {
   private mapToDatabase(data: Partial<EmprestimoUpdate>): any {
     const mapped: any = {};
 
+    // Identificação
     if (data.credor !== undefined) mapped.credor = data.credor;
     if (data.devedor !== undefined) mapped.devedor = data.devedor;
     if (data.contratoNum !== undefined) mapped.contrato_num = data.contratoNum;
     if (data.numeroProcesso !== undefined) mapped.numero_processo = data.numeroProcesso;
     if (data.tipoEmprestimo !== undefined) mapped.tipo_emprestimo = data.tipoEmprestimo;
+
+    // Valores principais
     if (data.totalFinanciado !== undefined) mapped.total_financiado = data.totalFinanciado;
     if (data.valorParcela !== undefined) mapped.valor_parcela = data.valorParcela;
     if (data.quantidadeParcelas !== undefined) mapped.quantidade_parcelas = data.quantidadeParcelas;
+
+    // Datas
     if (data.dataContrato !== undefined) mapped.data_contrato = data.dataContrato;
     if (data.dataPrimeiraParcela !== undefined) mapped.data_primeira_parcela = data.dataPrimeiraParcela;
     if (data.dataLiberacao !== undefined) mapped.data_liberacao = data.dataLiberacao;
+    if (data.dataCalculo !== undefined) mapped.data_calculo = data.dataCalculo;
+
+    // Sistema e índice
     if (data.sistemaAmortizacao !== undefined) mapped.sistema_amortizacao = data.sistemaAmortizacao;
     if (data.indiceCorrecao !== undefined) mapped.indice_correcao = data.indiceCorrecao;
     if (data.percentualIndexador !== undefined) mapped.percentual_indexador = data.percentualIndexador;
+
+    // Taxas de juros
     if (data.taxaMensalContrato !== undefined) mapped.taxa_mensal_contrato = data.taxaMensalContrato;
     if (data.taxaAnualContrato !== undefined) mapped.taxa_anual_contrato = data.taxaAnualContrato;
     if (data.taxaMensalMercado !== undefined) mapped.taxa_mensal_mercado = data.taxaMensalMercado;
     if (data.taxaJurosMora !== undefined) mapped.taxa_juros_mora = data.taxaJurosMora;
     if (data.multaAtraso !== undefined) mapped.multa_atraso = data.multaAtraso;
-    if (data.tac !== undefined) mapped.tac = data.tac;
-    if (data.tec !== undefined) mapped.tec = data.tec;
-    if (data.tarifaCadastro !== undefined) mapped.tarifa_cadastro = data.tarifaCadastro;
-    if (data.tarifaAvaliacaoBem !== undefined) mapped.tarifa_avaliacao_bem = data.tarifaAvaliacaoBem;
-    if (data.tarifaRegistroContrato !== undefined) mapped.tarifa_registro_contrato = data.tarifaRegistroContrato;
-    if (data.despesasRegistro !== undefined) mapped.despesas_registro = data.despesasRegistro;
-    if (data.seguroPrestamista !== undefined) mapped.seguro_prestamista = data.seguroPrestamista;
-    if (data.seguroProtecaoFinanceira !== undefined) mapped.seguro_protecao_financeira = data.seguroProtecaoFinanceira;
-    if (data.seguroDesemprego !== undefined) mapped.seguro_desemprego = data.seguroDesemprego;
-    if (data.comissaoFlat !== undefined) mapped.comissao_flat = data.comissaoFlat;
+    if (data.cdi !== undefined) mapped.cdi = data.cdi;
+
+    // Encargos iniciais
+    if (data.tac !== undefined) mapped.tac = data.tac ?? 0;
+    if (data.tec !== undefined) mapped.tec = data.tec ?? 0;
+    if (data.tarifaCadastro !== undefined) mapped.tarifa_cadastro = data.tarifaCadastro ?? 0;
+    if (data.tarifaAvaliacaoBem !== undefined) mapped.tarifa_avaliacao_bem = data.tarifaAvaliacaoBem ?? 0;
+    if (data.tarifaRegistroContrato !== undefined) mapped.tarifa_registro_contrato = data.tarifaRegistroContrato ?? 0;
+    if (data.despesasRegistro !== undefined) mapped.despesas_registro = data.despesasRegistro ?? 0;
+
+    // Seguros e comissões
+    if (data.seguroPrestamista !== undefined) mapped.seguro_prestamista = data.seguroPrestamista ?? 0;
+    if (data.seguroProtecaoFinanceira !== undefined) mapped.seguro_protecao_financeira = data.seguroProtecaoFinanceira ?? 0;
+    if (data.seguroDesemprego !== undefined) mapped.seguro_desemprego = data.seguroDesemprego ?? 0;
+    if (data.comissaoFlat !== undefined) mapped.comissao_flat = data.comissaoFlat ?? 0;
+    if (data.seguros !== undefined) mapped.seguros = data.seguros ?? 0;
+    if (data.tarifas !== undefined) mapped.tarifas = data.tarifas ?? 0;
     if (data.outrasTarifas !== undefined) mapped.outras_tarifas = data.outrasTarifas;
-    if (data.iofPrincipal !== undefined) mapped.iof_principal = data.iofPrincipal;
-    if (data.iofAdicional !== undefined) mapped.iof_adicional = data.iofAdicional;
+
+    // IOF
+    if (data.iofPrincipal !== undefined) mapped.iof_principal = data.iofPrincipal ?? 0;
+    if (data.iofAdicional !== undefined) mapped.iof_adicional = data.iofAdicional ?? 0;
+
+    // Outros encargos
+    if (data.outrosEncargos !== undefined) mapped.outros_encargos = data.outrosEncargos ?? 0;
+
+    // CET
     if (data.cetMensal !== undefined) mapped.cet_mensal = data.cetMensal;
     if (data.cetAnual !== undefined) mapped.cet_anual = data.cetAnual;
+
+    // Totalizadores calculados
     if (data.totalJurosCobrado !== undefined) mapped.total_juros_cobrado = data.totalJurosCobrado;
     if (data.totalJurosDevido !== undefined) mapped.total_juros_devido = data.totalJurosDevido;
     if (data.totalEncargos !== undefined) mapped.total_encargos = data.totalEncargos;
@@ -641,10 +660,14 @@ export class EmprestimosService {
     if (data.valorTotalDevido !== undefined) mapped.valor_total_devido = data.valorTotalDevido;
     if (data.diferencaRestituicao !== undefined) mapped.diferenca_restituicao = data.diferencaRestituicao;
     if (data.sobretaxaPP !== undefined) mapped.sobretaxa_pp = data.sobretaxaPP;
+
+    // Irregularidades
     if (data.tacTecIrregular !== undefined) mapped.tac_tec_irregular = data.tacTecIrregular;
     if (data.segurosIrregulares !== undefined) mapped.seguros_irregulares = data.segurosIrregulares;
     if (data.comissaoPermanenciaIrregular !== undefined) mapped.comissao_permanencia_irregular = data.comissaoPermanenciaIrregular;
     if (data.encargosIrregulares !== undefined) mapped.encargos_irregulares = data.encargosIrregulares;
+
+    // Metadados
     if (data.status !== undefined) mapped.status = data.status;
     if (data.observacoes !== undefined) mapped.observacoes = data.observacoes;
     if (data.calculadoPor !== undefined) mapped.calculado_por = data.calculadoPor;

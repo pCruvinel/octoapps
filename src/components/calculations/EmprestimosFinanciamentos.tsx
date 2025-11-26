@@ -10,6 +10,7 @@ import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { emprestimosService } from '@/services/emprestimos.service';
 import { analisarEmprestimoPrevia } from '@/services/calculationEngine.emprestimo';
+import { obterTaxaMercado } from '@/services/taxasMercadoBacen';
 import type { TipoEmprestimo, SistemaAmortizacao } from '@/types/calculation.types';
 
 interface EmprestimosFinanciamentosProps {
@@ -29,17 +30,43 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
     contratoNum: '',
     tipoEmprestimo: 'Pessoal' as TipoEmprestimo,
     sistemaAmortizacao: 'PRICE' as SistemaAmortizacao,
+
+    // Valores principais
     totalFinanciado: '',
+    valorParcela: '', // NOVO
     quantidadeParcelas: '',
+
+    // Datas
     dataPrimeiraParcela: '',
     dataContrato: '',
+    dataLiberacao: '',
+    dataCalculo: '', // NOVO
+
+    // Taxas de juros
     taxaMensalContrato: '',
-    taxaMensalMercado: '3.00', // 3% padrão
+    taxaAnualContrato: '', // NOVO
+    taxaMensalMercado: '3.00',
+    cdi: '', // NOVO - CDI adicional
+    jurosMora: '', // NOVO
+
+    // Encargos iniciais
     tac: '',
     tec: '',
     tarifaCadastro: '',
-    seguroPrestamista: '',
+    tarifaAvaliacaoBem: '', // NOVO
+    registroContrato: '', // NOVO
     iofPrincipal: '',
+
+    // Seguros e comissões
+    seguroPrestamista: '',
+    seguroProtecaoFinanceira: '', // NOVO
+    seguros: '',
+    comissaoFlat: '', // NOVO
+    tarifas: '', // NOVO
+
+    // Outros
+    outrosEncargos: '',
+    indiceCorrecao: '',
     observacoes: '',
   });
 
@@ -71,17 +98,43 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
         contratoNum: emprestimo.contratoNum || '',
         tipoEmprestimo: emprestimo.tipoEmprestimo,
         sistemaAmortizacao: emprestimo.sistemaAmortizacao,
+
+        // Valores principais
         totalFinanciado: emprestimo.totalFinanciado?.toString() || '',
+        valorParcela: emprestimo.valorParcela?.toString() || '',
         quantidadeParcelas: emprestimo.quantidadeParcelas?.toString() || '',
+
+        // Datas
         dataPrimeiraParcela: emprestimo.dataPrimeiraParcela?.split('T')[0] || '',
         dataContrato: emprestimo.dataContrato?.split('T')[0] || '',
+        dataLiberacao: emprestimo.dataLiberacao?.split('T')[0] || '',
+        dataCalculo: emprestimo.dataCalculo?.split('T')[0] || '',
+
+        // Taxas de juros
         taxaMensalContrato: (emprestimo.taxaMensalContrato * 100)?.toFixed(4) || '',
+        taxaAnualContrato: emprestimo.taxaAnualContrato ? (emprestimo.taxaAnualContrato * 100).toFixed(2) : '',
         taxaMensalMercado: emprestimo.taxaMensalMercado ? (emprestimo.taxaMensalMercado * 100).toFixed(2) : '3.00',
+        cdi: emprestimo.cdi?.toString() || '',
+        jurosMora: emprestimo.taxaJurosMora ? (emprestimo.taxaJurosMora * 100).toFixed(2) : '',
+
+        // Encargos iniciais
         tac: emprestimo.tac?.toString() || '',
         tec: emprestimo.tec?.toString() || '',
         tarifaCadastro: emprestimo.tarifaCadastro?.toString() || '',
-        seguroPrestamista: emprestimo.seguroPrestamista?.toString() || '',
+        tarifaAvaliacaoBem: emprestimo.tarifaAvaliacaoBem?.toString() || '',
+        registroContrato: emprestimo.tarifaRegistroContrato?.toString() || '',
         iofPrincipal: emprestimo.iofPrincipal?.toString() || '',
+
+        // Seguros e comissões
+        seguroPrestamista: emprestimo.seguroPrestamista?.toString() || '',
+        seguroProtecaoFinanceira: emprestimo.seguroProtecaoFinanceira?.toString() || '',
+        seguros: emprestimo.seguros?.toString() || '',
+        comissaoFlat: emprestimo.comissaoFlat?.toString() || '',
+        tarifas: emprestimo.tarifas?.toString() || '',
+
+        // Outros
+        outrosEncargos: emprestimo.outrosEncargos?.toString() || '',
+        indiceCorrecao: emprestimo.indiceCorrecao || '',
         observacoes: emprestimo.observacoes || '',
       });
 
@@ -160,17 +213,43 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
       contratoNum: formData.contratoNum || undefined,
       tipoEmprestimo: formData.tipoEmprestimo,
       sistemaAmortizacao: formData.sistemaAmortizacao,
+
+      // Valores principais
       totalFinanciado: parseNumber(formData.totalFinanciado),
+      valorParcela: parseNumber(formData.valorParcela) || undefined,
       quantidadeParcelas: parseInt(formData.quantidadeParcelas),
+
+      // Datas
       dataPrimeiraParcela: formData.dataPrimeiraParcela,
       dataContrato: formData.dataContrato || undefined,
+      dataLiberacao: formData.dataLiberacao || undefined,
+      dataCalculo: formData.dataCalculo || undefined,
+
+      // Taxas de juros
       taxaMensalContrato: parsePercent(formData.taxaMensalContrato),
+      taxaAnualContrato: parsePercent(formData.taxaAnualContrato) || undefined,
       taxaMensalMercado: parsePercent(formData.taxaMensalMercado),
+      cdi: parsePercent(formData.cdi) || undefined,
+      taxaJurosMora: parsePercent(formData.jurosMora) || undefined,
+
+      // Encargos iniciais
       tac: parseNumber(formData.tac) || undefined,
       tec: parseNumber(formData.tec) || undefined,
       tarifaCadastro: parseNumber(formData.tarifaCadastro) || undefined,
-      seguroPrestamista: parseNumber(formData.seguroPrestamista) || undefined,
+      tarifaAvaliacaoBem: parseNumber(formData.tarifaAvaliacaoBem) || undefined,
+      tarifaRegistroContrato: parseNumber(formData.registroContrato) || undefined,
       iofPrincipal: parseNumber(formData.iofPrincipal) || undefined,
+
+      // Seguros e comissões
+      seguroPrestamista: parseNumber(formData.seguroPrestamista) || undefined,
+      seguroProtecaoFinanceira: parseNumber(formData.seguroProtecaoFinanceira) || undefined,
+      seguros: parseNumber(formData.seguros) || undefined,
+      comissaoFlat: parseNumber(formData.comissaoFlat) || undefined,
+      tarifas: parseNumber(formData.tarifas) || undefined,
+
+      // Outros
+      outrosEncargos: parseNumber(formData.outrosEncargos) || undefined,
+      indiceCorrecao: formData.indiceCorrecao || undefined,
       observacoes: formData.observacoes || undefined,
     };
   };
@@ -219,12 +298,15 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
       // Salvar dados primeiro
       await handleSave();
 
+      // NOVO: Obter taxa de mercado automaticamente se não foi informada
+      const taxaMercadoAutomatica = dataToSave.taxaMensalMercado || obterTaxaMercado(dataToSave.tipoEmprestimo);
+
       // Executar análise
       const resultadoAnalise = analisarEmprestimoPrevia({
         valorFinanciado: dataToSave.totalFinanciado,
         numeroParcelas: dataToSave.quantidadeParcelas,
         taxaMensalCobrada: dataToSave.taxaMensalContrato,
-        taxaMensalMercado: dataToSave.taxaMensalMercado,
+        taxaMensalMercado: taxaMercadoAutomatica, // ALTERADO: Usar taxa BACEN
         sistemaAmortizacao: dataToSave.sistemaAmortizacao,
         encargosIniciais: (dataToSave.tac || 0) + (dataToSave.tec || 0) + (dataToSave.tarifaCadastro || 0),
         encargosRecorrentes: dataToSave.seguroPrestamista || 0,
@@ -288,12 +370,15 @@ export function EmprestimosFinanciamentos({ calcId, onNavigate }: EmprestimosFin
       // Salvar dados
       await handleSave();
 
+      // NOVO: Obter taxa de mercado automaticamente se não foi informada
+      const taxaMercadoAutomatica = dataToSave.taxaMensalMercado || obterTaxaMercado(dataToSave.tipoEmprestimo);
+
       // Executar análise completa
       const resultadoAnalise = analisarEmprestimoPrevia({
         valorFinanciado: dataToSave.totalFinanciado,
         numeroParcelas: dataToSave.quantidadeParcelas,
         taxaMensalCobrada: dataToSave.taxaMensalContrato,
-        taxaMensalMercado: dataToSave.taxaMensalMercado,
+        taxaMensalMercado: taxaMercadoAutomatica, // ALTERADO: Usar taxa BACEN
         sistemaAmortizacao: dataToSave.sistemaAmortizacao,
         encargosIniciais: (dataToSave.tac || 0) + (dataToSave.tec || 0),
         encargosRecorrentes: dataToSave.seguroPrestamista || 0,

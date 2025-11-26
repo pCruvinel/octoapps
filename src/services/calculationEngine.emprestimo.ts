@@ -45,6 +45,91 @@ const IOF_ADICIONAL = 0.0038; // 0.38%
 const TOLERANCIA = 0.01;
 
 // ============================================================================
+// CÁLCULO DE CARÊNCIA/ANTECIPAÇÃO
+// ============================================================================
+
+/**
+ * Calcula juros de carência/antecipação
+ *
+ * Quando há diferença entre a data de liberação do crédito e a data da primeira
+ * parcela superior a 30 dias, é necessário calcular juros proporcionais sobre
+ * o período de carência.
+ *
+ * Fórmula: Juros = PV × [(1+i)^(dias/30) - 1]
+ *
+ * Onde:
+ * - PV = Valor presente (valor financiado)
+ * - i = Taxa de juros mensal
+ * - dias = Diferença em dias entre liberação e 1ª parcela
+ *
+ * @param params - Parâmetros para cálculo da carência
+ * @returns Objeto contendo dias de carência, juros acumulados e valor ajustado
+ *
+ * @example
+ * const resultado = calcularJurosCarencia({
+ *   valorFinanciado: 10000,
+ *   taxaMensal: 0.03, // 3% a.m.
+ *   dataLiberacao: '2025-01-01',
+ *   dataPrimeiraParcela: '2025-03-01'
+ * });
+ * // Retorna: { diasCarencia: 59, jurosCarencia: 600, valorFinanciadoAjustado: 10600 }
+ */
+export function calcularJurosCarencia(params: {
+  valorFinanciado: number;
+  taxaMensal: number;
+  dataLiberacao: string;
+  dataPrimeiraParcela: string;
+}): {
+  diasCarencia: number;
+  jurosCarencia: number;
+  valorFinanciadoAjustado: number;
+} {
+  const { valorFinanciado, taxaMensal, dataLiberacao, dataPrimeiraParcela } = params;
+
+  // Validações
+  if (valorFinanciado <= 0) {
+    throw new Error('Valor financiado deve ser maior que zero');
+  }
+
+  if (taxaMensal < 0) {
+    throw new Error('Taxa mensal não pode ser negativa');
+  }
+
+  // Calcular diferença em dias
+  const dataLib = new Date(dataLiberacao + 'T00:00:00');
+  const data1Parc = new Date(dataPrimeiraParcela + 'T00:00:00');
+  const diasCarencia = Math.floor((data1Parc.getTime() - dataLib.getTime()) / (1000 * 60 * 60 * 24));
+
+  // Validar ordem das datas
+  if (diasCarencia < 0) {
+    throw new Error('Data da primeira parcela deve ser posterior à data de liberação');
+  }
+
+  // Se <= 30 dias, não há carência (período padrão)
+  if (diasCarencia <= 30) {
+    return {
+      diasCarencia: 0,
+      jurosCarencia: 0,
+      valorFinanciadoAjustado: valorFinanciado,
+    };
+  }
+
+  // Calcular juros proporcionais: PV × [(1+i)^(dias/30) - 1]
+  const expoente = diasCarencia / 30;
+  const fator = Math.pow(1 + taxaMensal, expoente);
+  const jurosCarencia = valorFinanciado * (fator - 1);
+
+  // Valor ajustado = PV original + juros de carência
+  const valorFinanciadoAjustado = valorFinanciado + jurosCarencia;
+
+  return {
+    diasCarencia,
+    jurosCarencia,
+    valorFinanciadoAjustado,
+  };
+}
+
+// ============================================================================
 // SISTEMA PRICE - PARCELAS FIXAS
 // ============================================================================
 
@@ -79,10 +164,28 @@ export function calcularEmprestimoPRICE(
     taxaMensalCobrada,
     taxaMensalMercado,
     dataInicio,
+    dataLiberacao,
     encargosIniciais = {},
     encargosRecorrentes = {},
   } = params;
 
+  // NOVO: Calcular carência se dataLiberacao fornecida
+  let valorFinanciadoAjustado = valorFinanciado;
+  let resultadoCarencia: ReturnType<typeof calcularJurosCarencia> | undefined;
+
+  if (dataLiberacao) {
+    resultadoCarencia = calcularJurosCarencia({
+      valorFinanciado,
+      taxaMensal: taxaMensalCobrada,
+      dataLiberacao,
+      dataPrimeiraParcela: dataInicio,
+    });
+
+    // Se houver carência (mais de 30 dias), ajustar valor financiado
+    if (resultadoCarencia.diasCarencia > 0) {
+      valorFinanciadoAjustado = resultadoCarencia.valorFinanciadoAjustado;
+    }
+  }
 
   // Calcular total de encargos iniciais
   const totalEncargosIniciais = Object.values(encargosIniciais).reduce((sum, val) => sum + (val || 0), 0);
@@ -90,9 +193,9 @@ export function calcularEmprestimoPRICE(
   // Calcular total de encargos recorrentes (por parcela)
   const totalEncargosRecorrentes = Object.values(encargosRecorrentes).reduce((sum, val) => sum + (val || 0), 0);
 
-  // Calcular cenário cobrado
+  // Calcular cenário cobrado (usando valor ajustado se houver carência)
   const cenarioCobrado = gerarTabelaPRICE({
-    valorFinanciado,
+    valorFinanciado: valorFinanciadoAjustado,
     numeroParcelas,
     taxaMensal: taxaMensalCobrada,
     dataInicio,
@@ -144,6 +247,12 @@ export function calcularEmprestimoPRICE(
       cetMensalDevido: cetDevido.cetMensal,
       cetAnualDevido: cetDevido.cetAnual,
     },
+    // Adicionar informações de carência se houver
+    carencia: resultadoCarencia && resultadoCarencia.diasCarencia > 0 ? {
+      diasCarencia: resultadoCarencia.diasCarencia,
+      jurosCarencia: resultadoCarencia.jurosCarencia,
+      valorFinanciadoAjustado: resultadoCarencia.valorFinanciadoAjustado,
+    } : undefined,
   };
 }
 
@@ -177,13 +286,16 @@ function gerarTabelaPRICE(params: {
   let totalEncargos = 0;
 
   for (let mes = 1; mes <= numeroParcelas; mes++) {
-    // Calcular juros do mês (sobre saldo devedor)
-    const juros = saldoDevedor * taxaMensal;
+    // NOVO: Capturar saldo devedor inicial (antes de calcular amortização)
+    const saldoDevedorInicial = saldoDevedor;
+
+    // Calcular juros do mês (sobre saldo devedor inicial)
+    const juros = saldoDevedorInicial * taxaMensal;
 
     // Calcular amortização (diferença entre PMT e juros)
     const amortizacao = PMT - juros;
 
-    // Atualizar saldo devedor
+    // Atualizar saldo devedor final (após amortização)
     saldoDevedor = Math.max(0, saldoDevedor - amortizacao);
 
     // Calcular data da parcela
@@ -196,10 +308,11 @@ function gerarTabelaPRICE(params: {
     tabela.push({
       mes,
       dataVencimento,
+      saldoDevedorInicial, // NOVO: Saldo no início do período
       valorParcela: PMT,
       juros,
       amortizacao,
-      saldoDevedor,
+      saldoDevedor, // Saldo no final do período
       seguroPrestamista: encargosRecorrentes,
       totalParcela,
     });
