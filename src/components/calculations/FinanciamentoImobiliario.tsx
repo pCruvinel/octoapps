@@ -19,6 +19,7 @@ import {
 import { parseNumber } from '@/utils/parseNumber';
 import { formatCurrencyInput } from '@/utils/formatCurrency';
 import { financiamentosService } from '@/services/financiamentos.service';
+import { obterTaxaMercado } from '@/services/taxasMercadoBacen';
 
 interface FinanciamentoImobiliarioProps {
   calcId: string | null;
@@ -50,7 +51,7 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     // Taxas
     taxaMensalContrato: '',
     taxaAnualContrato: '',
-    taxaMensalMercado: '0.0062', // 0.62% a.m. (padrão)
+    taxaMensalMercado: '', // Será preenchido automaticamente com taxa BACEN
 
     // Seguros e encargos (primeira parcela)
     mip: '',
@@ -223,6 +224,18 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
 
     loadCase();
   }, [calcId, onNavigate]);
+
+  // Buscar taxa média do mercado BACEN automaticamente
+  useEffect(() => {
+    // Só preenche automaticamente se o campo estiver vazio ou com valor padrão desatualizado
+    if (!calcId && (!formData.taxaMensalMercado || formData.taxaMensalMercado === '0.0062')) {
+      const taxaBacen = obterTaxaMercado('Imobiliário'); // Retorna 0.0091
+      setFormData(prev => ({
+        ...prev,
+        taxaMensalMercado: taxaBacen.toFixed(4), // "0.0091"
+      }));
+    }
+  }, []); // Executa apenas uma vez ao montar
 
   // Campos que devem ser formatados como moeda brasileira
   const currencyFields = ['valorBem', 'entrada', 'valorFinanciado', 'mip', 'dfi', 'tca', 'multa', 'mora'];
@@ -845,15 +858,18 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="taxaMensalMercado">Taxa Mensal de Mercado</Label>
+                <Label htmlFor="taxaMensalMercado">Taxa Média do Mercado</Label>
                 <Input
                   id="taxaMensalMercado"
                   type="number"
                   step="0.0001"
-                  placeholder="Ex: 0.0062"
+                  placeholder="Ex: 0.0091"
                   value={formData.taxaMensalMercado}
                   onChange={(e) => handleInputChange('taxaMensalMercado', e.target.value)}
                 />
+                <p className="text-sm text-muted-foreground">
+                  Taxa BACEN para financiamento imobiliário: 0.91% a.m. (10.9% a.a.) - Atualizado: Jan/2025
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="mip">MIP (1ª parcela)</Label>
