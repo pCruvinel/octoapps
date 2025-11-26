@@ -79,7 +79,7 @@ function AppContent() {
       case 'settings-funnel':
         return <FunnelSettings />;
       case 'users':
-        return <UserManagement />;
+        return <UserManagement onNavigate={navigate} />;
       case 'permissions':
         return <PermissionsManagement />;
       case 'contacts':

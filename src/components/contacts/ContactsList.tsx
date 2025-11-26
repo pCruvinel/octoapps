@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import InputMask from 'react-input-mask';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
 import type { Contact } from '../../types/contact';
 
 interface ContactsListProps {
@@ -21,6 +22,7 @@ interface ContactsListProps {
 
 export function ContactsList({ onNavigate }: ContactsListProps) {
   const { user } = useAuth();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -45,18 +47,26 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
   const [contacts, setContacts] = useState<Contact[]>([]);
 
-  // Load contacts from Supabase
+  // Load contacts from Supabase when user changes
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [user]);
 
   const loadContacts = async () => {
     try {
       setLoadingContacts(true);
+
+      if (!user) {
+        setContacts([]);
+        return;
+      }
+
+      // Buscar apenas contatos do usuário atual (criados por ele ou onde ele é responsável)
       const { data, error } = await supabase
         .from('contatos')
         .select('*')
         .eq('ativo', true)
+        .or(`criado_por.eq.${user.id},responsavel_id.eq.${user.id}`)
         .order('data_criacao', { ascending: false });
 
       if (error) throw error;
@@ -71,6 +81,12 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const handleCreateContact = async () => {
+    // Verificar permissão de criar
+    if (!canCreate('contacts')) {
+      toast.error('Você não tem permissão para criar contatos');
+      return;
+    }
+
     if (!newContact.name || !newContact.email) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
@@ -127,6 +143,12 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const openEditDialog = (id: string) => {
+    // Verificar permissão de editar
+    if (!canUpdate('contacts')) {
+      toast.error('Você não tem permissão para editar contatos');
+      return;
+    }
+
     const contact = contacts.find(c => c.id === id);
     if (contact) {
       setSelectedContactId(id);
@@ -142,11 +164,23 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const openDeleteDialog = (id: string) => {
+    // Verificar permissão de deletar
+    if (!canDelete('contacts')) {
+      toast.error('Você não tem permissão para excluir contatos');
+      return;
+    }
+
     setSelectedContactId(id);
     setDeleteDialogOpen(true);
   };
 
   const handleEditContact = async () => {
+    // Verificar permissão de editar
+    if (!canUpdate('contacts')) {
+      toast.error('Você não tem permissão para editar contatos');
+      return;
+    }
+
     if (!editContact.name || !editContact.email) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
@@ -188,6 +222,12 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const handleDeleteContact = async () => {
+    // Verificar permissão de deletar
+    if (!canDelete('contacts')) {
+      toast.error('Você não tem permissão para excluir contatos');
+      return;
+    }
+
     setLoading(true);
     try {
       // Soft delete (marcar como inativo)
@@ -240,7 +280,16 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2 w-full sm:w-auto">
+            <Button
+              className="gap-2 w-full sm:w-auto"
+              disabled={!canCreate('contacts')}
+              onClick={(e) => {
+                if (!canCreate('contacts')) {
+                  e.preventDefault();
+                  toast.error('Você não tem permissão para criar contatos');
+                }
+              }}
+            >
               <Plus className="w-4 h-4" />
               Novo Contato
             </Button>
@@ -406,13 +455,17 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                           <DropdownMenuItem onClick={() => onNavigate('contact-details', contact.id)}>
                             Visualizar
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openEditDialog(contact.id)}>Editar</DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-600 dark:text-red-400"
-                            onClick={() => openDeleteDialog(contact.id)}
-                          >
-                            Excluir
-                          </DropdownMenuItem>
+                          {canUpdate('contacts') && (
+                            <DropdownMenuItem onClick={() => openEditDialog(contact.id)}>Editar</DropdownMenuItem>
+                          )}
+                          {canDelete('contacts') && (
+                            <DropdownMenuItem
+                              className="text-red-600 dark:text-red-400"
+                              onClick={() => openDeleteDialog(contact.id)}
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

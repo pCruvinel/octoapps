@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Badge } from '../ui/badge';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
 import type { Opportunity } from '../../types/opportunity';
 import type { Contact } from '../../types/contact';
@@ -22,9 +23,11 @@ interface OpportunityCardProps {
   onNavigate: (route: string, id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  canUpdate: boolean;
+  canDelete: boolean;
 }
 
-function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete }: OpportunityCardProps) {
+function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, canUpdate, canDelete }: OpportunityCardProps) {
   const formatCurrency = (value: number | null | undefined) => {
     if (!value) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
@@ -56,15 +59,19 @@ function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete }: Opportun
             <DropdownMenuItem onClick={() => onNavigate('opportunity-details', opportunity.id)}>
               Visualizar
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onEdit(opportunity.id)}>
-              Editar
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="text-red-600 dark:text-red-400"
-              onClick={() => onDelete(opportunity.id)}
-            >
-              Excluir
-            </DropdownMenuItem>
+            {canUpdate && (
+              <DropdownMenuItem onClick={() => onEdit(opportunity.id)}>
+                Editar
+              </DropdownMenuItem>
+            )}
+            {canDelete && (
+              <DropdownMenuItem
+                className="text-red-600 dark:text-red-400"
+                onClick={() => onDelete(opportunity.id)}
+              >
+                Excluir
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -101,6 +108,7 @@ interface CRMKanbanProps {
 
 export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const { user } = useAuth();
+  const { canCreate, canUpdate, canDelete } = usePermissions();
   const { etapas, loading: loadingEtapas } = useEtapasFunil();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -133,16 +141,23 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
 
-  // Load data on mount
+  // Load data when user changes
   useEffect(() => {
     loadOpportunities();
     loadContacts();
     loadProfiles();
-  }, []);
+  }, [user]);
 
   const loadOpportunities = async () => {
     try {
       setLoadingOpportunities(true);
+
+      if (!user) {
+        setOpportunities([]);
+        return;
+      }
+
+      // Buscar apenas oportunidades do usuário (criado por ele ou onde ele é responsável)
       const { data, error } = await supabase
         .from('oportunidades')
         .select(`
@@ -162,6 +177,7 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
           )
         `)
         .eq('ativo', true)
+        .or(`criado_por.eq.${user.id},responsavel_id.eq.${user.id}`)
         .order('ordem', { ascending: true })
         .order('data_criacao', { ascending: false });
 
@@ -186,10 +202,17 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
 
   const loadContacts = async () => {
     try {
+      if (!user) {
+        setContacts([]);
+        return;
+      }
+
+      // Buscar apenas contatos do usuário (criado por ele ou onde ele é responsável)
       const { data, error } = await supabase
         .from('contatos')
         .select('id, nome_completo, email')
         .eq('ativo', true)
+        .or(`criado_por.eq.${user.id},responsavel_id.eq.${user.id}`)
         .order('nome_completo');
 
       if (error) throw error;
@@ -217,6 +240,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   };
 
   const handleCreateOpportunity = async () => {
+    // Verificar permissão de criar
+    if (!canCreate('crm')) {
+      toast.error('Você não tem permissão para criar oportunidades');
+      return;
+    }
+
     if (!newOpportunity.titulo) {
       toast.error('Preencha o nome da oportunidade');
       return;
@@ -264,6 +293,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   };
 
   const handleOpenEdit = (id: string) => {
+    // Verificar permissão de editar
+    if (!canUpdate('crm')) {
+      toast.error('Você não tem permissão para editar oportunidades');
+      return;
+    }
+
     const opp = opportunities.find(o => o.id === id);
     if (opp) {
       setEditOpportunity({
@@ -281,6 +316,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   };
 
   const handleEditOpportunity = async () => {
+    // Verificar permissão de editar
+    if (!canUpdate('crm')) {
+      toast.error('Você não tem permissão para editar oportunidades');
+      return;
+    }
+
     if (!editOpportunity.titulo) {
       toast.error('Preencha o nome da oportunidade');
       return;
@@ -319,11 +360,23 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   };
 
   const handleOpenDelete = (id: string) => {
+    // Verificar permissão de deletar
+    if (!canDelete('crm')) {
+      toast.error('Você não tem permissão para excluir oportunidades');
+      return;
+    }
+
     setSelectedOpportunityId(id);
     setIsDeleteDialogOpen(true);
   };
 
   const handleConfirmDelete = async () => {
+    // Verificar permissão de deletar
+    if (!canDelete('crm')) {
+      toast.error('Você não tem permissão para excluir oportunidades');
+      return;
+    }
+
     if (!selectedOpportunityId) return;
 
     setLoading(true);
@@ -370,7 +423,16 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2">
+              <Button
+                className="gap-2"
+                disabled={!canCreate('crm')}
+                onClick={(e) => {
+                  if (!canCreate('crm')) {
+                    e.preventDefault();
+                    toast.error('Você não tem permissão para criar oportunidades');
+                  }
+                }}
+              >
                 <Plus className="w-4 h-4" />
                 Nova Oportunidade
               </Button>
@@ -550,6 +612,8 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                         onNavigate={onNavigate}
                         onEdit={handleOpenEdit}
                         onDelete={handleOpenDelete}
+                        canUpdate={canUpdate('crm')}
+                        canDelete={canDelete('crm')}
                       />
                     ))}
                     {etapaOpps.length === 0 && (

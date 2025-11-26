@@ -1,48 +1,75 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Search, MoreVertical, User, Edit, Trash2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, User, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Skeleton } from '../ui/skeleton';
+import { usersService, type UserWithRole, type Role } from '../../services/users.service';
 
-export function UserManagement() {
+interface UserManagementProps {
+  onNavigate: (page: string, id?: string) => void;
+}
+
+export function UserManagement({ onNavigate }: UserManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  
+
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    role: '',
+    role_id: '',
     password: '',
-    status: 'active',
   });
 
   const [editUser, setEditUser] = useState({
     name: '',
     email: '',
-    role: '',
-    status: 'active',
+    role_id: '',
   });
 
-  const [users, setUsers] = useState([
-    { id: '1', name: 'Ana Admin', email: 'ana@escritorio.com', role: 'Administrador', status: 'active' },
-    { id: '2', name: 'Diego Perito', email: 'diego@escritorio.com', role: 'Perito', status: 'active' },
-    { id: '3', name: 'Maria Advogada', email: 'maria@escritorio.com', role: 'Advogado', status: 'active' },
-    { id: '4', name: 'Carlos Assistente', email: 'carlos@escritorio.com', role: 'Assistente', status: 'inactive' },
-  ]);
+  // Carregar usuários e roles ao montar
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleCreateUser = () => {
-    if (!newUser.name || !newUser.email || !newUser.password) {
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [usersData, rolesData] = await Promise.all([
+        usersService.getUsers(),
+        usersService.getRoles(),
+      ]);
+      setUsers(usersData);
+      setRoles(rolesData);
+    } catch (error: any) {
+      console.error('Erro ao carregar dados:', error);
+      toast.error('Erro ao carregar usuários');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUser.name || !newUser.email || !newUser.password || !newUser.role_id) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -57,15 +84,43 @@ export function UserManagement() {
       return;
     }
 
-    toast.success('Usuário criado com sucesso!');
-    setIsDialogOpen(false);
-    setNewUser({
-      name: '',
-      email: '',
-      role: '',
-      password: '',
-      status: 'active',
-    });
+    try {
+      setCreating(true);
+
+      const userId = await usersService.createUser({
+        nome_completo: newUser.name,
+        email: newUser.email,
+        password: newUser.password,
+        role_id: newUser.role_id,
+      });
+
+      toast.success('Usuário criado com sucesso!');
+      setIsDialogOpen(false);
+      setNewUser({
+        name: '',
+        email: '',
+        role_id: '',
+        password: '',
+      });
+
+      // Recarregar lista de usuários
+      await loadData();
+
+      // Navegar para a página de permissões
+      onNavigate('permissions');
+    } catch (error: any) {
+      console.error('Erro ao criar usuário:', error);
+
+      if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
+        toast.error('Este e-mail já está em uso');
+      } else if (error.message?.includes('admin')) {
+        toast.error('Você não tem permissão para criar usuários');
+      } else {
+        toast.error(`Erro ao criar usuário: ${error.message || 'Tente novamente'}`);
+      }
+    } finally {
+      setCreating(false);
+    }
   };
 
   const handleViewUser = (id: string) => {
@@ -76,22 +131,21 @@ export function UserManagement() {
     }
   };
 
-  const handleEditUser = (id: string) => {
+  const openEditDialog = (id: string) => {
     const user = users.find(u => u.id === id);
     if (user) {
       setSelectedUserId(id);
       setEditUser({
-        name: user.name,
+        name: user.nome_completo,
         email: user.email,
-        role: user.role,
-        status: user.status,
+        role_id: user.roles[0]?.id || '',
       });
       setEditDialogOpen(true);
     }
   };
 
-  const handleUpdateUser = () => {
-    if (!editUser.name || !editUser.email || !editUser.role) {
+  const handleUpdateUser = async () => {
+    if (!editUser.name || !editUser.email || !editUser.role_id) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
@@ -101,15 +155,34 @@ export function UserManagement() {
       return;
     }
 
-    setUsers(prev => prev.map(user => 
-      user.id === selectedUserId 
-        ? { ...user, ...editUser }
-        : user
-    ));
-    
-    toast.success('Usuário atualizado com sucesso!');
-    setEditDialogOpen(false);
-    setSelectedUserId(null);
+    if (!selectedUserId) return;
+
+    try {
+      setUpdating(true);
+
+      await usersService.updateUser(selectedUserId, {
+        nome_completo: editUser.name,
+        email: editUser.email,
+        role_id: editUser.role_id,
+      });
+
+      toast.success('Usuário atualizado com sucesso!');
+      setEditDialogOpen(false);
+      setSelectedUserId(null);
+
+      // Recarregar lista
+      await loadData();
+    } catch (error: any) {
+      console.error('Erro ao atualizar usuário:', error);
+
+      if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
+        toast.error('Este e-mail já está em uso');
+      } else {
+        toast.error('Erro ao atualizar usuário');
+      }
+    } finally {
+      setUpdating(false);
+    }
   };
 
   const handleDeleteClick = (id: string) => {
@@ -117,18 +190,35 @@ export function UserManagement() {
     setDeleteDialogOpen(true);
   };
 
-  const handleDeleteUser = () => {
-    setUsers(prev => prev.filter(user => user.id !== selectedUserId));
-    toast.success('Usuário excluído com sucesso!');
-    setDeleteDialogOpen(false);
-    setSelectedUserId(null);
+  const handleDeleteUser = async () => {
+    if (!selectedUserId) return;
+
+    try {
+      setDeleting(true);
+
+      await usersService.deleteUser(selectedUserId);
+
+      toast.success('Usuário excluído com sucesso!');
+      setDeleteDialogOpen(false);
+      setSelectedUserId(null);
+
+      // Recarregar lista
+      await loadData();
+    } catch (error: any) {
+      console.error('Erro ao deletar usuário:', error);
+      toast.error('Erro ao excluir usuário');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase())
+    user.roles.some(role => role.nome.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const selectedUser = users.find(u => u.id === selectedUserId);
 
   return (
     <div className="p-4 lg:p-8">
@@ -161,7 +251,7 @@ export function UserManagement() {
             <DialogHeader>
               <DialogTitle>Novo Usuário</DialogTitle>
               <DialogDescription>
-                Preencha os dados do novo usuário
+                Preencha os dados do novo usuário. Após criar, você será redirecionado para configurar as permissões.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
@@ -172,6 +262,7 @@ export function UserManagement() {
                   value={newUser.name}
                   onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Nome do usuário"
+                  disabled={creating}
                 />
               </div>
 
@@ -183,23 +274,26 @@ export function UserManagement() {
                   value={newUser.email}
                   onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="email@exemplo.com"
+                  disabled={creating}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="role">Perfil *</Label>
-                <Select 
-                  value={newUser.role}
-                  onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}
+                <Select
+                  value={newUser.role_id}
+                  onValueChange={(value) => setNewUser(prev => ({ ...prev, role_id: value }))}
+                  disabled={creating}
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="Selecione o perfil" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Administrador">Administrador</SelectItem>
-                    <SelectItem value="Advogado">Advogado</SelectItem>
-                    <SelectItem value="Perito">Perito</SelectItem>
-                    <SelectItem value="Assistente">Assistente</SelectItem>
+                    {roles.map(role => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.nome}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -212,30 +306,16 @@ export function UserManagement() {
                   value={newUser.password}
                   onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
                   placeholder="Mínimo 6 caracteres"
+                  disabled={creating}
                 />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={newUser.status}
-                  onValueChange={(value) => setNewUser(prev => ({ ...prev, status: value }))}
-                >
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Ativo</SelectItem>
-                    <SelectItem value="inactive">Inativo</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={creating}>
                 Cancelar
               </Button>
-              <Button onClick={handleCreateUser}>
+              <Button onClick={handleCreateUser} disabled={creating}>
+                {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Criar Usuário
               </Button>
             </DialogFooter>
@@ -248,62 +328,69 @@ export function UserManagement() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>E-mail</TableHead>
                 <TableHead>Perfil</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead className="w-12">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map(user => (
-                <TableRow key={user.id}>
-                  <TableCell>{user.id}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                        <User className="w-4 h-4" />
+              {loading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-8" /></TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                filteredUsers.map(user => (
+                  <TableRow key={user.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                          <User className="w-4 h-4" />
+                        </div>
+                        <span className="text-gray-900 dark:text-white">{user.nome_completo}</span>
                       </div>
-                      <span className="text-gray-900 dark:text-white">{user.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{user.role}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
-                      {user.status === 'active' ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewUser(user.id)}>Visualizar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditUser(user.id)}>Editar</DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600 dark:text-red-400"
-                          onClick={() => handleDeleteClick(user.id)}
-                        >
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {user.roles.map(role => (
+                          <Badge key={role.id} variant="outline">{role.nome}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewUser(user.id)}>Visualizar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(user.id)}>Editar</DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-600 dark:text-red-400"
+                            onClick={() => handleDeleteClick(user.id)}
+                          >
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
 
-      {filteredUsers.length === 0 && (
+      {!loading && filteredUsers.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">
             Nenhum usuário encontrado
@@ -320,50 +407,35 @@ export function UserManagement() {
               Visualize as informações do usuário
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {selectedUserId && (() => {
-              const user = users.find(u => u.id === selectedUserId);
-              if (!user) return null;
-              
-              return (
-                <>
-                  <div className="space-y-2">
-                    <Label>ID</Label>
-                    <div className="text-sm text-gray-900 dark:text-white">{user.id}</div>
-                  </div>
+          {selectedUser && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Completo</Label>
+                <div className="text-sm text-gray-900 dark:text-white">{selectedUser.nome_completo}</div>
+              </div>
 
-                  <div className="space-y-2">
-                    <Label>Nome Completo</Label>
-                    <div className="text-sm text-gray-900 dark:text-white">{user.name}</div>
-                  </div>
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <div className="text-sm text-gray-900 dark:text-white">{selectedUser.email}</div>
+              </div>
 
-                  <div className="space-y-2">
-                    <Label>E-mail</Label>
-                    <div className="text-sm text-gray-900 dark:text-white">{user.email}</div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Perfil</Label>
-                    <Badge variant="outline">{user.role}</Badge>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
-                      {user.status === 'active' ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
+              <div className="space-y-2">
+                <Label>Perfil</Label>
+                <div className="flex gap-1">
+                  {selectedUser.roles.map(role => (
+                    <Badge key={role.id} variant="outline">{role.nome}</Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setViewDialogOpen(false)}>
               Fechar
             </Button>
             <Button onClick={() => {
               setViewDialogOpen(false);
-              if (selectedUserId) handleEditUser(selectedUserId);
+              if (selectedUserId) openEditDialog(selectedUserId);
             }}>
               <Edit className="w-4 h-4 mr-2" />
               Editar
@@ -389,6 +461,7 @@ export function UserManagement() {
                 value={editUser.name}
                 onChange={(e) => setEditUser(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Nome do usuário"
+                disabled={updating}
               />
             </div>
 
@@ -400,48 +473,36 @@ export function UserManagement() {
                 value={editUser.email}
                 onChange={(e) => setEditUser(prev => ({ ...prev, email: e.target.value }))}
                 placeholder="email@exemplo.com"
+                disabled={updating}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="edit-role">Perfil *</Label>
-              <Select 
-                value={editUser.role}
-                onValueChange={(value) => setEditUser(prev => ({ ...prev, role: value }))}
+              <Select
+                value={editUser.role_id}
+                onValueChange={(value) => setEditUser(prev => ({ ...prev, role_id: value }))}
+                disabled={updating}
               >
                 <SelectTrigger id="edit-role">
                   <SelectValue placeholder="Selecione o perfil" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Administrador">Administrador</SelectItem>
-                  <SelectItem value="Advogado">Advogado</SelectItem>
-                  <SelectItem value="Perito">Perito</SelectItem>
-                  <SelectItem value="Assistente">Assistente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <Select 
-                value={editUser.status}
-                onValueChange={(value) => setEditUser(prev => ({ ...prev, status: value }))}
-              >
-                <SelectTrigger id="edit-status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="inactive">Inativo</SelectItem>
+                  {roles.map(role => (
+                    <SelectItem key={role.id} value={role.id}>
+                      {role.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={updating}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdateUser}>
+            <Button onClick={handleUpdateUser} disabled={updating}>
+              {updating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Salvar Alterações
             </Button>
           </DialogFooter>
@@ -458,13 +519,15 @@ export function UserManagement() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteUser}
+              disabled={deleting}
               className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
             >
+              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

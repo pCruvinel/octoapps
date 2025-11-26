@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface SidebarProps {
   currentRoute: string;
@@ -25,6 +26,7 @@ interface SidebarProps {
 
 export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose }: SidebarProps) {
   const { profile } = useAuth();
+  const { canRead, canManagePermissions } = usePermissions();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     settings: false,
     calculations: false,
@@ -37,27 +39,29 @@ export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose 
   const isAdmin = profile?.roles?.includes('Administrador') || false;
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard, route: 'dashboard', adminOnly: false },
-    { id: 'crm', label: 'Pipeline', icon: Kanban, route: 'crm', adminOnly: false },
-    { id: 'contacts', label: 'Contatos', icon: Contact, route: 'contacts', adminOnly: false },
+    { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard, route: 'dashboard', adminOnly: false, module: null },
+    { id: 'crm', label: 'Pipeline', icon: Kanban, route: 'crm', adminOnly: false, module: 'crm' as const },
+    { id: 'contacts', label: 'Contatos', icon: Contact, route: 'contacts', adminOnly: false, module: 'contacts' as const },
     {
       id: 'calculations',
       label: 'Cálculo Revisional',
       icon: Calculator,
       adminOnly: false,
+      module: 'calculations' as const,
       submenu: [
         { id: 'calculations', label: 'Lista de Casos', route: 'calculations' },
         { id: 'upload-contratos', label: 'Upload de Contratos', route: 'upload-contratos' },
       ]
     },
-    { id: 'peticoes', label: 'Geração de Petições', icon: FileText, route: 'peticoes', adminOnly: false },
-    { id: 'users', label: 'Usuários', icon: Users, route: 'users', adminOnly: true },
-    { id: 'permissions', label: 'Permissões', icon: Shield, route: 'permissions', adminOnly: true },
+    { id: 'peticoes', label: 'Geração de Petições', icon: FileText, route: 'peticoes', adminOnly: false, module: 'petitions' as const },
+    { id: 'users', label: 'Usuários', icon: Users, route: 'users', adminOnly: true, module: null },
+    { id: 'permissions', label: 'Permissões', icon: Shield, route: 'permissions', adminOnly: true, module: null },
     {
       id: 'settings',
       label: 'Configurações',
       icon: Settings,
       adminOnly: true,
+      module: null,
       submenu: [
         { id: 'settings-general', label: 'Opções Gerais', route: 'settings-general' },
         { id: 'settings-funnel', label: 'Funil e Cards', route: 'settings-funnel' },
@@ -70,7 +74,11 @@ export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose 
     const hasSubmenu = item.submenu && item.submenu.length > 0;
     const isExpanded = expandedMenus[item.id];
 
+    // Verificar se é adminOnly
     if (item.adminOnly && !isAdmin) return null;
+
+    // Verificar permissão de leitura do módulo (se o item tiver módulo associado)
+    if (item.module && !canRead(item.module)) return null;
 
     if (hasSubmenu) {
       return (
