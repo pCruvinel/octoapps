@@ -501,6 +501,61 @@ export class FinanciamentosService {
 
     return count || 0;
   }
+
+  // ==========================================================================
+  // RPC OPERATIONS
+  // ==========================================================================
+
+  /**
+   * Create financiamento and generate preview analysis via RPC
+   * Calls the Supabase RPC function criar_financiamento_e_analise
+   */
+  async criarFinanciamentoEAnalise(params: {
+    // Cálculo params
+    p_valor_financiado: number;
+    p_taxa_juros_mensal_contrato: number;
+    p_taxa_juros_anual_contrato: number;
+    p_taxa_media_mensal: number;
+    p_taxa_media_anual: number;
+    p_qtd_parcelas_contrato: number;
+    p_qtd_parcelas_analise: number;
+    p_seguros_mensais: number;
+    p_sistema_amortizacao: string;
+    p_indexador_cm: string;
+    p_data_contratual: string;
+    p_primeiro_vencimento: string;
+
+    // Dados do processo
+    p_credor: string;
+    p_devedor: string;
+    p_tipo_contrato: string;
+    p_data_calculo: string;
+
+    // Dados do imóvel
+    p_valor_bem: number;
+    p_valor_entrada: number;
+    p_valor_parcela_contrato: number;
+
+    // Taxas e juros
+    p_multa_moratoria_percent: number;
+    p_juros_mora_percent: number;
+    p_outros_encargos: number;
+    p_tarifa_avaliacao_bem: number;
+  }): Promise<{
+    financiamento_calculo_id: string;
+    excesso_media: number;
+    diferenca_total_media: number;
+    diferenca_total_simples: number;
+  }> {
+    const { data, error } = await supabase.rpc('criar_financiamento_e_analise', params);
+
+    if (error) {
+      console.error('Error calling criar_financiamento_e_analise:', error);
+      throw new Error(`Erro ao criar análise prévia: ${error.message}`);
+    }
+
+    return data;
+  }
 }
 
 // ============================================================================

@@ -147,9 +147,8 @@ export interface AnalisePreviaResponse {
   taxaContratoAM: number;         // Taxa mensal do contrato
   taxaMercadoAM: number;          // Taxa mensal de mercado
   sobretaxaPP: number;            // Sobretaxa em pontos percentuais
-  valorTotalPago: number;         // Total pago no período analisado
-  valorDevido: number;            // Total devido no período analisado
-  diferencaRestituicao: number;   // Diferença (possível restituição)
+  reducaoEstimadaSimples: number; // Redução estimada juros simples
+  reducaoEstimadaMedia: number;   // Redução estimada média
 
   // Informações para projeção
   horizonteMeses?: number;        // Horizonte de meses analisado
@@ -160,9 +159,8 @@ export interface AnalisePreviaResponse {
     taxaContratoAM: string;
     taxaMercadoAM: string;
     sobretaxaPP: string;
-    valorTotalPago: string;
-    valorDevido: string;
-    diferencaRestituicao: string;
+    reducaoEstimadaSimples: string;
+    reducaoEstimadaMedia: string;
   };
 }
 

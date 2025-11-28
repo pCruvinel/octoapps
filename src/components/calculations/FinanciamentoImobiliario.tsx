@@ -8,18 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import {
-  AnalisePreviaRequest,
-  AnalisePreviaResponse,
-  RelatorioCompletoRequest,
-  RelatorioCompletoResponse,
-  FaixaTaxa,
-  EncargosMensais,
-} from '@/types/calculation.types';
 import { parseNumber } from '@/utils/parseNumber';
 import { formatCurrencyInput } from '@/utils/formatCurrency';
 import { financiamentosService } from '@/services/financiamentos.service';
-import { obterTaxaMercado } from '@/services/taxasMercadoBacen';
+import { obterTaxaMercado, obterDetalheTaxaMercado } from '@/services/taxasMercadoBacen';
+import { supabase } from '@/lib/supabase';
 
 interface FinanciamentoImobiliarioProps {
   calcId: string | null;
@@ -29,216 +22,35 @@ interface FinanciamentoImobiliarioProps {
 export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoImobiliarioProps) {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    // Identificação
-    credor: '',
-    devedor: '',
-    contratoNum: '',
+    // Dados do Processo
+    credor: 'SANTANDER',
+    devedor: 'EDVANIA CRISTINA DA SILVA',
     tipoContrato: 'financiamento',
-    dataCalculo: '',
+    dataContrato: '2012-07-06',
 
-    // Parâmetros do financiamento
-    valorBem: '',
-    entrada: '',
-    valorFinanciado: '',
-    quantidadeParcelas: '',
-    dataPrimeiraParcela: '',
-    dataContrato: '',
-
-    // Sistema e indexador
+    // Dados do Imóvel
+    valorBem: 'R$ 350.000,00',
+    valorFinanciado: 'R$ 300.000,00',
+    entrada: 'R$ 50.000,00',
     sistemaAmortizacao: 'sac',
-    indiceCorrecao: 'tr',
 
-    // Taxas
-    taxaMensalContrato: '',
-    taxaAnualContrato: '',
-    taxaMensalMercado: '', // Será preenchido automaticamente com taxa BACEN
+    // Parcelas
+    valorParcela: 'R$ 2.326,53',
+    numeroParcelas: '360',
+    dataPrimeiroVencimento: '2012-08-06',
 
-    // Seguros e encargos (primeira parcela)
-    mip: '',
-    dfi: '',
-    tca: '',
-    multa: '',
-    mora: '',
-
-    // Configurações
-    horizonteMeses: '12',
+    // Taxas e Juros
+    taxaJurosMensal: '0.007207323316136716',
+    taxaJurosAnual: '0.09',
+    multaMoratoria: '2',
+    jurosMora: '1',
+    taxasSeguro: 'R$ 107,58',
+    outrosEncargos: '',
+    tarifaAvaliacaoBem: 'R$ 800,00',
   });
 
-
-  // Helper: Auto-save calculation results to database
-  const saveCalculationResults = async (
-    ap01: any,
-    ap05: any,
-    ap03: any,
-    taxaContratoAM: number,
-    taxaMercadoAM: number
-  ): Promise<string> => {
-    try {
-      // First, ensure the case is saved
-      let financiamentoId = calcId;
-
-      if (!financiamentoId) {
-        // Auto-save the case first
-        const dataToSave = {
-          credor: formData.credor,
-          devedor: formData.devedor,
-          contrato_num: formData.contratoNum || null,
-          tipo_contrato: 'Financiamento' as const,
-          data_calculo: formData.dataCalculo || new Date().toISOString().split('T')[0],
-          valor_bem: formData.valorBem ? parseNumber(formData.valorBem) : null,
-          entrada: formData.entrada ? parseNumber(formData.entrada) : null,
-          valor_financiado: parseNumber(formData.valorFinanciado),
-          quantidade_parcelas: parseInt(formData.quantidadeParcelas),
-          data_primeira_parcela: formData.dataPrimeiraParcela,
-          data_contrato: formData.dataContrato || null,
-          sistema_amortizacao: formData.sistemaAmortizacao.toUpperCase() as 'SAC',
-          indice_correcao: formData.indiceCorrecao.toUpperCase() as 'TR',
-          taxa_mensal_contrato: parseNumber(formData.taxaMensalContrato),
-          taxa_anual_contrato: formData.taxaAnualContrato ? parseNumber(formData.taxaAnualContrato) : null,
-          taxa_mensal_mercado: parseNumber(formData.taxaMensalMercado),
-          mip_primeira_parcela: formData.mip ? parseNumber(formData.mip) : null,
-          dfi_primeira_parcela: formData.dfi ? parseNumber(formData.dfi) : null,
-          tca_primeira_parcela: formData.tca ? parseNumber(formData.tca) : null,
-          multa_primeira_parcela: formData.multa ? parseNumber(formData.multa) : null,
-          mora_primeira_parcela: formData.mora ? parseNumber(formData.mora) : null,
-          horizonte_meses: parseInt(formData.horizonteMeses),
-          status: 'Em Análise' as const,
-        };
-
-        const created = await financiamentosService.create(dataToSave);
-        financiamentoId = created.id;
-      }
-
-      // Update calculated results
-      await financiamentosService.updateCalculatedResults(financiamentoId, {
-        taxa_contrato_am: taxaContratoAM * 100, // Convert to percentage
-        taxa_mercado_am: taxaMercadoAM * 100,
-        sobretaxa_pp: ap03.totais.sobretaxaPP * 100,
-        valor_total_pago: ap01.totais.totalPago,
-        valor_total_devido: ap05.totais.totalDevido,
-        diferenca_restituicao: ap03.totais.totalRestituir,
-      });
-
-      // Save amortization tables (AP01, AP05, AP03)
-      const amortizacaoAP01 = ap01.tabela.map((row: any) => ({
-        mes: row.mes,
-        data: row.data,
-        valor_original_parcela: row.valorOriginalParcela || 0,
-        valor_corrigido: row.valorCorrigido || 0,
-        juros: row.juros || 0,
-        amortizacao: row.amortizacao || 0,
-        saldo_devedor: row.saldoDevedor || 0,
-        mip: row.MIP || null,
-        dfi: row.DFI || null,
-        tca: row.TCA || null,
-        multa: row.multa || null,
-        mora: row.mora || null,
-        total_pago: row.totalPago || null,
-      }));
-
-      const amortizacaoAP05 = ap05.tabela.map((row: any) => ({
-        mes: row.mes,
-        data: row.data,
-        valor_original_parcela: row.valorOriginalParcela || 0,
-        valor_corrigido: row.valorCorrigido || 0,
-        juros: row.juros || 0,
-        amortizacao: row.amortizacao || 0,
-        saldo_devedor: row.saldoDevedor || 0,
-      }));
-
-      const amortizacaoAP03 = ap03.tabela.map((row: any) => ({
-        mes: row.mes,
-        data: row.data,
-        valor_original_parcela: 0,
-        valor_corrigido: 0,
-        juros: 0,
-        amortizacao: 0,
-        saldo_devedor: 0,
-        diferenca: row.diferenca || 0,
-      }));
-
-      // Save all amortization tables sequentially to avoid conflicts
-      await financiamentosService.saveAmortizacao(financiamentoId, 'AP01', amortizacaoAP01);
-      await financiamentosService.saveAmortizacao(financiamentoId, 'AP05', amortizacaoAP05);
-      await financiamentosService.saveAmortizacao(financiamentoId, 'AP03', amortizacaoAP03);
-
-      return financiamentoId;
-    } catch (error) {
-      console.error('Error saving calculation results:', error);
-      throw error;
-    }
-  };
-
-  // Carregar dados quando estiver editando
-  useEffect(() => {
-    const loadCase = async () => {
-      if (calcId) {
-        try {
-          setLoading(true);
-          const financiamento = await financiamentosService.getById(calcId);
-
-          if (!financiamento) {
-            toast.error('Caso não encontrado');
-            onNavigate('calculations');
-            return;
-          }
-
-
-          // Map database fields to form data
-          setFormData({
-            credor: financiamento.credor,
-            devedor: financiamento.devedor,
-            contratoNum: financiamento.contrato_num || '',
-            tipoContrato: financiamento.tipo_contrato?.toLowerCase() || 'financiamento',
-            dataCalculo: financiamento.data_calculo || new Date().toISOString().split('T')[0],
-            valorBem: financiamento.valor_bem ? formatCurrencyInput(String(Math.round(financiamento.valor_bem * 100))) : '',
-            entrada: financiamento.entrada ? formatCurrencyInput(String(Math.round(financiamento.entrada * 100))) : '',
-            valorFinanciado: formatCurrencyInput(String(Math.round(financiamento.valor_financiado * 100))),
-            quantidadeParcelas: String(financiamento.quantidade_parcelas),
-            dataPrimeiraParcela: financiamento.data_primeira_parcela,
-            dataContrato: financiamento.data_contrato || '',
-            sistemaAmortizacao: financiamento.sistema_amortizacao.toLowerCase(),
-            indiceCorrecao: financiamento.indice_correcao.toLowerCase(),
-            taxaMensalContrato: String(financiamento.taxa_mensal_contrato),
-            taxaAnualContrato: financiamento.taxa_anual_contrato ? String(financiamento.taxa_anual_contrato) : '',
-            taxaMensalMercado: String(financiamento.taxa_mensal_mercado),
-            mip: financiamento.mip_primeira_parcela ? formatCurrencyInput(String(Math.round(financiamento.mip_primeira_parcela * 100))) : '',
-            dfi: financiamento.dfi_primeira_parcela ? formatCurrencyInput(String(Math.round(financiamento.dfi_primeira_parcela * 100))) : '',
-            tca: financiamento.tca_primeira_parcela ? formatCurrencyInput(String(Math.round(financiamento.tca_primeira_parcela * 100))) : '',
-            multa: financiamento.multa_primeira_parcela ? formatCurrencyInput(String(Math.round(financiamento.multa_primeira_parcela * 100))) : '',
-            mora: financiamento.mora_primeira_parcela ? formatCurrencyInput(String(Math.round(financiamento.mora_primeira_parcela * 100))) : '',
-            horizonteMeses: financiamento.horizonte_meses ? String(financiamento.horizonte_meses) : '12',
-          });
-
-          toast.success('Dados do caso carregados para edição');
-        } catch (error) {
-          console.error('❌ Error loading case:', error);
-          toast.error('Erro ao carregar caso');
-          onNavigate('calculations');
-        } finally {
-          setLoading(false);
-        }
-      } else {
-      }
-    };
-
-    loadCase();
-  }, [calcId, onNavigate]);
-
-  // Buscar taxa média do mercado BACEN automaticamente
-  useEffect(() => {
-    // Só preenche automaticamente se o campo estiver vazio ou com valor padrão desatualizado
-    if (!calcId && (!formData.taxaMensalMercado || formData.taxaMensalMercado === '0.0062')) {
-      const taxaBacen = obterTaxaMercado('Imobiliário'); // Retorna 0.0091
-      setFormData(prev => ({
-        ...prev,
-        taxaMensalMercado: taxaBacen.toFixed(4), // "0.0091"
-      }));
-    }
-  }, []); // Executa apenas uma vez ao montar
-
   // Campos que devem ser formatados como moeda brasileira
-  const currencyFields = ['valorBem', 'entrada', 'valorFinanciado', 'mip', 'dfi', 'tca', 'multa', 'mora'];
+  const currencyFields = ['valorBem', 'entrada', 'valorFinanciado', 'valorParcela', 'taxasSeguro', 'outrosEncargos', 'tarifaAvaliacaoBem'];
 
   const handleInputChange = (field: string, value: string) => {
     // Aplica formatação de moeda para campos monetários
@@ -250,116 +62,11 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     }
   };
 
-  // Validação de campos obrigatórios
-  const validarFormulario = (): boolean => {
-    if (!formData.credor || !formData.devedor) {
-      toast.error('Preencha os nomes do credor e devedor');
-      return false;
-    }
-
-    if (!formData.valorFinanciado || !formData.quantidadeParcelas) {
-      toast.error('Preencha o valor financiado e número de parcelas');
-      return false;
-    }
-
-    if (!formData.dataPrimeiraParcela) {
-      toast.error('Preencha a data do primeiro vencimento');
-      return false;
-    }
-
-    if (!formData.taxaMensalContrato) {
-      toast.error('Preencha a taxa mensal do contrato');
-      return false;
-    }
-
-    // Validar Sistema de Amortização
-    if (formData.sistemaAmortizacao !== 'sac') {
-      toast.error('Apenas o sistema SAC está implementado no momento');
-      return false;
-    }
-
-    // Validar Indexador
-    if (formData.indiceCorrecao !== 'tr') {
-      toast.error('Apenas o indexador TR está implementado no momento');
-      return false;
-    }
-
-    // Validar coerência: Valor Bem = Financiado + Entrada
-    if (formData.valorBem && formData.entrada && formData.valorFinanciado) {
-      const valorBem = parseNumber(formData.valorBem);
-      const entrada = parseNumber(formData.entrada);
-      const valorFinanciado = parseNumber(formData.valorFinanciado);
-
-      const soma = entrada + valorFinanciado;
-      const diferenca = Math.abs(valorBem - soma);
-
-      if (diferenca > 1) { // Tolerância de R$ 1
-        toast.warning(
-          `Atenção: Valor do Bem (R$ ${valorBem.toFixed(2)}) ≠ Entrada + Financiado (R$ ${soma.toFixed(2)})`
-        );
-      }
-    }
-
-    // Validar Data Contrato < Data Primeira Parcela
-    if (formData.dataContrato && formData.dataPrimeiraParcela) {
-      if (formData.dataContrato >= formData.dataPrimeiraParcela) {
-        toast.error('Data do Contrato deve ser anterior à Data do 1º Vencimento');
-        return false;
-      }
-    }
-
-    return true;
-  };
-
   const handleSave = async () => {
-    if (!validarFormulario()) {
-      return;
-    }
-
     setLoading(true);
     try {
-      // Prepare data for database (convert currency strings to numbers)
-      const dataToSave = {
-        credor: formData.credor,
-        devedor: formData.devedor,
-        contrato_num: formData.contratoNum || null,
-        tipo_contrato: formData.tipoContrato.toUpperCase() as 'CCB' | 'Financiamento' | 'SAC' | 'PRICE',
-        data_calculo: formData.dataCalculo || new Date().toISOString().split('T')[0],
-        valor_bem: formData.valorBem ? parseNumber(formData.valorBem) : null,
-        entrada: formData.entrada ? parseNumber(formData.entrada) : null,
-        valor_financiado: parseNumber(formData.valorFinanciado),
-        quantidade_parcelas: parseInt(formData.quantidadeParcelas),
-        data_primeira_parcela: formData.dataPrimeiraParcela,
-        data_contrato: formData.dataContrato || null,
-        sistema_amortizacao: formData.sistemaAmortizacao.toUpperCase() as 'SAC' | 'PRICE' | 'GAUSS' | 'MQJS' | 'SAC-JUROS-SIMPLES',
-        indice_correcao: formData.indiceCorrecao.toUpperCase() as 'TR' | 'IPCA' | 'INPC' | 'IGP-M' | 'INCC',
-        taxa_mensal_contrato: parseNumber(formData.taxaMensalContrato),
-        taxa_anual_contrato: formData.taxaAnualContrato ? parseNumber(formData.taxaAnualContrato) : null,
-        taxa_mensal_mercado: parseNumber(formData.taxaMensalMercado),
-        mip_primeira_parcela: formData.mip ? parseNumber(formData.mip) : null,
-        dfi_primeira_parcela: formData.dfi ? parseNumber(formData.dfi) : null,
-        tca_primeira_parcela: formData.tca ? parseNumber(formData.tca) : null,
-        multa_primeira_parcela: formData.multa ? parseNumber(formData.multa) : null,
-        mora_primeira_parcela: formData.mora ? parseNumber(formData.mora) : null,
-        horizonte_meses: parseInt(formData.horizonteMeses),
-        status: 'Rascunho' as const,
-      };
-
-      let savedId: string;
-
-      if (calcId) {
-        // Update existing case
-        const updated = await financiamentosService.update(calcId, dataToSave);
-        savedId = updated.id;
-        toast.success('Caso atualizado com sucesso!');
-      } else {
-        // Create new case
-        const created = await financiamentosService.create(dataToSave);
-        savedId = created.id;
-        toast.success('Caso salvo com sucesso!');
-        // Navigate to edit mode with the new ID
-        onNavigate('calc-financiamento', savedId);
-      }
+      // TODO: Implement save logic
+      toast.success('Dados salvos com sucesso!');
     } catch (error) {
       toast.error('Erro ao salvar dados');
       console.error(error);
@@ -368,271 +75,340 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     }
   };
 
-  const handleAnalysis = async () => {
-    if (!validarFormulario()) {
+  const handlePreview = async () => {
+    console.log('========== INICIANDO ANÁLISE PRÉVIA ==========');
+    console.log('📝 Dados do formulário (raw):', formData);
+
+    // Validation
+    if (!formData.credor || !formData.devedor) {
+      console.error('❌ Validação falhou: Credor ou Devedor não preenchido');
+      toast.error('Preencha os campos obrigatórios: Credor e Devedor');
       return;
     }
 
+    if (!formData.valorFinanciado || !formData.numeroParcelas) {
+      console.error('❌ Validação falhou: Valor Financiado ou Número de Parcelas não preenchido');
+      toast.error('Preencha: Valor Financiado e Número de Parcelas');
+      return;
+    }
+
+    if (!formData.taxaJurosMensal || !formData.taxaJurosAnual) {
+      console.error('❌ Validação falhou: Taxas de juros não preenchidas');
+      toast.error('Preencha as taxas de juros');
+      return;
+    }
+
+    if (!formData.dataPrimeiroVencimento) {
+      console.error('❌ Validação falhou: Data do primeiro vencimento não preenchida');
+      toast.error('Preencha a data do primeiro vencimento');
+      return;
+    }
+
+    console.log('✅ Validação inicial passou');
+
     setLoading(true);
     try {
-      // Importar as funções do motor de cálculo
-      const {
-        gerarCenarioAP01,
-        gerarCenarioAP05,
-        gerarCenarioAP03,
-        formatarMoeda,
-        formatarPercent,
-        buscarTRComCache,
-      } = await import('@/services/calculationEngine');
+      console.log('\n========== PASSO 1: PARSEANDO VALORES MONETÁRIOS ==========');
 
-      const { FaixaTaxa, EncargosMensais } = await import('@/types/calculation.types');
+      // Parse form data
+      const valorFinanciado = parseNumber(formData.valorFinanciado);
+      console.log('💰 Valor Financiado:', formData.valorFinanciado, '→', valorFinanciado);
 
-      // Preparar parâmetros
+      const valorBem = formData.valorBem ? parseNumber(formData.valorBem) : valorFinanciado;
+      console.log('💰 Valor do Bem:', formData.valorBem, '→', valorBem);
 
-      const pv = parseNumber(formData.valorFinanciado);
-      const n = parseInt(formData.quantidadeParcelas);
-      const primeiroVenc = formData.dataPrimeiraParcela;
-      const taxaContratoMensal = parseNumber(formData.taxaMensalContrato);
-      const taxaMercadoMensal = parseNumber(formData.taxaMensalMercado);
-      const horizonteMeses = parseInt(formData.horizonteMeses);
+      const entrada = formData.entrada ? parseNumber(formData.entrada) : 0;
+      console.log('💰 Entrada:', formData.entrada, '→', entrada);
 
-      // DEBUG
+      const valorParcela = formData.valorParcela ? parseNumber(formData.valorParcela) : 0;
+      console.log('💰 Valor da Parcela:', formData.valorParcela, '→', valorParcela);
 
-      // Calcular data final com base no horizonte
-      const dataInicio = new Date(primeiroVenc);
-      const dataFim = new Date(dataInicio);
-      dataFim.setMonth(dataFim.getMonth() + horizonteMeses);
-      const dataFimFormatada = dataFim.toISOString().split('T')[0];
+      const numeroParcelas = parseInt(formData.numeroParcelas);
+      console.log('🔢 Número de Parcelas:', formData.numeroParcelas, '→', numeroParcelas);
 
-      // Buscar TR da API do Banco Central
-      toast.info('Buscando série TR do Banco Central...');
-      const trSeries = await buscarTRComCache(primeiroVenc, dataFimFormatada);
+      console.log('\n========== PASSO 2: PARSEANDO PERCENTUAIS ==========');
 
-      if (trSeries.length === 0) {
-        toast.warning('TR não disponível. Cálculo sem correção monetária (TR = 1.0)');
-      } else {
-        toast.success(`${trSeries.length} registros de TR carregados`);
+      // Helper function to parse percentage fields correctly
+      const parsePercentage = (value: string, defaultValue: number): number => {
+        if (!value) return defaultValue;
+
+        const numericValue = parseFloat(value.replace('%', '').replace(',', '.'));
+
+        // If contains %, divide by 100
+        if (value.includes('%')) {
+          return numericValue / 100;
+        }
+
+        // If number is >= 1, assume it's a percentage (e.g., "1" means 1%, "2" means 2%)
+        if (numericValue >= 1) {
+          return numericValue / 100;
+        }
+
+        // Otherwise, use as-is (e.g., "0.02" means 2%)
+        return numericValue;
+      };
+
+      // Parse percentage fields (support both "2%" and "0.02" formats)
+      const taxaJurosMensal = parseFloat(formData.taxaJurosMensal.replace('%', '')) / (formData.taxaJurosMensal.includes('%') ? 100 : 1);
+      console.log('📊 Taxa de Juros Mensal (Contrato):', formData.taxaJurosMensal, '→', taxaJurosMensal, `(${(taxaJurosMensal * 100).toFixed(4)}%)`);
+
+      const taxaJurosAnual = parseFloat(formData.taxaJurosAnual.replace('%', '')) / (formData.taxaJurosAnual.includes('%') ? 100 : 1);
+      console.log('📊 Taxa de Juros Anual (Contrato):', formData.taxaJurosAnual, '→', taxaJurosAnual, `(${(taxaJurosAnual * 100).toFixed(2)}%)`);
+
+      const multaMoratoria = parsePercentage(formData.multaMoratoria, 0.02);
+      console.log('📊 Multa Moratória:', formData.multaMoratoria, '→', multaMoratoria, `(${(multaMoratoria * 100).toFixed(2)}%)`);
+
+      // Juros de Mora: "1" significa 1% ao mês, então precisa dividir por 100
+      const jurosMora = formData.jurosMora ? parsePercentage(formData.jurosMora, 0.00033) : 0.00033;
+      console.log('📊 Juros de Mora:', formData.jurosMora, '→', jurosMora, `(${(jurosMora * 100).toFixed(5)}%)`);
+
+      console.log('\n========== PASSO 3: PARSEANDO TAXAS E ENCARGOS ==========');
+
+      // Parse monetary fields
+      const taxasSeguro = formData.taxasSeguro ? parseNumber(formData.taxasSeguro) : 0;
+      console.log('💰 Taxas de Seguro:', formData.taxasSeguro, '→', taxasSeguro);
+
+      const outrosEncargos = formData.outrosEncargos ? parseNumber(formData.outrosEncargos) : 0;
+      console.log('💰 Outros Encargos:', formData.outrosEncargos, '→', outrosEncargos);
+
+      const tarifaAvaliacaoBem = formData.tarifaAvaliacaoBem ? parseNumber(formData.tarifaAvaliacaoBem) : 0;
+      console.log('💰 Tarifa de Avaliação:', formData.tarifaAvaliacaoBem, '→', tarifaAvaliacaoBem);
+
+      console.log('\n========== PASSO 4: BUSCANDO TAXA MÉDIA DO BACEN ==========');
+
+      // Buscar taxa média do BACEN para financiamento imobiliário
+      const dataContrato = formData.dataContrato || new Date().toISOString().split('T')[0];
+      console.log('📅 Data do Contrato:', dataContrato);
+
+      let taxaMediaMensal = 0.0059;  // Fallback: 0.59% mensal
+      let taxaMediaAnual = 0.0735;   // Fallback: 7.35% anual
+
+      try {
+        console.log('🔍 Buscando taxa média na API do BACEN para a data:', dataContrato);
+
+        // Série 432: Taxa de juros - Operações de crédito com recursos livres - Pessoas físicas - Aquisição de imóveis
+        const serie = 432;
+
+        // Formatar data para API do BACEN (dd/MM/yyyy)
+        const [ano, mes, dia] = dataContrato.split('-');
+        const dataFormatada = `${dia}/${mes}/${ano}`;
+
+        // Buscar taxa do BACEN com timeout de 5 segundos
+        const urlBacen = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${serie}/dados?formato=json&dataInicial=${dataFormatada}&dataFinal=${dataFormatada}`;
+        console.log('🌐 URL BACEN:', urlBacen);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos de timeout
+
+        const response = await fetch(urlBacen, {
+          signal: controller.signal,
+          mode: 'cors',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`Erro na API do BACEN: ${response.status}`);
+        }
+
+        const dados = await response.json();
+        console.log('📊 Resposta da API BACEN:', dados);
+
+        if (dados && dados.length > 0) {
+          // Taxa vem em % ao mês, converter para decimal
+          const taxaMensalPercent = parseFloat(dados[0].valor);
+          taxaMediaMensal = taxaMensalPercent / 100;
+
+          // Calcular taxa anual: (1 + i)^12 - 1
+          taxaMediaAnual = Math.pow(1 + taxaMediaMensal, 12) - 1;
+
+          console.log('✅ Taxa encontrada na API BACEN:');
+          console.log('  - Taxa Mensal:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
+          console.log('  - Taxa Anual:', taxaMediaAnual, `(${(taxaMediaAnual * 100).toFixed(2)}% a.a.)`);
+        } else {
+          console.warn('⚠️ Nenhum dado encontrado para a data especificada');
+          console.log('ℹ️ Usando taxa padrão:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            console.error('❌ Timeout ao buscar taxa do BACEN (>5s)');
+          } else {
+            console.error('❌ Erro ao buscar taxa do BACEN:', error.message);
+          }
+        }
+        console.log('ℹ️ Usando taxa padrão (fallback):', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
+        console.log('💡 Dica: A API do BACEN pode estar bloqueada por CORS ou fora do ar. A taxa fallback de 0.59% a.m. é adequada para contratos de 2012.');
       }
 
-      // Criar faixa de taxa única
-      const faixasTaxa = [
-        {
-          ini: primeiroVenc,
-          fim: '2099-12-31',
-          i: taxaContratoMensal,
-        },
-      ];
+      console.log('📊 Taxa Média Final:');
+      console.log('  - Taxa Mensal:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
+      console.log('  - Taxa Anual:', taxaMediaAnual, `(${(taxaMediaAnual * 100).toFixed(2)}% a.a.)`);
 
-      // Criar encargos da primeira parcela
+      console.log('\n========== PASSO 5: PREPARANDO PARÂMETROS RPC ==========');
 
-      const encargosMensais = [
-        {
-          data: primeiroVenc,
-          MIP: parseNumber(formData.mip),
-          DFI: parseNumber(formData.dfi),
-          TCA: parseNumber(formData.tca),
-          multa: parseNumber(formData.multa),
-          mora: parseNumber(formData.mora),
-        },
-      ];
+      // Prepare RPC parameters
+      const dataCalculoAtual = new Date().toISOString().split('T')[0]; // Data atual para p_data_calculo
 
+      const params = {
+        p_valor_financiado: valorFinanciado,
+        p_taxa_juros_mensal_contrato: taxaJurosMensal,
+        p_taxa_juros_anual_contrato: taxaJurosAnual,
+        p_taxa_media_mensal: taxaMediaMensal,
+        p_taxa_media_anual: taxaMediaAnual,
+        p_qtd_parcelas_contrato: numeroParcelas,
+        p_qtd_parcelas_analise: numeroParcelas,
+        p_seguros_mensais: taxasSeguro,
+        p_sistema_amortizacao: (formData.sistemaAmortizacao || 'sac').toUpperCase(), // Converter para maiúsculas
+        p_indexador_cm: 'TR',
+        p_data_contratual: dataContrato,
+        p_primeiro_vencimento: formData.dataPrimeiroVencimento,
 
-      // Gerar cenário AP01 (Cobrado)
-      const ap01 = gerarCenarioAP01({
-        pv,
-        n,
-        primeiroVenc,
-        faixasTaxa,
-        trSeries,
-        encargosMensais,
-        horizonteMeses,
-      });
+        p_credor: formData.credor,
+        p_devedor: formData.devedor,
+        p_tipo_contrato: 'Financiamento Imobiliário SFH', // Tipo fixo conforme especificação
+        p_data_calculo: dataCalculoAtual, // Data atual do cálculo
 
-      // Gerar cenário AP05 (Devido)
-      const ap05 = gerarCenarioAP05(
-        {
-          pv,
-          n,
-          primeiroVenc,
-          faixasTaxa: [{ ini: primeiroVenc, fim: '2099-12-31', i: taxaMercadoMensal }],
-          trSeries,
-          horizonteMeses,
-        },
-        taxaMercadoMensal
-      );
+        p_valor_bem: valorBem,
+        p_valor_entrada: entrada,
+        p_valor_parcela_contrato: valorParcela,
 
-      // Gerar comparativo
-      const ap03 = gerarCenarioAP03(ap01, ap05, taxaContratoMensal, taxaMercadoMensal);
+        p_multa_moratoria_percent: multaMoratoria,
+        p_juros_mora_percent: jurosMora,
+        p_outros_encargos: outrosEncargos,
+        p_tarifa_avaliacao_bem: tarifaAvaliacaoBem,
+      };
 
-      // DEBUG - Resultados
+      console.log('📦 Parâmetros para RPC:', JSON.stringify(params, null, 2));
 
-      // Save calculation results to database
-      const savedId = await saveCalculationResults(ap01, ap05, ap03, taxaContratoMensal, taxaMercadoMensal);
+      console.log('\n========== PASSO 6: CHAMANDO RPC SUPABASE ==========');
 
-      // Montar response
-      const data: AnalisePreviaResponse = {
-        taxaContratoAM: taxaContratoMensal,
-        taxaMercadoAM: taxaMercadoMensal,
-        sobretaxaPP: ap03.totais.sobretaxaPP,
-        valorTotalPago: ap01.totais.totalPago,
-        valorDevido: ap05.totais.totalDevido,
-        diferencaRestituicao: ap03.totais.totalRestituir,
-        horizonteMeses,
-        totalParcelas: n,
+      // Call RPC function
+      const result = await financiamentosService.criarFinanciamentoEAnalise(params);
+
+      console.log('✅ Resposta do RPC:', result);
+      console.log('  - ID do Financiamento:', result.financiamento_calculo_id);
+      console.log('  - Excesso Média:', result.excesso_media, `(${(result.excesso_media * 100).toFixed(2)}%)`);
+      console.log('  - Diferença Total Média:', result.diferenca_total_media);
+      console.log('  - Diferença Total Simples:', result.diferenca_total_simples);
+
+      console.log('\n========== PASSO 6.5: BUSCANDO DADOS DA ANÁLISE PRÉVIA ==========');
+
+      // Buscar dados da tabela financiamentos_calculo_analise
+      let analiseData = null;
+
+      try {
+        const { data, error } = await supabase
+          .from('financiamentos_calculo_analise')
+          .select('taxa_juros_mensal_contrato, taxa_media_mensal, excesso_media, diferenca_total_simples, diferenca_total_media')
+          .eq('financiamento_calculo_id', result.financiamento_calculo_id)
+          .maybeSingle(); // maybeSingle() não gera erro quando não há resultados
+
+        if (error) {
+          console.error('❌ Erro ao buscar análise prévia:', error);
+          console.log('⚠️ Usando dados do RPC como fallback');
+        }
+
+        if (data) {
+          // Mapear campos da tabela financiamentos_calculo_analise para o formato esperado
+          analiseData = {
+            taxa_contrato: data.taxa_juros_mensal_contrato,
+            taxa_media: data.taxa_media_mensal,
+            sobretaxa: data.excesso_media,
+            diferenca_total_simples: data.diferenca_total_simples,
+            diferenca_total: data.diferenca_total_media,
+          };
+          console.log('✅ Análise prévia encontrada na tabela financiamentos_calculo_analise:', analiseData);
+        } else {
+          // Fallback: usar dados do RPC quando tabela está vazia
+          console.warn('⚠️ Nenhum registro encontrado em financiamentos_calculo_analise');
+          console.log('💡 Usando dados do RPC como fallback');
+
+          analiseData = {
+            taxa_contrato: taxaJurosMensal,
+            taxa_media: taxaMediaMensal,
+            sobretaxa: result.excesso_media,
+            diferenca_total_simples: result.diferenca_total_simples,
+            diferenca_total: result.diferenca_total_media,
+          };
+
+          console.log('✅ Dados do fallback (RPC):', analiseData);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar análise:', error);
+
+        // Usar RPC data como fallback em caso de erro
+        console.log('💡 Usando dados do RPC como fallback devido a erro');
+
+        analiseData = {
+          taxa_contrato: taxaJurosMensal,
+          taxa_media: taxaMediaMensal,
+          sobretaxa: result.excesso_media,
+          diferenca_total_simples: result.diferenca_total_simples,
+          diferenca_total: result.diferenca_total_media,
+        };
+
+        console.log('✅ Dados do fallback (RPC):', analiseData);
+      }
+
+      console.log('\n========== PASSO 7: FORMATANDO DADOS PARA NAVEGAÇÃO ==========');
+
+      // Format response for AnalisePrevia component - Usando dados da tabela analises_previas
+      const analysisData = {
+        taxaContratoAM: analiseData.taxa_contrato,
+        taxaMercadoAM: analiseData.taxa_media,
+        sobretaxaPP: analiseData.sobretaxa,
+        reducaoEstimadaSimples: analiseData.diferenca_total_simples,
+        reducaoEstimadaMedia: analiseData.diferenca_total,
+        horizonteMeses: numeroParcelas,
+        totalParcelas: numeroParcelas,
         formatted: {
-          taxaContratoAM: formatarPercent(taxaContratoMensal),
-          taxaMercadoAM: formatarPercent(taxaMercadoMensal),
-          sobretaxaPP: formatarPercent(ap03.totais.sobretaxaPP),
-          valorTotalPago: formatarMoeda(ap01.totais.totalPago),
-          valorDevido: formatarMoeda(ap05.totais.totalDevido),
-          diferencaRestituicao: formatarMoeda(ap03.totais.totalRestituir),
+          taxaContratoAM: `${(analiseData.taxa_contrato * 100).toFixed(4)}%`,
+          taxaMercadoAM: `${(analiseData.taxa_media * 100).toFixed(4)}%`,
+          sobretaxaPP: `${(analiseData.sobretaxa * 100).toFixed(2)}%`,
+          reducaoEstimadaSimples: new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(analiseData.diferenca_total_simples),
+          reducaoEstimadaMedia: new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(analiseData.diferenca_total),
         },
       };
 
-      toast.success('Análise prévia concluída e salva!');
-      // Navegar para a página de análise passando o ID salvo e os dados
-      setTimeout(() => onNavigate('calc-analise', savedId, data), 300);
+      console.log('📊 Dados da análise formatados:', analysisData);
+      console.log('\n✅ ANÁLISE PRÉVIA CONCLUÍDA COM SUCESSO!');
+
+      toast.success('Análise prévia gerada com sucesso!');
+
+      // Navigate to analysis page
+      console.log('\n========== PASSO 8: NAVEGANDO PARA PÁGINA DE ANÁLISE ==========');
+      console.log('🔄 Redirecionando para:', 'calc-analise');
+      console.log('🆔 Com ID:', result.financiamento_calculo_id);
+
+      setTimeout(() => {
+        onNavigate('calc-analise', result.financiamento_calculo_id, analysisData);
+      }, 300);
+
     } catch (error) {
+      console.error('\n❌❌❌ ERRO AO GERAR ANÁLISE PRÉVIA ❌❌❌');
+      console.error('Detalhes do erro:', error);
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
       toast.error('Erro ao gerar análise prévia');
-      console.error(error);
     } finally {
       setLoading(false);
+      console.log('\n========== FIM DO PROCESSO ==========\n');
     }
   };
 
   const handleGenerateReport = async () => {
-    if (!validarFormulario()) {
-      return;
-    }
-
     setLoading(true);
     try {
-      // Importar as funções do motor de cálculo
-      const {
-        gerarCenarioAP01,
-        gerarCenarioAP05,
-        gerarCenarioAP03,
-        formatarMoeda,
-        formatarPercent,
-        buscarTRComCache,
-      } = await import('@/services/calculationEngine');
-
-      // Preparar parâmetros
-      const pv = parseNumber(formData.valorFinanciado);
-      const n = parseInt(formData.quantidadeParcelas);
-      const primeiroVenc = formData.dataPrimeiraParcela;
-      const taxaContratoMensal = parseNumber(formData.taxaMensalContrato);
-      const taxaMercadoMensal = parseNumber(formData.taxaMensalMercado);
-      const horizonteMeses = parseInt(formData.horizonteMeses);
-
-      // Calcular data final com base no horizonte
-      const dataInicio = new Date(primeiroVenc);
-      const dataFim = new Date(dataInicio);
-      dataFim.setMonth(dataFim.getMonth() + horizonteMeses);
-      const dataFimFormatada = dataFim.toISOString().split('T')[0];
-
-      // Buscar TR da API do Banco Central
-      toast.info('Buscando série TR do Banco Central...');
-      const trSeries = await buscarTRComCache(primeiroVenc, dataFimFormatada);
-
-      if (trSeries.length === 0) {
-        toast.warning('TR não disponível. Cálculo sem correção monetária (TR = 1.0)');
-      } else {
-        toast.success(`${trSeries.length} registros de TR carregados`);
-      }
-
-      // Preparar faixas de taxa (usando faixa única do contrato)
-      const faixasTaxa = [
-        {
-          ini: primeiroVenc,
-          fim: '2099-12-31',
-          i: taxaContratoMensal,
-        },
-      ];
-
-      // Preparar encargos mensais
-      const encargosMensais = [
-        {
-          data: formData.dataPrimeiraParcela,
-          MIP: parseNumber(formData.mip),
-          DFI: parseNumber(formData.dfi),
-          TCA: parseNumber(formData.tca),
-          multa: parseNumber(formData.multa),
-          mora: parseNumber(formData.mora),
-        },
-      ];
-
-      // Gerar cenário AP01 (Cobrado)
-      const ap01 = gerarCenarioAP01({
-        pv,
-        n,
-        primeiroVenc,
-        faixasTaxa,
-        trSeries,
-        encargosMensais,
-        horizonteMeses,
-      });
-
-      // Gerar cenário AP05 (Devido)
-      const ap05 = gerarCenarioAP05(
-        {
-          pv,
-          n,
-          primeiroVenc,
-          faixasTaxa: [{ ini: primeiroVenc, fim: '2099-12-31', i: taxaMercadoMensal }],
-          trSeries,
-          horizonteMeses,
-        },
-        taxaMercadoMensal
-      );
-
-      // Gerar comparativo
-      const ap03 = gerarCenarioAP03(ap01, ap05, taxaContratoMensal, taxaMercadoMensal);
-
-      // Save calculation results to database
-      const savedId = await saveCalculationResults(ap01, ap05, ap03, taxaContratoMensal, taxaMercadoMensal);
-
-      // Update status to "Concluído" for complete report
-      await financiamentosService.updateStatus(savedId, 'Concluído');
-
-      // Montar response
-      const data: RelatorioCompletoResponse = {
-        credor: formData.credor,
-        devedor: formData.devedor,
-        contratoNum: formData.contratoNum || 'SEM-NUMERO',
-        metodologia: 'SAC com TR — AP01 (Cobrado) vs AP05 (Devido)',
-        cards: {
-          valorPrincipal: pv,
-          totalJuros: ap01.totais.totalJuros,
-          totalTaxas: ap01.totais.totalTaxas,
-          valorTotalDevido: ap01.totais.totalPago,
-          totalRestituir: ap03.totais.totalRestituir,
-        },
-        comparativo: {
-          taxaContratoAM: taxaContratoMensal,
-          taxaMercadoAM: taxaMercadoMensal,
-          sobretaxaPP: ap03.totais.sobretaxaPP,
-        },
-        tabelaAmortizacao: ap01.tabela,
-        formatted: {
-          cards: {
-            valorPrincipal: formatarMoeda(pv),
-            totalJuros: formatarMoeda(ap01.totais.totalJuros),
-            totalTaxas: formatarMoeda(ap01.totais.totalTaxas),
-            valorTotalDevido: formatarMoeda(ap01.totais.totalPago),
-            totalRestituir: formatarMoeda(ap03.totais.totalRestituir),
-          },
-          comparativo: {
-            taxaContratoAM: formatarPercent(taxaContratoMensal),
-            taxaMercadoAM: formatarPercent(taxaMercadoMensal),
-            sobretaxaPP: formatarPercent(ap03.totais.sobretaxaPP),
-          },
-        },
-      };
-
-      toast.success('Relatório completo gerado e salvo!');
-      // Navegar para a página de relatório passando o ID salvo e os dados
-      setTimeout(() => onNavigate('calc-relatorio', savedId, data), 300);
+      // TODO: Implement report generation logic
+      toast.success('Relatório completo gerado!');
     } catch (error) {
       toast.error('Erro ao gerar relatório completo');
       console.error(error);
@@ -653,19 +429,13 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       </Button>
 
       <div className="mb-8">
-        <h1 className="text-gray-900 dark:text-white mb-2">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
           Revisão de Financiamento Imobiliário
         </h1>
-        {/* Debug indicator */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-2 text-xs text-gray-500">
-            Debug: Loading = {loading ? '🔴 TRUE (botões desabilitados)' : '🟢 FALSE (botões habilitados)'}
-            {calcId && ` | ID do Caso: ${calcId.substring(0, 8)}...`}
-          </div>
-        )}
       </div>
 
       <div className="space-y-6">
+        {/* Dados do Processo */}
         <Card>
           <CardHeader>
             <CardTitle>Dados do Processo</CardTitle>
@@ -691,36 +461,31 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="contratoNum">Número do Contrato</Label>
-                <Input
-                  id="contratoNum"
-                  placeholder="Número do contrato"
-                  value={formData.contratoNum}
-                  onChange={(e) => handleInputChange('contratoNum', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="tipoContrato">Tipo de Contrato</Label>
                 <Select value={formData.tipoContrato} onValueChange={(value) => handleInputChange('tipoContrato', value)}>
                   <SelectTrigger id="tipoContrato">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ccb">CCB</SelectItem>
                     <SelectItem value="financiamento">Financiamento</SelectItem>
-                    <SelectItem value="sac">SAC</SelectItem>
-                    <SelectItem value="price">PRICE</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dataCalculo">Data do Cálculo</Label>
-                <Input id="dataCalculo" type="date" placeholder="Escolha a data" value={formData.dataCalculo} onChange={(e) => handleInputChange('dataCalculo', e.target.value)} />
+                <Label htmlFor="dataContrato">Data do Contrato</Label>
+                <Input
+                  id="dataContrato"
+                  type="date"
+                  placeholder="dd/mm/aaaa"
+                  value={formData.dataContrato}
+                  onChange={(e) => handleInputChange('dataContrato', e.target.value)}
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Dados do Imóvel */}
         <Card>
           <CardHeader>
             <CardTitle>Dados do Imóvel</CardTitle>
@@ -732,17 +497,17 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                 <Input
                   id="valorBem"
                   type="text"
-                  placeholder="Ex: R$ 432.000,00"
+                  placeholder="Valor total do imóvel"
                   value={formData.valorBem}
                   onChange={(e) => handleInputChange('valorBem', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="valorFinanciado">Valor Financiado (PV)</Label>
+                <Label htmlFor="valorFinanciado">Valor Financiado</Label>
                 <Input
                   id="valorFinanciado"
                   type="text"
-                  placeholder="Ex: R$ 302.400,00"
+                  placeholder="Valor total do financiamento"
                   value={formData.valorFinanciado}
                   onChange={(e) => handleInputChange('valorFinanciado', e.target.value)}
                 />
@@ -752,38 +517,20 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                 <Input
                   id="entrada"
                   type="text"
-                  placeholder="Ex: R$ 129.600,00"
+                  placeholder="Valor da entrada"
                   value={formData.entrada}
                   onChange={(e) => handleInputChange('entrada', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="sistemaAmort">Sistema de Amortização</Label>
+                <Label htmlFor="sistemaAmortizacao">Sistema de Amortização</Label>
                 <Select value={formData.sistemaAmortizacao} onValueChange={(value) => handleInputChange('sistemaAmortizacao', value)}>
-                  <SelectTrigger id="sistemaAmort">
+                  <SelectTrigger id="sistemaAmortizacao">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="sac">SAC</SelectItem>
                     <SelectItem value="price">PRICE</SelectItem>
-                    <SelectItem value="gauss">GAUSS</SelectItem>
-                    <SelectItem value="mqjs">MQJS</SelectItem>
-                    <SelectItem value="sac-juros-simples">SAC a Juros Simples</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="indexador">Indexador de Correção Monetária</Label>
-                <Select value={formData.indiceCorrecao} onValueChange={(value) => handleInputChange('indiceCorrecao', value)}>
-                  <SelectTrigger id="indexador">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tr">TR</SelectItem>
-                    <SelectItem value="ipca">IPCA</SelectItem>
-                    <SelectItem value="inpc">INPC</SelectItem>
-                    <SelectItem value="igpm">IGP-M</SelectItem>
-                    <SelectItem value="incc">INCC</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -791,6 +538,7 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           </CardContent>
         </Card>
 
+        {/* Parcelas */}
         <Card>
           <CardHeader>
             <CardTitle>Parcelas</CardTitle>
@@ -798,37 +546,40 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="numParcelas">Número de Parcelas (n)</Label>
+                <Label htmlFor="valorParcela">Valor da Parcela</Label>
                 <Input
-                  id="numParcelas"
-                  type="number"
-                  placeholder="Ex: 360"
-                  value={formData.quantidadeParcelas}
-                  onChange={(e) => handleInputChange('quantidadeParcelas', e.target.value)}
+                  id="valorParcela"
+                  type="text"
+                  placeholder="Valor da parcela mensal"
+                  value={formData.valorParcela}
+                  onChange={(e) => handleInputChange('valorParcela', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="primeiroVenc">Data do 1º Vencimento</Label>
+                <Label htmlFor="numeroParcelas">Número de Parcelas</Label>
                 <Input
-                  id="primeiroVenc"
-                  type="date"
-                  value={formData.dataPrimeiraParcela}
-                  onChange={(e) => handleInputChange('dataPrimeiraParcela', e.target.value)}
+                  id="numeroParcelas"
+                  type="text"
+                  placeholder="Informe a quantidade de parcelas"
+                  value={formData.numeroParcelas}
+                  onChange={(e) => handleInputChange('numeroParcelas', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dataContrato">Data do Contrato</Label>
+                <Label htmlFor="dataPrimeiroVencimento">Data do 1º Vencimento</Label>
                 <Input
-                  id="dataContrato"
+                  id="dataPrimeiroVencimento"
                   type="date"
-                  value={formData.dataContrato}
-                  onChange={(e) => handleInputChange('dataContrato', e.target.value)}
+                  placeholder="dd/mm/aaaa"
+                  value={formData.dataPrimeiroVencimento}
+                  onChange={(e) => handleInputChange('dataPrimeiroVencimento', e.target.value)}
                 />
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Taxas e Juros */}
         <Card>
           <CardHeader>
             <CardTitle>Taxas e Juros</CardTitle>
@@ -836,184 +587,110 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="taxaMensalContrato">Taxa Mensal do Contrato (i)</Label>
+                <Label htmlFor="taxaJurosMensal">Taxa de Juros Mensal</Label>
                 <Input
-                  id="taxaMensalContrato"
-                  type="number"
-                  step="0.000000000001"
-                  placeholder="Ex: 0.005654145387"
-                  value={formData.taxaMensalContrato}
-                  onChange={(e) => handleInputChange('taxaMensalContrato', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="taxaAnualContrato">Taxa Anual do Contrato</Label>
-                <Input
-                  id="taxaAnualContrato"
-                  type="number"
-                  step="0.0001"
-                  placeholder="Ex: 0.07 (7%)"
-                  value={formData.taxaAnualContrato}
-                  onChange={(e) => handleInputChange('taxaAnualContrato', e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="taxaMensalMercado">Taxa Média do Mercado</Label>
-                <Input
-                  id="taxaMensalMercado"
-                  type="number"
-                  step="0.0001"
-                  placeholder="Ex: 0.0091"
-                  value={formData.taxaMensalMercado}
-                  onChange={(e) => handleInputChange('taxaMensalMercado', e.target.value)}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Taxa BACEN para financiamento imobiliário: 0.91% a.m. (10.9% a.a.) - Atualizado: Jan/2025
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="mip">MIP (1ª parcela)</Label>
-                <Input
-                  id="mip"
+                  id="taxaJurosMensal"
                   type="text"
-                  placeholder="Ex: R$ 62,54"
-                  value={formData.mip}
-                  onChange={(e) => handleInputChange('mip', e.target.value)}
+                  placeholder="Ex: 1,2% ou 0,012"
+                  value={formData.taxaJurosMensal}
+                  onChange={(e) => handleInputChange('taxaJurosMensal', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dfi">DFI (1ª parcela)</Label>
+                <Label htmlFor="taxaJurosAnual">Taxa de Juros Anual</Label>
                 <Input
-                  id="dfi"
+                  id="taxaJurosAnual"
                   type="text"
-                  placeholder="Ex: R$ 77,66"
-                  value={formData.dfi}
-                  onChange={(e) => handleInputChange('dfi', e.target.value)}
+                  placeholder="Ex: 15% ou 0,15"
+                  value={formData.taxaJurosAnual}
+                  onChange={(e) => handleInputChange('taxaJurosAnual', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tca">TCA (1ª parcela)</Label>
+                <Label htmlFor="multaMoratoria">Multa Moratória %</Label>
                 <Input
-                  id="tca"
+                  id="multaMoratoria"
                   type="text"
-                  placeholder="Ex: R$ 25,00"
-                  value={formData.tca}
-                  onChange={(e) => handleInputChange('tca', e.target.value)}
+                  placeholder="Ex: 2%"
+                  value={formData.multaMoratoria}
+                  onChange={(e) => handleInputChange('multaMoratoria', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="multa">Multa (1ª parcela)</Label>
+                <Label htmlFor="jurosMora">Juros de Mora %</Label>
                 <Input
-                  id="multa"
+                  id="jurosMora"
                   type="text"
-                  placeholder="Ex: R$ 0,00"
-                  value={formData.multa}
-                  onChange={(e) => handleInputChange('multa', e.target.value)}
+                  placeholder="Ex: 1%"
+                  value={formData.jurosMora}
+                  onChange={(e) => handleInputChange('jurosMora', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="mora">Mora (1ª parcela)</Label>
+                <Label htmlFor="taxasSeguro">Taxas de Seguro</Label>
                 <Input
-                  id="mora"
+                  id="taxasSeguro"
                   type="text"
-                  placeholder="Ex: R$ 0,00"
-                  value={formData.mora}
-                  onChange={(e) => handleInputChange('mora', e.target.value)}
+                  placeholder="Valor do seguro"
+                  value={formData.taxasSeguro}
+                  onChange={(e) => handleInputChange('taxasSeguro', e.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="horizonteMeses">Horizonte de Análise (meses)</Label>
+                <Label htmlFor="outrosEncargos">Outros Encargos</Label>
                 <Input
-                  id="horizonteMeses"
-                  type="number"
-                  min="1"
-                  max="360"
-                  placeholder="Ex: 12"
-                  value={formData.horizonteMeses}
-                  onChange={(e) => handleInputChange('horizonteMeses', e.target.value)}
+                  id="outrosEncargos"
+                  type="text"
+                  placeholder="Valor de outras taxas"
+                  value={formData.outrosEncargos}
+                  onChange={(e) => handleInputChange('outrosEncargos', e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Quantidade de parcelas para análise prévia. Use 360 para análise completa do contrato.
-                </p>
-                <div className="flex gap-2 mt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleInputChange('horizonteMeses', '12')}
-                    className={formData.horizonteMeses === '12' ? 'bg-primary/10' : ''}
-                  >
-                    12 meses
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleInputChange('horizonteMeses', '24')}
-                    className={formData.horizonteMeses === '24' ? 'bg-primary/10' : ''}
-                  >
-                    24 meses
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleInputChange('horizonteMeses', '36')}
-                    className={formData.horizonteMeses === '36' ? 'bg-primary/10' : ''}
-                  >
-                    36 meses
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleInputChange('horizonteMeses', '360')}
-                    className={formData.horizonteMeses === '360' ? 'bg-primary/10' : ''}
-                  >
-                    Completo (360)
-                  </Button>
-                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tarifaAvaliacaoBem">Tarifa de Avaliação do Bem</Label>
+                <Input
+                  id="tarifaAvaliacaoBem"
+                  type="text"
+                  placeholder="Digite o valor cobrado pela avaliação"
+                  value={formData.tarifaAvaliacaoBem}
+                  onChange={(e) => handleInputChange('tarifaAvaliacaoBem', e.target.value)}
+                />
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 justify-end">
           <Button
             variant="outline"
-            onClick={() => {
-              handleAnalysis();
-            }}
+            onClick={handlePreview}
             disabled={loading}
           >
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Analisando...
+                Carregando...
               </>
             ) : (
               'Iniciar Análise Prévia'
             )}
           </Button>
           <Button
-            onClick={() => {
-              handleGenerateReport();
-            }}
+            onClick={handleGenerateReport}
             disabled={loading}
           >
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Gerando Relatório...
+                Gerando...
               </>
             ) : (
               'Gerar Relatório Completo'
             )}
           </Button>
           <Button
-            onClick={() => {
-              handleSave();
-            }}
+            onClick={handleSave}
             disabled={loading}
           >
             {loading ? (

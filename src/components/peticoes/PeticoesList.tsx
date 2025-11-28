@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Plus, Search, MoreVertical, Download } from 'lucide-react';
@@ -10,6 +10,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner@2.0.3';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { peticoesService } from '@/services/peticoes.service';
+import { PeticaoListItem } from '@/types/peticoes.types';
+import { TEMPLATE_PETICAO_INICIAL, TEMPLATE_CONTESTACAO, TEMPLATE_RECURSO, TEMPLATE_MEMORIAL } from '@/constants/templates-peticoes';
 
 interface PeticoesListProps {
   onNavigate: (route: string, id?: string) => void;
@@ -21,27 +24,77 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
-  const [newPetition, setNewPetition] = useState({
-    name: '',
-    template: '',
-  });
+  const [loading, setLoading] = useState(true);
 
-  const [documents, setDocuments] = useState([
-    { id: '1', name: 'Petição Inicial - Revisional ABC', type: 'Petição Inicial', lastEdit: '15/01/2025', status: 'Concluído' },
-    { id: '2', name: 'Contestação - Caso XYZ', type: 'Contestação', lastEdit: '16/01/2025', status: 'Rascunho' },
-    { id: '3', name: 'Recurso - Financiamento DEF', type: 'Recurso', lastEdit: '14/01/2025', status: 'Concluído' },
-  ]);
+  const [documents, setDocuments] = useState<PeticaoListItem[]>([]);
 
-  const handleCreateDocument = () => {
+  // Carregar petições ao montar o componente
+  useEffect(() => {
+    loadPeticoes();
+  }, []);
+
+  const loadPeticoes = async () => {
+    try {
+      setLoading(true);
+      const data = await peticoesService.getAll();
+      setDocuments(data);
+    } catch (err) {
+      console.error('Erro ao carregar petições:', err);
+      toast.error('Erro ao carregar petições');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getTemplateContent = (template: string): string => {
+    switch (template) {
+      case 'inicial':
+        return TEMPLATE_PETICAO_INICIAL;
+      case 'contestacao':
+        return TEMPLATE_CONTESTACAO;
+      case 'recurso':
+        return TEMPLATE_RECURSO;
+      case 'memorial':
+        return TEMPLATE_MEMORIAL;
+      default:
+        return '';
+    }
+  };
+
+  const getTemplateTipo = (template: string): string => {
+    switch (template) {
+      case 'inicial': return 'Petição Inicial';
+      case 'contestacao': return 'Contestação';
+      case 'recurso': return 'Recurso';
+      case 'memorial': return 'Memorial';
+      default: return 'Outro';
+    }
+  };
+
+  const handleCreateDocument = async () => {
     if (!selectedTemplate) {
       toast.error('Selecione um modelo de petição');
       return;
     }
 
-    toast.success('Criando nova petição...');
-    setIsDialogOpen(false);
-    setSelectedTemplate('');
-    onNavigate('peticoes-editor', 'new');
+    try {
+      const templateContent = getTemplateContent(selectedTemplate);
+      const novaPeticao = await peticoesService.create({
+        nome: `Nova Petição - ${new Date().toLocaleDateString('pt-BR')}`,
+        tipo: getTemplateTipo(selectedTemplate),
+        status: 'Rascunho',
+        conteudo: templateContent,
+        modelo: selectedTemplate,
+      });
+
+      toast.success('Petição criada com sucesso!');
+      setIsDialogOpen(false);
+      setSelectedTemplate('');
+      onNavigate('peticoes-editor', novaPeticao.id);
+    } catch (error) {
+      console.error('Erro ao criar petição:', error);
+      toast.error('Erro ao criar petição');
+    }
   };
 
   const handleExport = (format: string) => {
@@ -53,11 +106,19 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
     setDeleteDialogOpen(true);
   };
 
-  const handleDeleteDocument = () => {
-    setDocuments(prev => prev.filter(doc => doc.id !== selectedDocId));
-    toast.success('Petição excluída com sucesso!');
-    setDeleteDialogOpen(false);
-    setSelectedDocId(null);
+  const handleDeleteDocument = async () => {
+    if (!selectedDocId) return;
+
+    try {
+      await peticoesService.softDelete(selectedDocId);
+      toast.success('Petição excluída com sucesso!');
+      setDeleteDialogOpen(false);
+      setSelectedDocId(null);
+      await loadPeticoes(); // Recarregar lista
+    } catch (error) {
+      console.error('Erro ao excluir petição:', error);
+      toast.error('Erro ao excluir petição');
+    }
   };
 
   const filteredDocuments = documents.filter(doc =>
@@ -210,7 +271,15 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
         </div>
       </div>
 
-      {filteredDocuments.length === 0 && (
+      {loading && (
+        <div className="text-center py-12">
+          <p className="text-gray-500 dark:text-gray-400">
+            Carregando petições...
+          </p>
+        </div>
+      )}
+
+      {!loading && filteredDocuments.length === 0 && (
         <div className="text-center py-12">
           <p className="text-gray-500 dark:text-gray-400">
             Nenhum documento encontrado

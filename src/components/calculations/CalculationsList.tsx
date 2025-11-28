@@ -57,13 +57,6 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
       description: 'Revise empréstimos e financiamentos em geral para assegurar a transparência e justiça.',
       icon: DollarSign,
       route: 'calc-emprestimos'
-    },
-    {
-      id: 'analise',
-      title: 'Análise Prévia',
-      description: 'Verifique a viabilidade financeira e jurídica do caso em poucos minutos.',
-      icon: FileText,
-      route: 'calc-analise'
     }
   ];
 

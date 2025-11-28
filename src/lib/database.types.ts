@@ -779,6 +779,68 @@ export interface Database {
           criado_em?: string
         }
       }
+      peticoes: {
+        Row: {
+          id: string
+          nome: string
+          tipo: string
+          status: string
+          conteudo: string
+          modelo: string | null
+          cliente_nome: string | null
+          numero_contrato: string | null
+          instituicao_financeira: string | null
+          valor_contrato: number | null
+          calculo_id: string | null
+          data_ultima_edicao: string
+          created_at: string
+          updated_at: string
+          criado_por: string
+          ativo: boolean
+          excluido: boolean
+          excluido_em: string | null
+          excluido_por: string | null
+        }
+        Insert: {
+          id?: string
+          nome: string
+          tipo: string
+          status?: string
+          conteudo: string
+          modelo?: string | null
+          cliente_nome?: string | null
+          numero_contrato?: string | null
+          instituicao_financeira?: string | null
+          valor_contrato?: number | null
+          calculo_id?: string | null
+          data_ultima_edicao?: string
+          created_at?: string
+          updated_at?: string
+          criado_por: string
+          ativo?: boolean
+          excluido?: boolean
+          excluido_em?: string | null
+          excluido_por?: string | null
+        }
+        Update: {
+          nome?: string
+          tipo?: string
+          status?: string
+          conteudo?: string
+          modelo?: string | null
+          cliente_nome?: string | null
+          numero_contrato?: string | null
+          instituicao_financeira?: string | null
+          valor_contrato?: number | null
+          calculo_id?: string | null
+          data_ultima_edicao?: string
+          updated_at?: string
+          ativo?: boolean
+          excluido?: boolean
+          excluido_em?: string | null
+          excluido_por?: string | null
+        }
+      }
       // Add more tables as needed
     }
     Views: {

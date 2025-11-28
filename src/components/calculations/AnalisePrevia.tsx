@@ -215,24 +215,44 @@ export function AnalisePrevia({ calcId, onNavigate, data }: AnalisePreviaProps) 
             <CardTitle>Representatividade</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                {tipoCalculo === 'cartao' || tipoCalculo === 'emprestimo'
-                  ? 'Total de Juros Cobrado'
-                  : 'Valor Total Pago'}
-              </div>
-              <div className="text-2xl text-gray-900 dark:text-white">{valorTotalPago}</div>
-            </div>
-            <div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">{valorDevidoLabel}</div>
-              <div className="text-2xl text-gray-900 dark:text-white">{valorDevido}</div>
-            </div>
-            <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
-              <div className="text-sm text-gray-500 dark:text-gray-400">Diferença (Possível Restituição)</div>
-              <div className={`text-2xl ${temDiferencaSignificativa ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
-                {diferencaRestituicao}
-              </div>
-            </div>
+            {tipoCalculo === 'financiamento' && (
+              <>
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Redução Estimada Juros Simples</div>
+                  <div className="text-2xl text-gray-900 dark:text-white">
+                    {data?.formatted?.reducaoEstimadaSimples || 'R$ 0,00'}
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Redução Estimada Média</div>
+                  <div className={`text-2xl ${temDiferencaSignificativa ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                    {data?.formatted?.reducaoEstimadaMedia || 'R$ 0,00'}
+                  </div>
+                </div>
+              </>
+            )}
+            {(tipoCalculo === 'cartao' || tipoCalculo === 'emprestimo') && (
+              <>
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {tipoCalculo === 'cartao' || tipoCalculo === 'emprestimo'
+                      ? 'Total de Juros Cobrado'
+                      : 'Valor Total Pago'}
+                  </div>
+                  <div className="text-2xl text-gray-900 dark:text-white">{valorTotalPago}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">{valorDevidoLabel}</div>
+                  <div className="text-2xl text-gray-900 dark:text-white">{valorDevido}</div>
+                </div>
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Diferença (Possível Restituição)</div>
+                  <div className={`text-2xl ${temDiferencaSignificativa ? 'text-green-600 dark:text-green-400' : 'text-gray-900 dark:text-white'}`}>
+                    {diferencaRestituicao}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

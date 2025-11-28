@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { ArrowLeft, Save, Download, FileText, Sparkles, Edit, Eye, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Download, FileText, Sparkles, Edit, Eye, Trash2, BookmarkPlus } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { toast } from 'sonner@2.0.3';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { peticoesService } from '@/services/peticoes.service';
+import { Peticao } from '@/types/peticoes.types';
 
 interface PeticoesEditorProps {
   documentId: string | null;
@@ -18,49 +20,19 @@ interface PeticoesEditorProps {
 export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) {
   const isNewDocument = documentId === 'new';
   const isViewMode = documentId && documentId !== 'new';
-  
+
   const [viewMode, setViewMode] = useState(true);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  
+  const [loading, setLoading] = useState(false);
+  const [peticao, setPeticao] = useState<Peticao | null>(null);
+
   const [petitionData, setPetitionData] = useState({
-    name: isNewDocument ? '' : 'Petição Inicial - Revisional ABC',
-    type: isNewDocument ? '' : 'Petição Inicial',
-    status: isNewDocument ? 'Rascunho' : 'Concluído',
+    name: isNewDocument ? '' : '',
+    type: isNewDocument ? '' : '',
+    status: isNewDocument ? 'Rascunho' : 'Rascunho',
   });
-  
-  const [content, setContent] = useState(`EXCELENTÍSSIMO SENHOR DOUTOR JUIZ DE DIREITO DA __ª VARA CÍVEL DA COMARCA DE ________
 
-[Nome do Autor], [nacionalidade], [estado civil], [profissão], portador do CPF nº [número], residente e domiciliado na [endereço completo], por seu advogado que esta subscreve, com escritório à [endereço do escritório], onde recebe intimações, nos termos da procuração anexa, vem, respeitosamente, à presença de Vossa Excelência, propor a presente
-
-AÇÃO REVISIONAL DE CONTRATO BANCÁRIO
-
-em face de [Nome da Instituição Financeira], pessoa jurídica de direito privado, inscrita no CNPJ sob o nº [número], com sede na [endereço completo], pelos fatos e fundamentos jurídicos a seguir expostos:
-
-I - DOS FATOS
-
-O Autor celebrou com o Réu contrato de [tipo de contrato] em [data], conforme documento anexo.
-
-[Continuar descrevendo os fatos relevantes...]
-
-II - DO DIREITO
-
-[Fundamentação jurídica...]
-
-III - DOS PEDIDOS
-
-Diante do exposto, requer:
-
-a) A citação do Réu para, querendo, apresentar contestação;
-b) A revisão das cláusulas contratuais abusivas;
-c) A condenação do Réu ao pagamento das custas processuais e honorários advocatícios;
-
-Nestes termos,
-Pede deferimento.
-
-[Cidade], [data].
-
-[Nome do Advogado]
-OAB/[UF] nº [número]`);
+  const [content, setContent] = useState(isNewDocument ? '' : '');
 
   const [caseData] = useState({
     client: 'João Silva',
@@ -69,14 +41,72 @@ OAB/[UF] nº [número]`);
     value: 'R$ 250.000,00',
   });
 
-  const handleSave = () => {
+  // Carregar petição ao montar componente
+  useEffect(() => {
+    if (documentId && documentId !== 'new') {
+      loadPeticao(documentId);
+    }
+  }, [documentId]);
+
+  const loadPeticao = async (id: string) => {
+    try {
+      setLoading(true);
+      const data = await peticoesService.getById(id);
+      if (data) {
+        setPeticao(data);
+        setPetitionData({
+          name: data.nome,
+          type: data.tipo,
+          status: data.status,
+        });
+        setContent(data.conteudo);
+      } else {
+        toast.error('Petição não encontrada');
+        onNavigate('peticoes');
+      }
+    } catch (error) {
+      console.error('Erro ao carregar petição:', error);
+      toast.error('Erro ao carregar petição');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
     if (!petitionData.name) {
       toast.error('Informe o nome da petição');
       return;
     }
-    toast.success('Petição salva com sucesso!');
-    if (isNewDocument) {
-      onNavigate('peticoes');
+
+    try {
+      setLoading(true);
+
+      if (isNewDocument) {
+        // Criar nova petição
+        const novaPeticao = await peticoesService.create({
+          nome: petitionData.name,
+          tipo: petitionData.type,
+          status: petitionData.status,
+          conteudo: content,
+        });
+        toast.success('Petição criada com sucesso!');
+        onNavigate('peticoes-editor', novaPeticao.id);
+      } else if (documentId) {
+        // Atualizar petição existente
+        await peticoesService.update(documentId, {
+          nome: petitionData.name,
+          tipo: petitionData.type,
+          status: petitionData.status,
+          conteudo: content,
+        });
+        toast.success('Petição atualizada com sucesso!');
+        await loadPeticao(documentId); // Recarregar dados
+      }
+    } catch (error) {
+      console.error('Erro ao salvar petição:', error);
+      toast.error('Erro ao salvar petição');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,10 +118,50 @@ OAB/[UF] nº [número]`);
     toast.success(`Documento exportado em ${format.toUpperCase()} com sucesso!`);
   };
 
-  const handleDelete = () => {
-    toast.success('Petição excluída com sucesso!');
-    setDeleteDialogOpen(false);
-    onNavigate('peticoes');
+  const handleSaveAsTemplate = async () => {
+    if (!content.trim()) {
+      toast.error('O conteúdo está vazio. Adicione texto antes de salvar como modelo.');
+      return;
+    }
+
+    if (!petitionData.name) {
+      toast.error('Informe o nome da petição antes de salvar como modelo.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Criar uma nova petição marcada como modelo
+      const novoModelo = await peticoesService.create({
+        nome: `[MODELO] ${petitionData.name}`,
+        tipo: petitionData.type || 'Outro',
+        status: 'Concluído',
+        conteudo: content,
+        modelo: 'custom', // Indicador de modelo customizado
+      });
+
+      toast.success('Modelo salvo com sucesso! Disponível para uso futuro.');
+    } catch (error) {
+      console.error('Erro ao salvar modelo:', error);
+      toast.error('Erro ao salvar modelo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!documentId || documentId === 'new') return;
+
+    try {
+      await peticoesService.softDelete(documentId);
+      toast.success('Petição excluída com sucesso!');
+      setDeleteDialogOpen(false);
+      onNavigate('peticoes');
+    } catch (error) {
+      console.error('Erro ao excluir petição:', error);
+      toast.error('Erro ao excluir petição');
+    }
   };
 
   const toggleViewMode = () => {
@@ -142,10 +212,16 @@ OAB/[UF] nº [número]`);
               </>
             )}
             {(!viewMode || isNewDocument) && (
-              <Button onClick={handleSave} className="gap-2">
-                <Save className="w-4 h-4" />
-                {isNewDocument ? 'Salvar' : 'Salvar Alterações'}
-              </Button>
+              <>
+                <Button onClick={handleSave} className="gap-2">
+                  <Save className="w-4 h-4" />
+                  {isNewDocument ? 'Salvar' : 'Salvar Alterações'}
+                </Button>
+                <Button onClick={handleSaveAsTemplate} variant="outline" className="gap-2">
+                  <BookmarkPlus className="w-4 h-4" />
+                  Salvar como Modelo
+                </Button>
+              </>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
