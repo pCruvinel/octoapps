@@ -104,6 +104,7 @@ export class PeticoesService {
       .from('peticoes')
       .select('*')
       .eq('excluido', false)
+      .neq('modelo', 'custom') // Filtrar modelos customizados (permite null e outros valores)
       .order('data_ultima_edicao', { ascending: false });
 
     if (error) {
@@ -130,6 +131,26 @@ export class PeticoesService {
     return this.mapRowToPeticao(data);
   }
 
+  async getModelosCustomizados(): Promise<Array<{ id: string; nome: string; tipo: string; conteudo: string }>> {
+    const user = (await supabase.auth.getUser()).data.user;
+    if (!user) throw new Error('Usuário não autenticado');
+
+    const { data, error } = await supabase
+      .from('peticoes')
+      .select('id, nome, tipo, conteudo')
+      .eq('modelo', 'custom')
+      .eq('excluido', false)
+      .eq('criado_por', user.id)
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.error('Erro ao buscar modelos customizados:', error);
+      throw new Error(`Erro ao buscar modelos: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
   // ========== UPDATE ==========
 
   async update(
@@ -139,6 +160,7 @@ export class PeticoesService {
       tipo?: string;
       status?: string;
       conteudo?: string;
+      modelo?: string;
       clienteNome?: string;
       numeroContrato?: string;
       instituicaoFinanceira?: string;
@@ -150,6 +172,7 @@ export class PeticoesService {
       ...(data.tipo && { tipo: data.tipo }),
       ...(data.status && { status: data.status }),
       ...(data.conteudo && { conteudo: data.conteudo }),
+      ...(data.modelo !== undefined && { modelo: data.modelo }),
       ...(data.clienteNome !== undefined && { cliente_nome: data.clienteNome }),
       ...(data.numeroContrato !== undefined && { numero_contrato: data.numeroContrato }),
       ...(data.instituicaoFinanceira !== undefined && { instituicao_financeira: data.instituicaoFinanceira }),

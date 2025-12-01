@@ -34,11 +34,11 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
 
   const [content, setContent] = useState(isNewDocument ? '' : '');
 
-  const [caseData] = useState({
-    client: 'João Silva',
-    contract: '123456789',
-    institution: 'Banco Exemplo S.A.',
-    value: 'R$ 250.000,00',
+  const [caseData, setCaseData] = useState({
+    client: '',
+    contract: '',
+    institution: '',
+    value: '',
   });
 
   // Carregar petição ao montar componente
@@ -60,6 +60,13 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
           status: data.status,
         });
         setContent(data.conteudo);
+        // Carregar dados do caso
+        setCaseData({
+          client: data.clienteNome || '',
+          contract: data.numeroContrato || '',
+          institution: data.instituicaoFinanceira || '',
+          value: data.valorContrato ? `R$ ${data.valorContrato.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '',
+        });
       } else {
         toast.error('Petição não encontrada');
         onNavigate('peticoes');
@@ -81,6 +88,11 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
     try {
       setLoading(true);
 
+      // Converter valor para número (remover formatação)
+      const valorNumerico = caseData.value
+        ? parseFloat(caseData.value.replace(/[^\d,]/g, '').replace(',', '.'))
+        : undefined;
+
       if (isNewDocument) {
         // Criar nova petição
         const novaPeticao = await peticoesService.create({
@@ -88,6 +100,10 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
           tipo: petitionData.type,
           status: petitionData.status,
           conteudo: content,
+          clienteNome: caseData.client || undefined,
+          numeroContrato: caseData.contract || undefined,
+          instituicaoFinanceira: caseData.institution || undefined,
+          valorContrato: valorNumerico,
         });
         toast.success('Petição criada com sucesso!');
         onNavigate('peticoes-editor', novaPeticao.id);
@@ -98,6 +114,10 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
           tipo: petitionData.type,
           status: petitionData.status,
           conteudo: content,
+          clienteNome: caseData.client || undefined,
+          numeroContrato: caseData.contract || undefined,
+          instituicaoFinanceira: caseData.institution || undefined,
+          valorContrato: valorNumerico,
         });
         toast.success('Petição atualizada com sucesso!');
         await loadPeticao(documentId); // Recarregar dados
@@ -132,13 +152,23 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
     try {
       setLoading(true);
 
-      // Criar uma nova petição marcada como modelo
-      const novoModelo = await peticoesService.create({
-        nome: `[MODELO] ${petitionData.name}`,
+      // Converter valor para número (remover formatação)
+      const valorNumerico = caseData.value
+        ? parseFloat(caseData.value.replace(/[^\d,]/g, '').replace(',', '.'))
+        : undefined;
+
+      // SEMPRE criar um novo registro de modelo (uma cópia da petição atual)
+      // Isso permite que a petição original e o modelo sejam independentes
+      await peticoesService.create({
+        nome: petitionData.name,
         tipo: petitionData.type || 'Outro',
         status: 'Concluído',
         conteudo: content,
-        modelo: 'custom', // Indicador de modelo customizado
+        modelo: 'custom', // Marca como modelo customizado
+        clienteNome: caseData.client || undefined,
+        numeroContrato: caseData.contract || undefined,
+        instituicaoFinanceira: caseData.institution || undefined,
+        valorContrato: valorNumerico,
       });
 
       toast.success('Modelo salvo com sucesso! Disponível para uso futuro.');
@@ -304,21 +334,45 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
                 <CardTitle>Dados do Caso</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Cliente</div>
-                  <div className="text-sm text-gray-900 dark:text-white">{caseData.client}</div>
+                <div className="space-y-2">
+                  <Label htmlFor="case-client">Cliente</Label>
+                  <Input
+                    id="case-client"
+                    value={caseData.client}
+                    onChange={(e) => setCaseData(prev => ({ ...prev, client: e.target.value }))}
+                    placeholder="Nome do cliente"
+                    disabled={viewMode && !isNewDocument}
+                  />
                 </div>
-                <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Nº Contrato</div>
-                  <div className="text-sm text-gray-900 dark:text-white">{caseData.contract}</div>
+                <div className="space-y-2">
+                  <Label htmlFor="case-contract">Nº Contrato</Label>
+                  <Input
+                    id="case-contract"
+                    value={caseData.contract}
+                    onChange={(e) => setCaseData(prev => ({ ...prev, contract: e.target.value }))}
+                    placeholder="Número do contrato"
+                    disabled={viewMode && !isNewDocument}
+                  />
                 </div>
-                <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Instituição</div>
-                  <div className="text-sm text-gray-900 dark:text-white">{caseData.institution}</div>
+                <div className="space-y-2">
+                  <Label htmlFor="case-institution">Instituição</Label>
+                  <Input
+                    id="case-institution"
+                    value={caseData.institution}
+                    onChange={(e) => setCaseData(prev => ({ ...prev, institution: e.target.value }))}
+                    placeholder="Nome da instituição financeira"
+                    disabled={viewMode && !isNewDocument}
+                  />
                 </div>
-                <div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Valor</div>
-                  <div className="text-sm text-gray-900 dark:text-white">{caseData.value}</div>
+                <div className="space-y-2">
+                  <Label htmlFor="case-value">Valor (R$)</Label>
+                  <Input
+                    id="case-value"
+                    value={caseData.value}
+                    onChange={(e) => setCaseData(prev => ({ ...prev, value: e.target.value }))}
+                    placeholder="0,00"
+                    disabled={viewMode && !isNewDocument}
+                  />
                 </div>
 
                 {(!viewMode || isNewDocument) && (
@@ -327,10 +381,10 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
                     Gerar Petição
                   </Button>
                 )}
-                
+
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    💡 A IA pode sugerir trechos relevantes baseados nos dados do caso
+                    💡 Digite os dados do caso para personalizar a petição
                   </p>
                 </div>
               </CardContent>

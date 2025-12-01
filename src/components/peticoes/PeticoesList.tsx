@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Search, MoreVertical, Download } from 'lucide-react';
+import { Plus, Search, MoreVertical, Download, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
@@ -18,19 +18,30 @@ interface PeticoesListProps {
   onNavigate: (route: string, id?: string) => void;
 }
 
+interface ModeloCustomizado {
+  id: string;
+  nome: string;
+  tipo: string;
+  conteudo: string;
+}
+
 export function PeticoesList({ onNavigate }: PeticoesListProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteModeloDialogOpen, setDeleteModeloDialogOpen] = useState(false);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [selectedModeloId, setSelectedModeloId] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [documents, setDocuments] = useState<PeticaoListItem[]>([]);
+  const [modelosCustomizados, setModelosCustomizados] = useState<ModeloCustomizado[]>([]);
 
   // Carregar petições ao montar o componente
   useEffect(() => {
     loadPeticoes();
+    loadModelosCustomizados();
   }, []);
 
   const loadPeticoes = async () => {
@@ -46,7 +57,18 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
     }
   };
 
+  const loadModelosCustomizados = async () => {
+    try {
+      const modelos = await peticoesService.getModelosCustomizados();
+      setModelosCustomizados(modelos);
+    } catch (err) {
+      console.error('Erro ao carregar modelos customizados:', err);
+      // Não mostrar erro ao usuário, apenas não exibir modelos customizados
+    }
+  };
+
   const getTemplateContent = (template: string): string => {
+    // Verificar se é um modelo padrão
     switch (template) {
       case 'inicial':
         return TEMPLATE_PETICAO_INICIAL;
@@ -56,8 +78,12 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
         return TEMPLATE_RECURSO;
       case 'memorial':
         return TEMPLATE_MEMORIAL;
-      default:
+      case 'blank':
         return '';
+      default:
+        // Se não for modelo padrão, buscar nos modelos customizados
+        const modeloCustomizado = modelosCustomizados.find(m => m.id === template);
+        return modeloCustomizado?.conteudo || '';
     }
   };
 
@@ -67,7 +93,11 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
       case 'contestacao': return 'Contestação';
       case 'recurso': return 'Recurso';
       case 'memorial': return 'Memorial';
-      default: return 'Outro';
+      case 'blank': return 'Outro';
+      default:
+        // Se não for modelo padrão, buscar tipo do modelo customizado
+        const modeloCustomizado = modelosCustomizados.find(m => m.id === template);
+        return modeloCustomizado?.tipo || 'Outro';
     }
   };
 
@@ -121,6 +151,27 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
     }
   };
 
+  const openDeleteModeloDialog = (modeloId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Evitar que o select seja fechado
+    setSelectedModeloId(modeloId);
+    setDeleteModeloDialogOpen(true);
+  };
+
+  const handleDeleteModelo = async () => {
+    if (!selectedModeloId) return;
+
+    try {
+      await peticoesService.softDelete(selectedModeloId);
+      toast.success('Modelo excluído com sucesso!');
+      setDeleteModeloDialogOpen(false);
+      setSelectedModeloId(null);
+      await loadModelosCustomizados(); // Recarregar lista de modelos
+    } catch (error) {
+      console.error('Erro ao excluir modelo:', error);
+      toast.error('Erro ao excluir modelo');
+    }
+  };
+
   const filteredDocuments = documents.filter(doc =>
     doc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doc.type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -151,7 +202,7 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
                 <Download className="w-4 h-4" />
-                Exportar
+                Exportar1
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
@@ -190,8 +241,48 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
                     <SelectItem value="recurso">Recurso</SelectItem>
                     <SelectItem value="memorial">Memorial</SelectItem>
                     <SelectItem value="blank">Em Branco</SelectItem>
+                    {modelosCustomizados.length > 0 && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                          Meus Modelos
+                        </div>
+                        {modelosCustomizados.map((modelo) => (
+                          <SelectItem key={modelo.id} value={modelo.id}>
+                            {modelo.nome}
+                          </SelectItem>
+                        ))}
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
+
+                {modelosCustomizados.length > 0 && (
+                  <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
+                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                      Gerenciar Meus Modelos
+                    </p>
+                    <div className="space-y-1">
+                      {modelosCustomizados.map((modelo) => (
+                        <div
+                          key={modelo.id}
+                          className="flex items-center justify-between px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm"
+                        >
+                          <span className="text-gray-700 dark:text-gray-300">{modelo.nome}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteModeloDialog(modelo.id, e);
+                            }}
+                            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded text-red-600 dark:text-red-400"
+                            title="Excluir modelo"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
@@ -301,6 +392,28 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteDocument}
+              className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteModeloDialogOpen} onOpenChange={setDeleteModeloDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Modelo</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza de que deseja excluir este modelo? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteModelo}
               className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
             >
               Excluir
