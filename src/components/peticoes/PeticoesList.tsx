@@ -8,11 +8,12 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { peticoesService } from '@/services/peticoes.service';
 import { PeticaoListItem } from '@/types/peticoes.types';
 import { TEMPLATE_PETICAO_INICIAL, TEMPLATE_CONTESTACAO, TEMPLATE_RECURSO, TEMPLATE_MEMORIAL } from '@/constants/templates-peticoes';
+import { exportService, PeticaoExportData } from '@/services/export.service';
 
 interface PeticoesListProps {
   onNavigate: (route: string, id?: string) => void;
@@ -127,8 +128,42 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
     }
   };
 
-  const handleExport = (format: string) => {
-    toast.success(`Documento exportado em ${format.toUpperCase()} com sucesso!`);
+  const handleExport = async (format: 'pdf' | 'word', peticaoId: string) => {
+    try {
+      const peticao = await peticoesService.getById(peticaoId);
+
+      if (!peticao) {
+        toast.error('Petição não encontrada');
+        return;
+      }
+
+      if (!peticao.conteudo.trim()) {
+        toast.error('Não há conteúdo para exportar.');
+        return;
+      }
+
+      const exportData: PeticaoExportData = {
+        nome: peticao.nome,
+        tipo: peticao.tipo,
+        status: peticao.status,
+        conteudo: peticao.conteudo,
+        clienteNome: peticao.clienteNome,
+        numeroContrato: peticao.numeroContrato,
+        instituicaoFinanceira: peticao.instituicaoFinanceira,
+        valorContrato: peticao.valorContrato ? `R$ ${peticao.valorContrato.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : undefined,
+      };
+
+      if (format === 'pdf') {
+        await exportService.exportToPdf(exportData);
+        toast.success('Documento exportado em PDF com sucesso!');
+      } else {
+        await exportService.exportToWord(exportData);
+        toast.success('Documento exportado em Word com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao exportar documento:', error);
+      toast.error(`Erro ao exportar documento em ${format.toUpperCase()}`);
+    }
   };
 
   const openDeleteDialog = (id: string) => {
@@ -202,14 +237,14 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="gap-2">
                 <Download className="w-4 h-4" />
-                Exportar1
+                Exportar
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => handleExport('pdf')}>
+              <DropdownMenuItem onClick={() => toast.info('Selecione uma petição na lista para exportar')}>
                 Exportar em PDF
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('word')}>
+              <DropdownMenuItem onClick={() => toast.info('Selecione uma petição na lista para exportar')}>
                 Exportar em Word
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -339,14 +374,14 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
                           Editar
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => handleExport('pdf')}>
+                        <DropdownMenuItem onClick={() => handleExport('pdf', doc.id)}>
                           Exportar PDF
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleExport('word')}>
+                        <DropdownMenuItem onClick={() => handleExport('word', doc.id)}>
                           Exportar Word
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="text-red-600 dark:text-red-400"
                           onClick={() => openDeleteDialog(doc.id)}
                         >

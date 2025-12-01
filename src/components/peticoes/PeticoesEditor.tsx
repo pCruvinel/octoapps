@@ -11,6 +11,7 @@ import { toast } from 'sonner@2.0.3';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { peticoesService } from '@/services/peticoes.service';
 import { Peticao } from '@/types/peticoes.types';
+import { exportService, PeticaoExportData } from '@/services/export.service';
 
 interface PeticoesEditorProps {
   documentId: string | null;
@@ -134,8 +135,38 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
     toast.success('Petição gerada com dados do caso!');
   };
 
-  const handleExport = (format: string) => {
-    toast.success(`Documento exportado em ${format.toUpperCase()} com sucesso!`);
+  const handleExport = async (format: 'pdf' | 'word') => {
+    // Validar se há conteúdo para exportar
+    if (!content.trim()) {
+      toast.error('Não há conteúdo para exportar. Adicione texto à petição antes de exportar.');
+      return;
+    }
+
+    try {
+      // Preparar dados para exportação
+      const exportData: PeticaoExportData = {
+        nome: petitionData.name || 'Petição sem título',
+        tipo: petitionData.type || 'Não especificado',
+        status: petitionData.status,
+        conteudo: content,
+        clienteNome: caseData.client || undefined,
+        numeroContrato: caseData.contract || undefined,
+        instituicaoFinanceira: caseData.institution || undefined,
+        valorContrato: caseData.value || undefined,
+      };
+
+      // Exportar no formato selecionado
+      if (format === 'pdf') {
+        await exportService.exportToPdf(exportData);
+        toast.success('Documento exportado em PDF com sucesso!');
+      } else {
+        await exportService.exportToWord(exportData);
+        toast.success('Documento exportado em Word com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao exportar documento:', error);
+      toast.error(`Erro ao exportar documento em ${format.toUpperCase()}`);
+    }
   };
 
   const handleSaveAsTemplate = async () => {
@@ -202,8 +233,8 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
   return (
     <div className="lg:p-8 p-[32px]">
       <div className="max-w-6xl mx-auto m-[0px]">
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           onClick={() => onNavigate('peticoes')}
           className="gap-2 mb-6"
         >
@@ -223,17 +254,17 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
           <div className="flex gap-2">
             {!isNewDocument && (
               <>
-                <Button 
-                  variant="outline" 
-                  onClick={toggleViewMode} 
+                <Button
+                  variant="outline"
+                  onClick={toggleViewMode}
                   className="gap-2"
                 >
                   {viewMode ? <Edit className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   {viewMode ? 'Editar' : 'Visualizar'}
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={() => setDeleteDialogOpen(true)} 
+                <Button
+                  variant="destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
                   className="gap-2"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -328,7 +359,7 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader>
                 <CardTitle>Dados do Caso</CardTitle>
