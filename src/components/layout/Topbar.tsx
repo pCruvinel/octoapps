@@ -50,9 +50,7 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
         >
           <Menu className="w-6 h-6" />
         </button>
-        <h1 className="hidden sm:block text-gray-900 dark:text-white">
-          Legal Manager
-        </h1>
+
       </div>
 
       <div className="flex items-center gap-2">
@@ -62,8 +60,8 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <Badge 
-                  variant="destructive" 
+                <Badge
+                  variant="destructive"
                   className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center p-0 text-xs"
                 >
                   {unreadCount}
@@ -74,9 +72,9 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
           <DropdownMenuContent align="end" className="w-80">
             <div className="flex items-center justify-between p-3 border-b">
               <span className="text-sm">Notificações</span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="h-auto p-0 text-xs"
                 onClick={markAllAsRead}
               >
@@ -85,8 +83,8 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
             </div>
             <div className="max-h-80 overflow-y-auto">
               {notifications.map(notif => (
-                <DropdownMenuItem 
-                  key={notif.id} 
+                <DropdownMenuItem
+                  key={notif.id}
                   className={`flex flex-col items-start gap-1 p-3 ${!notif.read ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
                 >
                   <div className="flex items-start gap-2 w-full">
@@ -110,8 +108,8 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
         </DropdownMenu>
 
         {/* Theme Toggle */}
-        <Button 
-          variant="ghost" 
+        <Button
+          variant="ghost"
           size="icon"
           onClick={onThemeToggle}
         >

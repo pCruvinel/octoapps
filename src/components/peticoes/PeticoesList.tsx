@@ -233,22 +233,7 @@ export function PeticoesList({ onNavigate }: PeticoesListProps) {
         </div>
 
         <div className="flex gap-2 w-full sm:w-auto">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                <Download className="w-4 h-4" />
-                Exportar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => toast.info('Selecione uma petição na lista para exportar')}>
-                Exportar em PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info('Selecione uma petição na lista para exportar')}>
-                Exportar em Word
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>

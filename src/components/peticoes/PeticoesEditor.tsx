@@ -7,7 +7,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { peticoesService } from '@/services/peticoes.service';
 import { Peticao } from '@/types/peticoes.types';
@@ -404,19 +404,6 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
                     placeholder="0,00"
                     disabled={viewMode && !isNewDocument}
                   />
-                </div>
-
-                {(!viewMode || isNewDocument) && (
-                  <Button onClick={handleGenerate} className="w-full gap-2 mt-4">
-                    <Sparkles className="w-4 h-4" />
-                    Gerar Petição
-                  </Button>
-                )}
-
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    💡 Digite os dados do caso para personalizar a petição
-                  </p>
                 </div>
               </CardContent>
             </Card>

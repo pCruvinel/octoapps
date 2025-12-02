@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Search, MoreVertical, User, Loader2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, User, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
@@ -46,11 +46,14 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   });
 
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalContacts, setTotalContacts] = useState(0);
+  const itemsPerPage = 10;
 
-  // Load contacts from Supabase when user changes
+  // Load contacts from Supabase when user changes or page changes
   useEffect(() => {
     loadContacts();
-  }, [user]);
+  }, [user, currentPage]);
 
   const loadContacts = async () => {
     try {
@@ -58,20 +61,27 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
       if (!user) {
         setContacts([]);
+        setTotalContacts(0);
         return;
       }
 
-      // Buscar apenas contatos do usuário atual (criados por ele ou onde ele é responsável)
-      const { data, error } = await supabase
+      // Calcular o range para paginação
+      const from = (currentPage - 1) * itemsPerPage;
+      const to = from + itemsPerPage - 1;
+
+      // Buscar contatos com paginação
+      const { data, error, count } = await supabase
         .from('contatos')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('ativo', true)
         .or(`criado_por.eq.${user.id},responsavel_id.eq.${user.id}`)
-        .order('data_criacao', { ascending: false });
+        .order('data_criacao', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
 
       setContacts(data || []);
+      setTotalContacts(count || 0);
     } catch (error) {
       console.error('Error loading contacts:', error);
       toast.error('Erro ao carregar contatos');
@@ -125,7 +135,8 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
         status: 'Lead',
       });
 
-      // Reload contacts
+      // Reload contacts from first page
+      setCurrentPage(1);
       await loadContacts();
     } catch (error: any) {
       console.error('Error creating contact:', error);
@@ -257,6 +268,18 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
     (contact.email && contact.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (contact.cpf_cnpj && contact.cpf_cnpj.includes(searchTerm))
   );
+
+  const totalPages = Math.ceil(totalContacts / itemsPerPage);
+  const startItem = totalContacts === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endItem = Math.min(currentPage * itemsPerPage, totalContacts);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
 
   return (
     <div className="p-4 lg:p-8">
@@ -482,6 +505,40 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
           <p className="text-gray-500 dark:text-gray-400">
             Nenhum contato encontrado
           </p>
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {!loadingContacts && totalContacts > 0 && (
+        <div className="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-800 pt-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Mostrando {startItem} a {endItem} de {totalContacts} contatos
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+              className="gap-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Anterior
+            </Button>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Página {currentPage} de {totalPages}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              className="gap-1"
+            >
+              Próxima
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       )}
 
