@@ -8,6 +8,7 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/lib/database.types';
 import { safeSaveAmortizacao, validateAmortizacaoRows } from './amortizacao.helper';
+import type { RelatorioCompletoCabecalho, RelatorioAmortizacaoParcela, RelatorioCompletoResponse } from '@/types/relatorio.types';
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -245,6 +246,33 @@ export class FinanciamentosService {
     if (error) {
       console.error('Error fetching financiamentos:', error);
       throw new Error(`Erro ao buscar financiamentos: ${error.message}`);
+    }
+
+    return data || [];
+  }
+
+  /**
+   * Get all financiamentos_calculo (cálculos de revisão) with analysis data
+   * Busca dados da tabela financiamentos_calculo com informações de análise
+   */
+  async getAllCalculos(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('financiamentos_calculo')
+      .select(`
+        *,
+        financiamentos_calculo_analise (
+          taxa_juros_mensal_contrato,
+          taxa_media_mensal,
+          excesso_media,
+          diferenca_total_media,
+          diferenca_total_simples
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching financiamentos_calculo:', error);
+      throw new Error(`Erro ao buscar cálculos: ${error.message}`);
     }
 
     return data || [];
@@ -555,6 +583,102 @@ export class FinanciamentosService {
     }
 
     return data;
+  }
+
+  /**
+   * Gera um relatório completo de financiamento usando a RPC do Supabase
+   * @param financiamentoCalculoId - ID do financiamento_calculo
+   * @param qtdParcelasTabela - Quantidade de parcelas para a tabela de amortização
+   * @returns Relatório completo com cabeçalho e amortização
+   */
+  async gerarRelatorioCompleto(
+    financiamentoCalculoId: string,
+    qtdParcelasTabela: number
+  ): Promise<RelatorioCompletoResponse> {
+    // 1. Chamar RPC gerar_relatorio_completo
+    const { data: relatorioId, error: rpcError } = await supabase.rpc(
+      'gerar_relatorio_completo',
+      {
+        p_financiamento_calculo_id: financiamentoCalculoId,
+        p_qtd_parcelas_tabela: qtdParcelasTabela,
+      }
+    );
+
+    if (rpcError) {
+      console.error('Error calling gerar_relatorio_completo:', rpcError);
+      throw new Error(`Erro ao gerar relatório completo: ${rpcError.message}`);
+    }
+
+    if (!relatorioId) {
+      throw new Error('RPC não retornou o ID do relatório');
+    }
+
+    // 2. Buscar cabeçalho do relatório com join do financiamento
+    const { data: cabecalho, error: cabecalhoError } = await supabase
+      .from('relatorios_completos')
+      .select('*, financiamentos_calculo(*)')
+      .eq('id', relatorioId)
+      .single();
+
+    if (cabecalhoError) {
+      console.error('Error fetching relatorio cabecalho:', cabecalhoError);
+      throw new Error(`Erro ao buscar cabeçalho do relatório: ${cabecalhoError.message}`);
+    }
+
+    // 3. Buscar tabela de amortização ordenada por parcela
+    const { data: amortizacao, error: amortizacaoError } = await supabase
+      .from('relatorios_amortizacao')
+      .select('*')
+      .eq('relatorio_id', relatorioId)
+      .order('numero_parcela', { ascending: true });
+
+    if (amortizacaoError) {
+      console.error('Error fetching relatorio amortizacao:', amortizacaoError);
+      throw new Error(`Erro ao buscar amortização do relatório: ${amortizacaoError.message}`);
+    }
+
+    return {
+      relatorio_id: relatorioId,
+      cabecalho: cabecalho as RelatorioCompletoCabecalho,
+      amortizacao: (amortizacao || []) as RelatorioAmortizacaoParcela[],
+    };
+  }
+
+  /**
+   * Busca um relatório completo já gerado pelo ID
+   * @param relatorioId - ID do relatório
+   * @returns Relatório completo com cabeçalho e amortização
+   */
+  async buscarRelatorioCompletoPorId(relatorioId: string): Promise<RelatorioCompletoResponse> {
+    // 1. Buscar cabeçalho do relatório com join do financiamento
+    const { data: cabecalho, error: cabecalhoError } = await supabase
+      .from('relatorios_completos')
+      .select('*, financiamentos_calculo(*)')
+      .eq('id', relatorioId)
+      .single();
+
+    if (cabecalhoError) {
+      console.error('Error fetching relatorio cabecalho:', cabecalhoError);
+      throw new Error(`Erro ao buscar cabeçalho do relatório: ${cabecalhoError.message}`);
+    }
+
+    // 2. Buscar tabela de amortização ordenada por parcela
+    const { data: amortizacao, error: amortizacaoError } = await supabase
+      .from('relatorios_amortizacao')
+      .select('*')
+      .eq('relatorio_id', relatorioId)
+      .order('numero_parcela', { ascending: true });
+
+    if (amortizacaoError) {
+      console.error('Error fetching relatorio amortizacao:', amortizacaoError);
+      throw new Error(`Erro ao buscar amortização do relatório: ${amortizacaoError.message}`);
+    }
+
+    return {
+      relatorio_id: relatorioId,
+      cabecalho: cabecalho as RelatorioCompletoCabecalho,
+      amortizacao: (amortizacao || []) as RelatorioAmortizacaoParcela[],
+    };
   }
 }
 

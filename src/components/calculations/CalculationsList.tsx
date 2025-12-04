@@ -35,6 +35,8 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
   const [calculations, setCalculations] = useState<Calculation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const calculationOptions = [
     {
@@ -71,24 +73,18 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
       setError(null);
 
       // Load from all calculation tables in parallel
-      const [financiamentos, cartoes] = await Promise.all([
-        financiamentosService.getAll(),
+      const [financiamentosCalculos, cartoes] = await Promise.all([
+        financiamentosService.getAllCalculos(), // Buscar de financiamentos_calculo
         cartoesService.getAll(),
       ]);
 
       // Tag each record with its type
       const allCalculations: Calculation[] = [
-        ...financiamentos.map(f => ({ ...f, tipo: 'financiamento' as const })),
+        ...financiamentosCalculos.map(f => ({ ...f, tipo: 'financiamento' as const })),
         ...cartoes.map(c => ({ ...c, tipo: 'cartao' as const })),
       ];
 
-      // Sort by most recent first
-      allCalculations.sort((a, b) => {
-        const dateA = new Date(a.data_atualizacao).getTime();
-        const dateB = new Date(b.data_atualizacao).getTime();
-        return dateB - dateA;
-      });
-
+      // Ordenação já vem do banco de dados (created_at desc)
       setCalculations(allCalculations);
     } catch (err) {
       console.error('Error loading calculations:', err);
@@ -296,8 +292,8 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
 
   const filteredCalculations = calculations.filter(calc => {
     const searchLower = searchTerm.toLowerCase();
-    const devedor = calc.devedor.toLowerCase();
-    const credor = calc.credor.toLowerCase();
+    const devedor = (calc.devedor || '').toLowerCase();
+    const credor = (calc.credor || '').toLowerCase();
 
     // Common fields
     if (devedor.includes(searchLower) || credor.includes(searchLower)) {
@@ -308,19 +304,30 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
     if (calc.tipo === 'financiamento') {
       const fin = calc as Financiamento;
       return (
-        (fin.contrato_num && fin.contrato_num.includes(searchTerm)) ||
-        (fin.numero_processo && fin.numero_processo.includes(searchTerm))
+        (fin.contrato_num && fin.contrato_num.toLowerCase().includes(searchLower)) ||
+        (fin.numero_processo && fin.numero_processo.toLowerCase().includes(searchLower))
       );
     } else if (calc.tipo === 'cartao') {
       const cartao = calc as CartaoCredito;
       return (
-        (cartao.numero_cartao && cartao.numero_cartao.includes(searchTerm)) ||
-        (cartao.numero_processo && cartao.numero_processo.includes(searchTerm))
+        (cartao.numero_cartao && cartao.numero_cartao.toLowerCase().includes(searchLower)) ||
+        (cartao.numero_processo && cartao.numero_processo.toLowerCase().includes(searchLower))
       );
     }
 
     return false;
   });
+
+  // Paginação
+  const totalPages = Math.ceil(filteredCalculations.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedCalculations = filteredCalculations.slice(startIndex, endIndex);
+
+  // Reset para primeira página quando filtrar
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   return (
     <div className="p-4 lg:p-8">
@@ -414,7 +421,7 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredCalculations.map(calc => (
+                paginatedCalculations.map(calc => (
                   <TableRow key={calc.id}>
                     <TableCell>{calc.id.substring(0, 8)}</TableCell>
                     <TableCell className="text-gray-900 dark:text-white">{calc.devedor}</TableCell>
@@ -422,10 +429,10 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
                     <TableCell>
                       <Badge variant="outline">{getCalculationType(calc)}</Badge>
                     </TableCell>
-                    <TableCell>{formatDate(calc.data_atualizacao)}</TableCell>
+                    <TableCell>{formatDate(calc.data_atualizacao || new Date().toISOString())}</TableCell>
                     <TableCell>
                       <Badge variant={calc.status === 'Concluído' ? 'default' : 'secondary'}>
-                        {calc.status}
+                        {calc.status || 'Em Análise'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -457,6 +464,34 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
             </TableBody>
           </Table>
         </div>
+
+        {/* Controles de Paginação */}
+        {filteredCalculations.length > 0 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Mostrando {startIndex + 1} a {Math.min(endIndex, filteredCalculations.length)} de {filteredCalculations.length} casos
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Página {currentPage} de {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>

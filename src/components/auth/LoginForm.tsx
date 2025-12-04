@@ -5,6 +5,7 @@ import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import { useAuth } from '../../hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import { isValidEmail } from '../ui/utils';
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -15,6 +16,7 @@ export function LoginForm({ onSuccess, onToggleSignup }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState<string>('');
   const { signIn } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -22,6 +24,12 @@ export function LoginForm({ onSuccess, onToggleSignup }: LoginFormProps) {
 
     if (!email || !password) {
       toast.error('Preencha todos os campos');
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setEmailError('Por favor, insira um email válido');
+      toast.error('Email inválido');
       return;
     }
 
@@ -58,10 +66,27 @@ export function LoginForm({ onSuccess, onToggleSignup }: LoginFormProps) {
           type="email"
           placeholder="seu@email.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            const emailValue = e.target.value;
+            setEmail(emailValue);
+            if (emailValue && !isValidEmail(emailValue)) {
+              setEmailError('Por favor, insira um email válido');
+            } else {
+              setEmailError('');
+            }
+          }}
+          onBlur={(e) => {
+            if (e.target.value && !isValidEmail(e.target.value)) {
+              setEmailError('Por favor, insira um email válido');
+            }
+          }}
           disabled={loading}
           required
+          aria-invalid={emailError ? 'true' : 'false'}
         />
+        {emailError && (
+          <p className="text-sm text-destructive">{emailError}</p>
+        )}
       </div>
 
       <div className="space-y-2">

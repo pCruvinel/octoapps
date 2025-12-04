@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
 import { usersService, type UserWithRole, type Role } from '../../services/users.service';
+import { isValidEmail } from '../ui/utils';
 
 interface UserManagementProps {
   onNavigate: (page: string, id?: string) => void;
@@ -46,6 +47,9 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
     role_id: '',
   });
 
+  const [emailError, setEmailError] = useState<string>('');
+  const [editEmailError, setEditEmailError] = useState<string>('');
+
   // Carregar usuários e roles ao montar
   useEffect(() => {
     loadData();
@@ -74,7 +78,8 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newUser.email)) {
+    if (!isValidEmail(newUser.email)) {
+      setEmailError('Por favor, insira um email válido');
       toast.error('E-mail inválido');
       return;
     }
@@ -150,7 +155,8 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
       return;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editUser.email)) {
+    if (!isValidEmail(editUser.email)) {
+      setEditEmailError('Por favor, insira um email válido');
       toast.error('E-mail inválido');
       return;
     }
@@ -272,10 +278,27 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
                   id="email"
                   type="email"
                   value={newUser.email}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => {
+                    const emailValue = e.target.value;
+                    setNewUser(prev => ({ ...prev, email: emailValue }));
+                    if (emailValue && !isValidEmail(emailValue)) {
+                      setEmailError('Por favor, insira um email válido');
+                    } else {
+                      setEmailError('');
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value && !isValidEmail(e.target.value)) {
+                      setEmailError('Por favor, insira um email válido');
+                    }
+                  }}
                   placeholder="email@exemplo.com"
                   disabled={creating}
+                  aria-invalid={emailError ? 'true' : 'false'}
                 />
+                {emailError && (
+                  <p className="text-sm text-destructive">{emailError}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -471,10 +494,27 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
                 id="edit-email"
                 type="email"
                 value={editUser.email}
-                onChange={(e) => setEditUser(prev => ({ ...prev, email: e.target.value }))}
+                onChange={(e) => {
+                  const emailValue = e.target.value;
+                  setEditUser(prev => ({ ...prev, email: emailValue }));
+                  if (emailValue && !isValidEmail(emailValue)) {
+                    setEditEmailError('Por favor, insira um email válido');
+                  } else {
+                    setEditEmailError('');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value && !isValidEmail(e.target.value)) {
+                    setEditEmailError('Por favor, insira um email válido');
+                  }
+                }}
                 placeholder="email@exemplo.com"
                 disabled={updating}
+                aria-invalid={editEmailError ? 'true' : 'false'}
               />
+              {editEmailError && (
+                <p className="text-sm text-destructive">{editEmailError}</p>
+              )}
             </div>
 
             <div className="space-y-2">

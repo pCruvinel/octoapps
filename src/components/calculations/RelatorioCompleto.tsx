@@ -44,7 +44,8 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
   }[tipoCalculo];
 
   // Formatar data sem problemas de timezone (YYYY-MM-DD → DD/MM/YYYY)
-  const formatarData = (dataStr: string): string => {
+  const formatarData = (dataStr: string | undefined | null): string => {
+    if (!dataStr) return 'N/A';
     const [ano, mes, dia] = dataStr.split('-');
     return `${dia}/${mes}/${ano}`;
   };
@@ -259,9 +260,7 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
                   <TableHeader>
                     <TableRow>
                       <TableHead>Mês</TableHead>
-                      <TableHead>Data</TableHead>
                       <TableHead>Valor Original</TableHead>
-                      <TableHead>Valor Corrigido</TableHead>
                       <TableHead>Juros</TableHead>
                       <TableHead>Amortização</TableHead>
                       <TableHead>Saldo Devedor</TableHead>
@@ -272,9 +271,7 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
                       data.tabelaAmortizacao.map((row) => (
                         <TableRow key={row.mes}>
                           <TableCell>{row.mes}</TableCell>
-                          <TableCell>{formatarData(row.data)}</TableCell>
                           <TableCell>{formatarMoeda(row.valorOriginalParcela)}</TableCell>
-                          <TableCell>{formatarMoeda(row.valorCorrigido)}</TableCell>
                           <TableCell>{formatarMoeda(row.juros)}</TableCell>
                           <TableCell>{formatarMoeda(row.amortizacao)}</TableCell>
                           <TableCell>{formatarMoeda(row.saldoDevedor)}</TableCell>
@@ -282,7 +279,7 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-gray-500 dark:text-gray-400">
+                        <TableCell colSpan={5} className="text-center text-gray-500 dark:text-gray-400">
                           Nenhum dado disponível
                         </TableCell>
                       </TableRow>

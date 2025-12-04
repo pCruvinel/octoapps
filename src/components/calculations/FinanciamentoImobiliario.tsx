@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseNumber } from '@/utils/parseNumber';
-import { formatCurrencyInput } from '@/utils/formatCurrency';
+import { formatCurrencyInput, formatCurrency, formatPercent } from '@/utils/formatCurrency';
 import { financiamentosService } from '@/services/financiamentos.service';
 import { obterTaxaMercado, obterDetalheTaxaMercado } from '@/services/taxasMercadoBacen';
 import { supabase } from '@/lib/supabase';
@@ -42,6 +42,8 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     // Taxas e Juros
     taxaJurosMensal: '0.007207323316136716',
     taxaJurosAnual: '0.09',
+    taxaMediaMensal: '', // Taxa média do BACEN (será preenchida automaticamente ou manualmente)
+    taxaMediaAnual: '', // Taxa média anual (será preenchida automaticamente ou manualmente)
     multaMoratoria: '2',
     jurosMora: '1',
     taxasSeguro: 'R$ 107,58',
@@ -180,72 +182,98 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
       const dataContrato = formData.dataContrato || new Date().toISOString().split('T')[0];
       console.log('📅 Data do Contrato:', dataContrato);
 
-      let taxaMediaMensal = 0.0059;  // Fallback: 0.59% mensal
-      let taxaMediaAnual = 0.0735;   // Fallback: 7.35% anual
+      let taxaMediaMensal: number;
+      let taxaMediaAnual: number;
 
-      try {
-        console.log('🔍 Buscando taxa média na API do BACEN para a data:', dataContrato);
+      // Verificar se o usuário já preencheu manualmente as taxas médias
+      const taxaManualMensal = formData.taxaMediaMensal ? parseFloat(formData.taxaMediaMensal.replace('%', '').replace(',', '.')) : null;
+      const taxaManualAnual = formData.taxaMediaAnual ? parseFloat(formData.taxaMediaAnual.replace('%', '').replace(',', '.')) : null;
 
-        // Série 432: Taxa de juros - Operações de crédito com recursos livres - Pessoas físicas - Aquisição de imóveis
-        const serie = 432;
+      if (taxaManualMensal && taxaManualMensal > 0) {
+        console.log('✅ Usando taxa média MANUAL fornecida pelo usuário');
 
-        // Formatar data para API do BACEN (dd/MM/yyyy)
-        const [ano, mes, dia] = dataContrato.split('-');
-        const dataFormatada = `${dia}/${mes}/${ano}`;
+        // Sempre converter percentual para decimal (ex: "0.59" vira 0.0059, "59" vira 0.59)
+        // Se usuário digitou "0.59", é 0.59% = 0.0059 em decimal
+        // Se usuário digitou "59", é 59% = 0.59 em decimal
+        taxaMediaMensal = taxaManualMensal / 100;
 
-        // Buscar taxa do BACEN com timeout de 5 segundos
-        const urlBacen = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${serie}/dados?formato=json&dataInicial=${dataFormatada}&dataFinal=${dataFormatada}`;
-        console.log('🌐 URL BACEN:', urlBacen);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos de timeout
-
-        const response = await fetch(urlBacen, {
-          signal: controller.signal,
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/json',
-          }
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          throw new Error(`Erro na API do BACEN: ${response.status}`);
+        if (taxaManualAnual && taxaManualAnual > 0) {
+          taxaMediaAnual = taxaManualAnual / 100;
+        } else {
+          // Calcular anual baseado na mensal
+          taxaMediaAnual = Math.pow(1 + taxaMediaMensal, 12) - 1;
         }
 
-        const dados = await response.json();
-        console.log('📊 Resposta da API BACEN:', dados);
+        console.log('📊 Taxa Manual:');
+        console.log('  - Mensal (decimal):', taxaMediaMensal);
+        console.log('  - Mensal (%):', `${(taxaMediaMensal * 100).toFixed(4)}% a.m.`);
+        console.log('  - Anual (decimal):', taxaMediaAnual);
+        console.log('  - Anual (%):', `${(taxaMediaAnual * 100).toFixed(2)}% a.a.`);
+      } else {
+        // Buscar taxa na tabela histórica do banco de dados
+        console.log('🔍 Buscando taxa histórica do BACEN na tabela local...');
 
-        if (dados && dados.length > 0) {
-          // Taxa vem em % ao mês, converter para decimal
-          const taxaMensalPercent = parseFloat(dados[0].valor);
-          taxaMediaMensal = taxaMensalPercent / 100;
+        try {
+          const { data: taxaData, error: taxaError } = await supabase.rpc('buscar_taxa_bacen', {
+            p_data_contrato: dataContrato
+          });
 
-          // Calcular taxa anual: (1 + i)^12 - 1
+          if (taxaError) {
+            throw new Error(taxaError.message || 'Erro ao buscar taxa no banco');
+          }
+
+          if (taxaData && taxaData.length > 0) {
+            const taxa = taxaData[0];
+            taxaMediaMensal = parseFloat(taxa.taxa_mensal_decimal);
+            taxaMediaAnual = parseFloat(taxa.taxa_anual_decimal);
+
+            const isAproximada = taxa.fonte?.includes('APROXIMADA');
+
+            console.log('✅ TAXA ENCONTRADA (banco de dados):');
+            console.log('  📡 Fonte:', taxa.fonte);
+            console.log('  📅 Período:', taxa.ano_mes);
+            console.log('  📊 Mensal:', `${(taxaMediaMensal * 100).toFixed(4)}% a.m.`);
+            console.log('  📊 Anual:', `${(taxaMediaAnual * 100).toFixed(2)}% a.a.`);
+            if (isAproximada) {
+              console.log('  ⚠️ Taxa aproximada (mês exato não disponível)');
+            }
+
+            // Atualizar formulário
+            setFormData(prev => ({
+              ...prev,
+              taxaMediaMensal: (taxaMediaMensal * 100).toFixed(4),
+              taxaMediaAnual: (taxaMediaAnual * 100).toFixed(2),
+            }));
+
+            toast.success(
+              isAproximada
+                ? `Taxa aproximada encontrada: ${(taxaMediaMensal * 100).toFixed(4)}% a.m.`
+                : `Taxa encontrada: ${(taxaMediaMensal * 100).toFixed(4)}% a.m. (${taxa.ano_mes})`,
+              { duration: 4000 }
+            );
+          } else {
+            throw new Error('Nenhuma taxa encontrada para a data especificada');
+          }
+        } catch (error) {
+          console.warn('\n⚠️ Taxa não encontrada no banco de dados');
+          console.warn('Detalhes:', error instanceof Error ? error.message : 'Erro desconhecido');
+
+          // Usar taxa padrão como fallback para não bloquear o usuário
+          console.log('📌 Usando taxa padrão de julho/2012: 0.59% a.m.');
+          taxaMediaMensal = 0.0059; // 0.59% ao mês (taxa de julho/2012)
           taxaMediaAnual = Math.pow(1 + taxaMediaMensal, 12) - 1;
 
-          console.log('✅ Taxa encontrada na API BACEN:');
-          console.log('  - Taxa Mensal:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
-          console.log('  - Taxa Anual:', taxaMediaAnual, `(${(taxaMediaAnual * 100).toFixed(2)}% a.a.)`);
-        } else {
-          console.warn('⚠️ Nenhum dado encontrado para a data especificada');
-          console.log('ℹ️ Usando taxa padrão:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
+          toast.warning('Taxa média não encontrada. Usando taxa padrão: 0.59% a.m. Você pode preencher manualmente.', {
+            duration: 6000
+          });
+
+          console.log('💡 Dica: Preencha o campo "Taxa Média Mensal" para usar um valor específico');
         }
-      } catch (error) {
-        if (error instanceof Error) {
-          if (error.name === 'AbortError') {
-            console.error('❌ Timeout ao buscar taxa do BACEN (>5s)');
-          } else {
-            console.error('❌ Erro ao buscar taxa do BACEN:', error.message);
-          }
-        }
-        console.log('ℹ️ Usando taxa padrão (fallback):', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
-        console.log('💡 Dica: A API do BACEN pode estar bloqueada por CORS ou fora do ar. A taxa fallback de 0.59% a.m. é adequada para contratos de 2012.');
       }
 
-      console.log('📊 Taxa Média Final:');
-      console.log('  - Taxa Mensal:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
-      console.log('  - Taxa Anual:', taxaMediaAnual, `(${(taxaMediaAnual * 100).toFixed(2)}% a.a.)`);
+      console.log('📊 Taxa Média Final Confirmada:');
+      console.log('  - Mensal:', taxaMediaMensal, `(${(taxaMediaMensal * 100).toFixed(4)}% a.m.)`);
+      console.log('  - Anual:', taxaMediaAnual, `(${(taxaMediaAnual * 100).toFixed(2)}% a.a.)`);
 
       console.log('\n========== PASSO 5: PREPARANDO PARÂMETROS RPC ==========');
 
@@ -405,15 +433,189 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
   };
 
   const handleGenerateReport = async () => {
+    console.log('========== INICIANDO GERAÇÃO DE RELATÓRIO COMPLETO ==========');
+    console.log('📝 Dados do formulário:', formData);
+    console.log('🆔 CalcId atual:', calcId);
+
+    // Validação básica
+    if (!formData.credor || !formData.devedor) {
+      toast.error('Preencha os campos obrigatórios: Credor e Devedor');
+      return;
+    }
+
+    if (!formData.valorFinanciado || !formData.numeroParcelas) {
+      toast.error('Preencha: Valor Financiado e Número de Parcelas');
+      return;
+    }
+
     setLoading(true);
     try {
-      // TODO: Implement report generation logic
-      toast.success('Relatório completo gerado!');
+      let currentFinanciamentoId = calcId;
+
+      // Se não existe financiamento, criar primeiro usando handlePreview
+      if (!currentFinanciamentoId) {
+        console.log('⚠️ Nenhum financiamento existente. Criando novo...');
+
+        // Parsear valores necessários
+        const valorFinanciado = parseNumber(formData.valorFinanciado);
+        const valorBem = formData.valorBem ? parseNumber(formData.valorBem) : valorFinanciado;
+        const entrada = formData.entrada ? parseNumber(formData.entrada) : 0;
+        const valorParcela = formData.valorParcela ? parseNumber(formData.valorParcela) : 0;
+        const numeroParcelas = parseInt(formData.numeroParcelas);
+
+        const taxaJurosMensal = parseFloat(formData.taxaJurosMensal.replace('%', '')) / (formData.taxaJurosMensal.includes('%') ? 100 : 1);
+        const taxaJurosAnual = parseFloat(formData.taxaJurosAnual.replace('%', '')) / (formData.taxaJurosAnual.includes('%') ? 100 : 1);
+
+        const parsePercentage = (value: string, defaultValue: number): number => {
+          if (!value) return defaultValue;
+          const numericValue = parseFloat(value.replace('%', '').replace(',', '.'));
+          if (value.includes('%')) return numericValue / 100;
+          if (numericValue >= 1) return numericValue / 100;
+          return numericValue;
+        };
+
+        const multaMoratoria = parsePercentage(formData.multaMoratoria, 0.02);
+        const jurosMora = formData.jurosMora ? parsePercentage(formData.jurosMora, 0.00033) : 0.00033;
+        const taxasSeguro = formData.taxasSeguro ? parseNumber(formData.taxasSeguro) : 0;
+        const outrosEncargos = formData.outrosEncargos ? parseNumber(formData.outrosEncargos) : 0;
+        const tarifaAvaliacaoBem = formData.tarifaAvaliacaoBem ? parseNumber(formData.tarifaAvaliacaoBem) : 0;
+
+        // Buscar taxa média
+        const dataContrato = formData.dataContrato || new Date().toISOString().split('T')[0];
+        let taxaMediaMensal = 0.0059;
+        let taxaMediaAnual = 0.0735;
+
+        // Criar financiamento
+        const dataCalculoAtual = new Date().toISOString().split('T')[0];
+
+        const params = {
+          p_valor_financiado: valorFinanciado,
+          p_taxa_juros_mensal_contrato: taxaJurosMensal,
+          p_taxa_juros_anual_contrato: taxaJurosAnual,
+          p_taxa_media_mensal: taxaMediaMensal,
+          p_taxa_media_anual: taxaMediaAnual,
+          p_qtd_parcelas_contrato: numeroParcelas,
+          p_qtd_parcelas_analise: numeroParcelas,
+          p_seguros_mensais: taxasSeguro,
+          p_sistema_amortizacao: (formData.sistemaAmortizacao || 'sac').toUpperCase(),
+          p_indexador_cm: 'TR',
+          p_data_contratual: dataContrato,
+          p_primeiro_vencimento: formData.dataPrimeiroVencimento,
+          p_credor: formData.credor,
+          p_devedor: formData.devedor,
+          p_tipo_contrato: 'Financiamento Imobiliário SFH',
+          p_data_calculo: dataCalculoAtual,
+          p_valor_bem: valorBem,
+          p_valor_entrada: entrada,
+          p_valor_parcela_contrato: valorParcela,
+          p_multa_moratoria_percent: multaMoratoria,
+          p_juros_mora_percent: jurosMora,
+          p_outros_encargos: outrosEncargos,
+          p_tarifa_avaliacao_bem: tarifaAvaliacaoBem,
+        };
+
+        const result = await financiamentosService.criarFinanciamentoEAnalise(params);
+        currentFinanciamentoId = result.financiamento_calculo_id;
+        console.log('✅ Financiamento criado:', currentFinanciamentoId);
+        toast.success('Financiamento criado com sucesso!');
+      }
+
+      // Gerar relatório completo via RPC
+      console.log('\n========== GERANDO RELATÓRIO COMPLETO VIA RPC ==========');
+      console.log('🆔 Financiamento ID:', currentFinanciamentoId);
+      console.log('📊 Quantidade de parcelas:', parseInt(formData.numeroParcelas));
+
+      const relatorio = await financiamentosService.gerarRelatorioCompleto(
+        currentFinanciamentoId!,
+        parseInt(formData.numeroParcelas)
+      );
+
+      console.log('✅ Relatório gerado:', relatorio.relatorio_id);
+      console.log('📋 Cabeçalho:', relatorio.cabecalho);
+      console.log('📊 Amortização (primeiras 3 parcelas):', relatorio.amortizacao.slice(0, 3));
+
+      // Transformar dados para formato do RelatorioCompleto
+      const fc = relatorio.cabecalho.financiamentos_calculo;
+
+      const relatorioData = {
+        tipo: 'financiamento' as const,
+        credor: fc.credor,
+        devedor: fc.devedor,
+        contratoNum: fc.numero_processo || 'N/A',
+        metodologia: `Financiamento Imobiliário - ${fc.sistema_amortizacao}`,
+
+        cards: {
+          valorPrincipal: relatorio.cabecalho.valor_principal,
+          totalJuros: relatorio.cabecalho.total_juros_cobrado || 0,
+          totalTaxas: relatorio.cabecalho.total_taxas || 0,
+          valorTotalDevido: relatorio.cabecalho.valor_total_devido || 0,
+          totalRestituir: relatorio.cabecalho.valor_total_a_restituir || 0,
+        },
+
+        comparativo: {
+          taxaContratoAM: fc.taxa_juros_mensal_contrato,
+          taxaMercadoAM: fc.taxa_media_mensal,
+          sobretaxaPP: relatorio.cabecalho.percentual_sobretaxa || 0,
+        },
+
+        tabelaAmortizacao: relatorio.amortizacao.map((parcela) => ({
+          mes: parcela.numero_parcela,
+          data: parcela.data_vencimento,
+          valorOriginalParcela: parcela.pmt_original, // PMT original do contrato
+          valorCorrigido: parcela.amortizacao + parcela.juros_media, // Amortização + Juros pela taxa média
+          juros: parcela.juros, // Juros cobrados no contrato
+          amortizacao: parcela.amortizacao,
+          saldoDevedor: parcela.saldo_devedor,
+          // Campos extras para referência futura
+          saldoInicial: parcela.saldo_inicial,
+          jurosContrato: parcela.juros_contrato,
+          jurosMedia: parcela.juros_media,
+          totalParcela: parcela.total_parcela,
+          saldoFinal: parcela.saldo_final,
+          diferencaJuros: parcela.diferenca_juros,
+          restituicaoAcumulada: parcela.restituicao_acumulada,
+        })),
+
+        sistemaAmortizacao: fc.sistema_amortizacao,
+
+        formatted: {
+          cards: {
+            valorPrincipal: formatCurrency(relatorio.cabecalho.valor_principal),
+            totalJuros: formatCurrency(relatorio.cabecalho.total_juros_cobrado || 0),
+            totalTaxas: formatCurrency(relatorio.cabecalho.total_taxas || 0),
+            valorTotalDevido: formatCurrency(relatorio.cabecalho.valor_total_devido || 0),
+            totalRestituir: formatCurrency(relatorio.cabecalho.valor_total_a_restituir || 0),
+          },
+          comparativo: {
+            taxaContratoAM: formatPercent(fc.taxa_juros_mensal_contrato),
+            taxaMercadoAM: formatPercent(fc.taxa_media_mensal),
+            sobretaxaPP: formatPercent(relatorio.cabecalho.percentual_sobretaxa || 0),
+          },
+        },
+      };
+
+      console.log('📊 Dados do relatório formatados:', relatorioData);
+      console.log('\n✅ RELATÓRIO COMPLETO GERADO COM SUCESSO!');
+
+      toast.success('Relatório completo gerado com sucesso!');
+
+      // Navegar para visualização do relatório
+      console.log('\n========== NAVEGANDO PARA VISUALIZAÇÃO DO RELATÓRIO ==========');
+      console.log('🔄 Redirecionando para:', 'calc-relatorio');
+      console.log('🆔 Com ID:', relatorio.relatorio_id);
+
+      setTimeout(() => {
+        onNavigate('calc-relatorio', relatorio.relatorio_id, relatorioData);
+      }, 300);
+
     } catch (error) {
+      console.error('\n❌❌❌ ERRO AO GERAR RELATÓRIO COMPLETO ❌❌❌');
+      console.error('Detalhes do erro:', error);
+      console.error('Stack trace:', error instanceof Error ? error.stack : 'N/A');
       toast.error('Erro ao gerar relatório completo');
-      console.error(error);
     } finally {
       setLoading(false);
+      console.log('\n========== FIM DO PROCESSO ==========\n');
     }
   };
 
@@ -604,6 +806,34 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                   placeholder="Ex: 15% ou 0,15"
                   value={formData.taxaJurosAnual}
                   onChange={(e) => handleInputChange('taxaJurosAnual', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="taxaMediaMensal">
+                  Taxa Média Mensal (BACEN)
+                  <span className="text-xs text-gray-500 ml-1">(Opcional - Preenchida automaticamente)</span>
+                </Label>
+                <Input
+                  id="taxaMediaMensal"
+                  type="text"
+                  placeholder="Ex: 0,59% - Buscado automaticamente do BACEN"
+                  value={formData.taxaMediaMensal}
+                  onChange={(e) => handleInputChange('taxaMediaMensal', e.target.value)}
+                  className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-800"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="taxaMediaAnual">
+                  Taxa Média Anual (BACEN)
+                  <span className="text-xs text-gray-500 ml-1">(Opcional - Calculada automaticamente)</span>
+                </Label>
+                <Input
+                  id="taxaMediaAnual"
+                  type="text"
+                  placeholder="Ex: 7,35% - Calculado automaticamente"
+                  value={formData.taxaMediaAnual}
+                  onChange={(e) => handleInputChange('taxaMediaAnual', e.target.value)}
+                  className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-800"
                 />
               </div>
               <div className="space-y-2">

@@ -15,6 +15,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermissions } from '../../hooks/usePermissions';
 import type { Contact } from '../../types/contact';
+import { isValidEmail } from '../ui/utils';
 
 interface ContactsListProps {
   onNavigate: (route: string, id?: string) => void;
@@ -49,6 +50,8 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalContacts, setTotalContacts] = useState(0);
   const itemsPerPage = 10;
+  const [emailError, setEmailError] = useState<string>('');
+  const [editEmailError, setEditEmailError] = useState<string>('');
 
   // Load contacts from Supabase when user changes or page changes
   useEffect(() => {
@@ -99,6 +102,12 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
     if (!newContact.name || !newContact.email) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    if (!isValidEmail(newContact.email)) {
+      setEmailError('Por favor, insira um email válido');
+      toast.error('Email inválido');
       return;
     }
 
@@ -194,6 +203,12 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
     if (!editContact.name || !editContact.email) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    if (!isValidEmail(editContact.email)) {
+      setEditEmailError('Por favor, insira um email válido');
+      toast.error('Email inválido');
       return;
     }
 
@@ -362,9 +377,26 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                   id="email"
                   type="email"
                   value={newContact.email}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => {
+                    const emailValue = e.target.value;
+                    setNewContact(prev => ({ ...prev, email: emailValue }));
+                    if (emailValue && !isValidEmail(emailValue)) {
+                      setEmailError('Por favor, insira um email válido');
+                    } else {
+                      setEmailError('');
+                    }
+                  }}
+                  onBlur={(e) => {
+                    if (e.target.value && !isValidEmail(e.target.value)) {
+                      setEmailError('Por favor, insira um email válido');
+                    }
+                  }}
                   placeholder="email@exemplo.com"
+                  aria-invalid={emailError ? 'true' : 'false'}
                 />
+                {emailError && (
+                  <p className="text-sm text-destructive">{emailError}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -589,9 +621,26 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                 id="edit-email"
                 type="email"
                 value={editContact.email}
-                onChange={(e) => setEditContact(prev => ({ ...prev, email: e.target.value }))}
+                onChange={(e) => {
+                  const emailValue = e.target.value;
+                  setEditContact(prev => ({ ...prev, email: emailValue }));
+                  if (emailValue && !isValidEmail(emailValue)) {
+                    setEditEmailError('Por favor, insira um email válido');
+                  } else {
+                    setEditEmailError('');
+                  }
+                }}
+                onBlur={(e) => {
+                  if (e.target.value && !isValidEmail(e.target.value)) {
+                    setEditEmailError('Por favor, insira um email válido');
+                  }
+                }}
                 placeholder="email@exemplo.com"
+                aria-invalid={editEmailError ? 'true' : 'false'}
               />
+              {editEmailError && (
+                <p className="text-sm text-destructive">{editEmailError}</p>
+              )}
             </div>
 
             <div className="space-y-2">
