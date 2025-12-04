@@ -183,16 +183,17 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
         onNavigate('calc-analise', calc.id, data);
 
       } else if (calc.tipo === 'financiamento') {
-        // Load financiamento data
-        const financiamento = await financiamentosService.getById(calc.id);
+        // Load financiamento_calculo data
+        const calculo = await financiamentosService.getCalculoById(calc.id);
 
-        if (!financiamento) {
+        if (!calculo) {
           toast.error('Caso não encontrado');
           return;
         }
 
-        // Check if calculation results exist
-        if (!financiamento.taxa_contrato_am || !financiamento.valor_total_pago) {
+        // Check if calculation results exist (análise data)
+        const analise = calculo.financiamentos_calculo_analise?.[0];
+        if (!analise || !analise.diferenca_total_media) {
           toast.warning('Este caso ainda não possui análise calculada. Redirecionando para edição...');
           onNavigate('calc-financiamento', calc.id);
           return;
@@ -200,21 +201,21 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
 
         // Format data for AnalisePrevia component
         const data = {
-          taxaContratoAM: financiamento.taxa_contrato_am / 100, // Convert back to decimal
-          taxaMercadoAM: financiamento.taxa_mercado_am ? financiamento.taxa_mercado_am / 100 : 0,
-          sobretaxaPP: financiamento.sobretaxa_pp ? financiamento.sobretaxa_pp / 100 : 0,
-          valorTotalPago: financiamento.valor_total_pago || 0,
-          valorDevido: financiamento.valor_total_devido || 0,
-          diferencaRestituicao: financiamento.diferenca_restituicao || 0,
-          horizonteMeses: financiamento.horizonte_meses || 12,
-          totalParcelas: financiamento.quantidade_parcelas,
+          taxaContratoAM: analise.taxa_juros_mensal_contrato || 0,
+          taxaMercadoAM: analise.taxa_media_mensal || 0,
+          sobretaxaPP: analise.excesso_media || 0,
+          reducaoEstimadaSimples: analise.diferenca_total_simples || 0,
+          reducaoEstimadaMedia: analise.diferenca_total_media || 0,
+          diferencaRestituicao: analise.diferenca_total_media || 0,
+          horizonteMeses: 12,
+          totalParcelas: calculo.numero_parcelas_total || 0,
           formatted: {
-            taxaContratoAM: formatPercent(financiamento.taxa_contrato_am / 100),
-            taxaMercadoAM: formatPercent(financiamento.taxa_mercado_am ? financiamento.taxa_mercado_am / 100 : 0),
-            sobretaxaPP: formatPercent(financiamento.sobretaxa_pp ? financiamento.sobretaxa_pp / 100 : 0),
-            valorTotalPago: formatCurrency(financiamento.valor_total_pago || 0),
-            valorDevido: formatCurrency(financiamento.valor_total_devido || 0),
-            diferencaRestituicao: formatCurrency(financiamento.diferenca_restituicao || 0),
+            taxaContratoAM: formatPercent(analise.taxa_juros_mensal_contrato || 0),
+            taxaMercadoAM: formatPercent(analise.taxa_media_mensal || 0),
+            sobretaxaPP: formatPercent(analise.excesso_media || 0),
+            reducaoEstimadaSimples: formatCurrency(analise.diferenca_total_simples || 0),
+            reducaoEstimadaMedia: formatCurrency(analise.diferenca_total_media || 0),
+            diferencaRestituicao: formatCurrency(analise.diferenca_total_media || 0),
           },
         };
 
@@ -245,9 +246,9 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
   const handleConfirmDelete = async () => {
     if (selectedCaseId && selectedType) {
       try {
-        // Delete based on type
+        // Delete based on type (usar métodos específicos para cálculos)
         if (selectedType === 'financiamento') {
-          await financiamentosService.softDelete(selectedCaseId);
+          await financiamentosService.softDeleteCalculo(selectedCaseId);
         } else if (selectedType === 'cartao') {
           await cartoesService.softDelete(selectedCaseId);
         }
@@ -340,25 +341,25 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
 
       {/* Opções de Cálculo */}
       <div className="mb-8">
-        <h2 className="text-gray-900 dark:text-white mb-4">Opções de Cálculo</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <h2 className="text-lg sm:text-xl text-gray-900 dark:text-white mb-4">Opções de Cálculo</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {calculationOptions.map(option => {
             const Icon = option.icon;
             return (
               <button
                 key={option.id}
                 onClick={() => onNavigate(option.route)}
-                className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 text-left hover:shadow-md transition-shadow"
+                className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4 sm:p-5 text-left hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all active:scale-95"
               >
-                <div className="flex items-start gap-4 mb-3">
-                  <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-3 shrink-0">
-                    <Icon className="w-6 h-6 text-white" />
+                <div className="flex items-start gap-3 sm:gap-4 mb-2 sm:mb-3">
+                  <div className="bg-blue-500 dark:bg-blue-600 rounded-lg p-2 sm:p-3 shrink-0">
+                    <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <h3 className="text-gray-900 dark:text-white flex-1">
+                  <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-white flex-1 leading-tight">
                     {option.title}
                   </h3>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
                   {option.description}
                 </p>
               </button>

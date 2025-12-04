@@ -279,6 +279,54 @@ export class FinanciamentosService {
   }
 
   /**
+   * Get a single financiamento_calculo by ID with analysis data
+   * Busca um cálculo específico da tabela financiamentos_calculo
+   */
+  async getCalculoById(id: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('financiamentos_calculo')
+      .select(`
+        *,
+        financiamentos_calculo_analise (
+          taxa_juros_mensal_contrato,
+          taxa_media_mensal,
+          excesso_media,
+          diferenca_total_media,
+          diferenca_total_simples
+        )
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // Not found
+        return null;
+      }
+      console.error('Error fetching financiamento_calculo:', error);
+      throw new Error(`Erro ao buscar cálculo: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Soft delete a financiamento_calculo
+   * Excluir logicamente um cálculo da tabela financiamentos_calculo
+   */
+  async softDeleteCalculo(id: string): Promise<void> {
+    const { error } = await supabase
+      .from('financiamentos_calculo')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting financiamento_calculo:', error);
+      throw new Error(`Erro ao excluir cálculo: ${error.message}`);
+    }
+  }
+
+  /**
    * Get amortization table rows for a financiamento
    */
   async getAmortizacao(

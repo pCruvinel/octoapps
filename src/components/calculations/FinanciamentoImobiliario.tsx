@@ -54,6 +54,56 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
   // Campos que devem ser formatados como moeda brasileira
   const currencyFields = ['valorBem', 'entrada', 'valorFinanciado', 'valorParcela', 'taxasSeguro', 'outrosEncargos', 'tarifaAvaliacaoBem'];
 
+  // Carregar dados quando calcId for fornecido (modo edição)
+  useEffect(() => {
+    const loadCalculoData = async () => {
+      if (!calcId) return;
+
+      setLoading(true);
+      try {
+        const calculo = await financiamentosService.getCalculoById(calcId);
+
+        if (!calculo) {
+          toast.error('Cálculo não encontrado');
+          return;
+        }
+
+        // Mapear os dados do banco para o formData
+        setFormData({
+          credor: calculo.credor || '',
+          devedor: calculo.devedor || '',
+          tipoContrato: calculo.tipo_contrato || 'financiamento',
+          dataContrato: calculo.data_contrato || '',
+          valorBem: formatCurrency(calculo.valor_bem || 0),
+          valorFinanciado: formatCurrency(calculo.valor_financiado || 0),
+          entrada: formatCurrency(calculo.valor_entrada || 0),
+          sistemaAmortizacao: calculo.sistema_amortizacao || 'sac',
+          valorParcela: formatCurrency(calculo.valor_parcela || 0),
+          numeroParcelas: String(calculo.numero_parcelas_total || ''),
+          dataPrimeiroVencimento: calculo.data_primeiro_vencimento || '',
+          taxaJurosMensal: String(calculo.taxa_juros_mensal_contrato || ''),
+          taxaJurosAnual: String(calculo.taxa_juros_anual_contrato || ''),
+          taxaMediaMensal: String(calculo.taxa_media_mensal || ''),
+          taxaMediaAnual: String(calculo.taxa_media_anual || ''),
+          multaMoratoria: String(calculo.percentual_multa_moratoria || '2'),
+          jurosMora: String(calculo.percentual_juros_mora || '1'),
+          taxasSeguro: formatCurrency(calculo.valor_seguro_mensal || 0),
+          outrosEncargos: formatCurrency(calculo.outros_encargos || 0),
+          tarifaAvaliacaoBem: formatCurrency(calculo.tarifa_avaliacao_bem || 0),
+        });
+
+        toast.success('Dados carregados com sucesso!');
+      } catch (error) {
+        console.error('Error loading calculo:', error);
+        toast.error('Erro ao carregar dados do cálculo');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCalculoData();
+  }, [calcId]);
+
   const handleInputChange = (field: string, value: string) => {
     // Aplica formatação de moeda para campos monetários
     if (currencyFields.includes(field)) {
