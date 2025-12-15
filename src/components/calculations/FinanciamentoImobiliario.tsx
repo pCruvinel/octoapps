@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Upload, FileText, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { parseNumber } from '@/utils/parseNumber';
 import { formatCurrencyInput, formatCurrency, formatPercent } from '@/utils/formatCurrency';
 import { financiamentosService } from '@/services/financiamentos.service';
 import { obterTaxaMercado, obterDetalheTaxaMercado } from '@/services/taxasMercadoBacen';
 import { supabase } from '@/lib/supabase';
+import { documentExtractorService, type ExtratorResponse } from '@/services/documentExtractor.service';
 
 interface FinanciamentoImobiliarioProps {
   calcId: string | null;
@@ -21,6 +22,10 @@ interface FinanciamentoImobiliarioProps {
 
 export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoImobiliarioProps) {
   const [loading, setLoading] = useState(false);
+  const [tipoTaxa, setTipoTaxa] = useState<'SFH' | 'SFI'>('SFH');
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [extracting, setExtracting] = useState(false);
+  const [parcelasDetalhadas, setParcelasDetalhadas] = useState<{ numero: number; valor: string }[]>([]);
   const [formData, setFormData] = useState({
     // Dados do Processo
     credor: 'SANTANDER',
@@ -37,6 +42,7 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     // Parcelas
     valorParcela: 'R$ 2.326,53',
     numeroParcelas: '360',
+    parcelasJaPagas: '',
     dataPrimeiroVencimento: '2012-08-06',
 
     // Taxas e Juros
@@ -80,6 +86,7 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
           sistemaAmortizacao: calculo.sistema_amortizacao || 'sac',
           valorParcela: formatCurrency(calculo.valor_parcela || 0),
           numeroParcelas: String(calculo.numero_parcelas_total || ''),
+          parcelasJaPagas: String(calculo.parcelas_ja_pagas || ''),
           dataPrimeiroVencimento: calculo.data_primeiro_vencimento || '',
           taxaJurosMensal: String(calculo.taxa_juros_mensal_contrato || ''),
           taxaJurosAnual: String(calculo.taxa_juros_anual_contrato || ''),
@@ -104,6 +111,21 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     loadCalculoData();
   }, [calcId]);
 
+  // Gerar lista de parcelas detalhadas quando quantidade de parcelas pagas mudar
+  useEffect(() => {
+    const qtdParcelasPagas = parseInt(formData.parcelasJaPagas) || 0;
+
+    if (qtdParcelasPagas > 0) {
+      const novasParcelas = Array.from({ length: qtdParcelasPagas }, (_, index) => ({
+        numero: index + 1,
+        valor: formData.valorParcela || 'R$ 0,00'
+      }));
+      setParcelasDetalhadas(novasParcelas);
+    } else {
+      setParcelasDetalhadas([]);
+    }
+  }, [formData.parcelasJaPagas, formData.valorParcela]);
+
   const handleInputChange = (field: string, value: string) => {
     // Aplica formatação de moeda para campos monetários
     if (currencyFields.includes(field)) {
@@ -112,6 +134,125 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
     }
+  };
+
+  const handleParcelaDetalhadaChange = (numeroParcela: number, novoValor: string) => {
+    const formatted = formatCurrencyInput(novoValor);
+    setParcelasDetalhadas(prev =>
+      prev.map(parcela =>
+        parcela.numero === numeroParcela
+          ? { ...parcela, valor: formatted }
+          : parcela
+      )
+    );
+  };
+
+  // Mapear dados extraídos da API para campos do formulário
+  const mapExtractedDataToForm = (apiResponse: ExtratorResponse) => {
+    console.log('[FinanciamentoImobiliario] Mapeando dados extraídos:', apiResponse);
+
+    const contrato = apiResponse.contrato_identificado || {};
+
+    // Verificar se há dados no contrato_identificado
+    const hasContratoData = Object.keys(contrato).length > 0;
+
+    if (!hasContratoData) {
+      console.warn('[FinanciamentoImobiliario] Nenhum dado em contrato_identificado. Estrutura da API:', Object.keys(apiResponse));
+      toast.warning('Dados extraídos, mas formato inesperado. Verifique o console.');
+    }
+
+    return {
+      // Dados do Processo
+      credor: contrato.credor || formData.credor,
+      devedor: contrato.devedor || formData.devedor,
+      dataContrato: contrato.data_inicio || contrato.data_contrato || formData.dataContrato,
+
+      // Dados do Imóvel
+      valorBem: contrato.valor_bem
+        ? formatCurrency(contrato.valor_bem)
+        : formData.valorBem,
+      valorFinanciado: contrato.valor_financiado
+        ? formatCurrency(contrato.valor_financiado)
+        : formData.valorFinanciado,
+      entrada: contrato.valor_entrada
+        ? formatCurrency(contrato.valor_entrada)
+        : formData.entrada,
+      sistemaAmortizacao: contrato.sistema_amortizacao || formData.sistemaAmortizacao,
+
+      // Parcelas
+      valorParcela: contrato.valor_parcela
+        ? formatCurrency(contrato.valor_parcela)
+        : formData.valorParcela,
+      numeroParcelas: contrato.numero_parcelas?.toString() || formData.numeroParcelas,
+      parcelasJaPagas: '', // Deixa vazio para o usuário selecionar
+      dataPrimeiroVencimento: contrato.data_primeiro_vencimento || formData.dataPrimeiroVencimento,
+
+      // Taxas e Juros
+      taxaJurosMensal: contrato.taxa_juros_mensal?.toString() ||
+                       contrato.taxa_juros_contrato?.toString() ||
+                       formData.taxaJurosMensal,
+      taxaJurosAnual: contrato.taxa_juros_anual?.toString() || formData.taxaJurosAnual,
+    };
+  };
+
+  // Manipulação de arquivos
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    const fileArray = Array.from(files);
+
+    // Validar tipos de arquivo
+    const validFiles = fileArray.filter(file => {
+      const isValidType = file.type === 'application/pdf' ||
+                         file.type === 'application/msword' ||
+                         file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+      if (!isValidType) {
+        toast.error(`Arquivo ${file.name} não é PDF ou DOC/DOCX`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (validFiles.length === 0) return;
+
+    // Adicionar arquivos à lista
+    setUploadedFiles(prev => [...prev, ...validFiles]);
+    toast.success(`${validFiles.length} arquivo(s) adicionado(s)`);
+
+    // Extrair dados automaticamente do primeiro arquivo
+    if (validFiles.length > 0) {
+      setExtracting(true);
+      try {
+        const file = validFiles[0];
+        toast.info('Extraindo dados do documento... Aguarde, isso pode levar até 1 minuto.', { duration: 5000 });
+
+        const data = await documentExtractorService.extractDataFromDocument(
+          file,
+          'financiamento_imobiliario'
+        );
+
+        // Mapear dados extraídos para formulário
+        const mappedData = mapExtractedDataToForm(data);
+
+        // Atualizar formData com dados extraídos
+        setFormData(prev => ({ ...prev, ...mappedData }));
+
+        toast.success('✓ Dados extraídos e preenchidos com sucesso!');
+      } catch (error) {
+        console.error('Erro ao extrair dados:', error);
+        toast.error('Erro ao extrair dados do documento. Preencha manualmente os campos.');
+      } finally {
+        setExtracting(false);
+      }
+    }
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    toast.success('Arquivo removido');
   };
 
   const handleSave = async () => {
@@ -733,7 +874,92 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                   onChange={(e) => handleInputChange('dataContrato', e.target.value)}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="tipoTaxa">Tipo de Taxa</Label>
+                <Select value={tipoTaxa} onValueChange={(value: 'SFH' | 'SFI') => setTipoTaxa(value)}>
+                  <SelectTrigger id="tipoTaxa">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SFH">SFH - Sistema Financeiro de Habitação</SelectItem>
+                    <SelectItem value="SFI">SFI - Sistema de Financiamento Imobiliário</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Upload de Documentos */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Documentos do Contrato</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <label
+                htmlFor="file-upload"
+                className={`flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm ${
+                  extracting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                }`}
+              >
+                <Upload className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                <span className="text-gray-700 dark:text-gray-300">
+                  {extracting ? 'Extraindo...' : 'Selecionar Arquivos'}
+                </span>
+                <input
+                  id="file-upload"
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleFileUpload}
+                  disabled={extracting}
+                  className="hidden"
+                />
+              </label>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                PDF, DOC ou DOCX
+              </span>
+              {uploadedFiles.length > 0 && (
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                  {uploadedFiles.length} arquivo(s) anexado(s)
+                </span>
+              )}
+            </div>
+
+            {/* Lista compacta de arquivos */}
+            {uploadedFiles.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {uploadedFiles.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700"
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                      <span className="text-sm text-gray-900 dark:text-white truncate">
+                        {file.name}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                        ({(file.size / 1024).toFixed(0)}KB)
+                      </span>
+                      {/* Mostrar loading durante extração do primeiro arquivo */}
+                      {extracting && index === 0 && (
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-500 flex-shrink-0" />
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(index)}
+                      disabled={extracting}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <X className="w-3.5 h-3.5 text-gray-500 hover:text-red-500" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -808,6 +1034,16 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="dataPrimeiroVencimento">Data do 1º Vencimento</Label>
+                <Input
+                  id="dataPrimeiroVencimento"
+                  type="date"
+                  placeholder="dd/mm/aaaa"
+                  value={formData.dataPrimeiroVencimento}
+                  onChange={(e) => handleInputChange('dataPrimeiroVencimento', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="numeroParcelas">Número de Parcelas</Label>
                 <Input
                   id="numeroParcelas"
@@ -818,16 +1054,59 @@ export function FinanciamentoImobiliario({ calcId, onNavigate }: FinanciamentoIm
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="dataPrimeiroVencimento">Data do 1º Vencimento</Label>
-                <Input
-                  id="dataPrimeiroVencimento"
-                  type="date"
-                  placeholder="dd/mm/aaaa"
-                  value={formData.dataPrimeiroVencimento}
-                  onChange={(e) => handleInputChange('dataPrimeiroVencimento', e.target.value)}
-                />
+                <Label htmlFor="parcelasJaPagas">
+                  Parcelas já pagas (para análise de viabilidade)
+                </Label>
+                <Select
+                  value={formData.parcelasJaPagas || undefined}
+                  onValueChange={(value) => handleInputChange('parcelasJaPagas', value)}
+                >
+                  <SelectTrigger id="parcelasJaPagas">
+                    <SelectValue placeholder="Selecione a quantidade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: parseInt(formData.numeroParcelas) || 0 }, (_, i) => i + 1).map((num) => (
+                      <SelectItem key={num} value={String(num)}>
+                        {num} {num === 1 ? 'parcela' : 'parcelas'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Quantidade de parcelas consideradas para estimar o indébito na análise de viabilidade.
+                </p>
               </div>
             </div>
+
+            {/* Lista de parcelas detalhadas */}
+            {parcelasDetalhadas.length > 0 && (
+              <div className="mt-6 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Detalhamento das Parcelas Pagas
+                  </h4>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {parcelasDetalhadas.length} {parcelasDetalhadas.length === 1 ? 'parcela' : 'parcelas'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-96 overflow-y-auto p-2 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50">
+                  {parcelasDetalhadas.map((parcela) => (
+                    <div key={parcela.numero} className="space-y-1.5">
+                      <Label htmlFor={`parcela-${parcela.numero}`} className="text-xs">
+                        Parcela {parcela.numero}
+                      </Label>
+                      <Input
+                        id={`parcela-${parcela.numero}`}
+                        type="text"
+                        value={parcela.valor}
+                        onChange={(e) => handleParcelaDetalhadaChange(parcela.numero, e.target.value)}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
