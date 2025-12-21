@@ -4,7 +4,7 @@ import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Switch } from '../ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Save } from 'lucide-react';
 
 export function GeneralSettings() {
@@ -49,7 +49,7 @@ export function GeneralSettings() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="language">Idioma</Label>
-                  <Select 
+                  <Select
                     value={settings.language}
                     onValueChange={(value) => setSettings(prev => ({ ...prev, language: value }))}
                   >
@@ -66,7 +66,7 @@ export function GeneralSettings() {
 
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Fuso Horário</Label>
-                  <Select 
+                  <Select
                     value={settings.timezone}
                     onValueChange={(value) => setSettings(prev => ({ ...prev, timezone: value }))}
                   >
@@ -84,7 +84,7 @@ export function GeneralSettings() {
 
               <div className="space-y-2">
                 <Label htmlFor="currency">Moeda</Label>
-                <Select 
+                <Select
                   value={settings.currency}
                   onValueChange={(value) => setSettings(prev => ({ ...prev, currency: value }))}
                 >
@@ -119,7 +119,7 @@ export function GeneralSettings() {
                 <Switch
                   id="email-notifications"
                   checked={settings.emailNotifications}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     setSettings(prev => ({ ...prev, emailNotifications: checked }))
                   }
                 />
@@ -135,7 +135,7 @@ export function GeneralSettings() {
                 <Switch
                   id="push-notifications"
                   checked={settings.pushNotifications}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     setSettings(prev => ({ ...prev, pushNotifications: checked }))
                   }
                 />
@@ -151,7 +151,7 @@ export function GeneralSettings() {
                 <Switch
                   id="weekly-reports"
                   checked={settings.weeklyReports}
-                  onCheckedChange={(checked) => 
+                  onCheckedChange={(checked) =>
                     setSettings(prev => ({ ...prev, weeklyReports: checked }))
                   }
                 />

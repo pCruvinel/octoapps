@@ -1,7 +1,10 @@
+
 // Edge Function para buscar taxa média do BACEN
-// Resolve problemas de CORS fazendo a requisição no servidor
+// Consulta banco local (cache) antes de ir na API externa
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchBacenSeries, formatDateToBacen, parseBacenValue } from "../_shared/bacen-fetcher.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,13 +12,12 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { dataContrato } = await req.json()
+    const { dataContrato, codigoSerie } = await req.json()
 
     if (!dataContrato) {
       return new Response(
@@ -24,97 +26,104 @@ serve(async (req) => {
       )
     }
 
-    const [ano, mes, dia] = dataContrato.split('-')
-    const anoMes = `${ano}${mes}`
+    // Default series codes if not provided
+    // Imobiliário TR: 226
+    // Pessoal PF: 25471
+    const serieCode = codigoSerie ? parseInt(codigoSerie) : 25471;
 
-    console.log('Buscando taxa para:', { dataContrato, ano, mes, dia })
+    // Init Supabase
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Estratégia 1: API OLINDA (mais moderna)
-    try {
-      console.log('Tentando API OLINDA...')
-      const urlOlinda = `https://olinda.bcb.gov.br/olinda/servico/taxaJuros/versao/v2/odata/TaxasJurosMensalPorMes?$filter=Modalidade%20eq%20'Aquisi%C3%A7%C3%A3o%20de%20im%C3%B3veis%20-%20Opera%C3%A7%C3%B5es%20n%C3%A3o%20referenciadas'%20and%20AnoMes%20ge%20${anoMes}&$format=json&$orderby=AnoMes&$top=1`
+    const [anoStr, mesStr, diaStr] = dataContrato.split('-');
+    const ano = parseInt(anoStr);
+    const mes = parseInt(mesStr);
 
-      const responseOlinda = await fetch(urlOlinda, {
-        headers: { 'Accept': 'application/json' }
-      })
+    console.log(`[BuscarTaxa] Date: ${dataContrato}, Series: ${serieCode}`);
 
-      if (responseOlinda.ok) {
-        const dataOlinda = await responseOlinda.json()
+    // 1. Try Cache
+    const { data: cachedData, error: cacheError } = await supabase
+      .from('taxas_bacen_historico')
+      .select('*')
+      .eq('serie_bacen', serieCode.toString())
+      .eq('ano', ano)
+      .eq('mes', mes)
+      .single();
 
-        if (dataOlinda.value && dataOlinda.value.length > 0) {
-          const taxaMensalPercent = parseFloat(dataOlinda.value[0].TaxaJurosAoMes)
-          const taxaMediaMensal = taxaMensalPercent / 100
-          const taxaMediaAnual = Math.pow(1 + taxaMediaMensal, 12) - 1
-
-          console.log('Taxa encontrada via OLINDA:', { taxaMensalPercent, taxaMediaMensal, taxaMediaAnual })
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              fonte: 'OLINDA',
-              data: dataOlinda.value[0].AnoMes,
-              taxaMediaMensal,
-              taxaMediaAnual,
-              taxaMediaMensalPercent: (taxaMediaMensal * 100).toFixed(4),
-              taxaMediaAnualPercent: (taxaMediaAnual * 100).toFixed(2),
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-      }
-    } catch (errorOlinda) {
-      console.warn('API OLINDA falhou:', errorOlinda)
+    if (cachedData) {
+      console.log('[BuscarTaxa] Cache hit');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          fonte: 'CACHE_DB',
+          data: `${diaStr}/${mesStr}/${anoStr}`,
+          taxaMediaMensal: cachedData.taxa_mensal_decimal,
+          taxaMediaAnual: cachedData.taxa_anual_decimal,
+          taxaMediaMensalPercent: cachedData.taxa_mensal_percent,
+          taxaMediaAnualPercent: (cachedData.taxa_anual_decimal * 100).toFixed(2),
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
-    // Estratégia 2: API SGS (antiga) - fallback
+    // 2. Fetch Live (Fallback)
+    console.log('[BuscarTaxa] Cache miss, fetching live...');
+    const bacenDate = `${diaStr}/${mesStr}/${anoStr}`;
+    // Fetch specifically for this date/month
+    // Only need 1 point but seriesFetcher returns array
     try {
-      console.log('Tentando API SGS...')
-      const dataFormatada = `${dia}/${mes}/${ano}`
-      const urlSGS = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json&dataInicial=${dataFormatada}&dataFinal=${dataFormatada}`
+      const points = await fetchBacenSeries(serieCode, bacenDate, bacenDate);
 
-      const responseSGS = await fetch(urlSGS, {
-        headers: { 'Accept': 'application/json' }
-      })
+      if (points.length > 0) {
+        const point = points[points.length - 1]; // Last point
+        const val = parseBacenValue(point.valor);
+        const taxaDecimal = val / 100;
+        const taxaAnual = Math.pow(1 + taxaDecimal, 12) - 1;
 
-      if (responseSGS.ok) {
-        const dataSGS = await responseSGS.json()
+        // Background insert to cache
+        // We don't await this to speed up response? Or we do?
+        // Better to await to ensure data integrity for next time
+        await supabase.from('taxas_bacen_historico').upsert({
+          serie_bacen: serieCode.toString(),
+          ano: ano,
+          mes: mes,
+          ano_mes: `${ano}-${mes}`,
+          taxa_mensal_percent: val,
+          taxa_mensal_decimal: taxaDecimal,
+          taxa_anual_decimal: taxaAnual,
+          data_atualizacao: new Date().toISOString(),
+          modalidade: 'ON_DEMAND',
+          fonte: 'BACEN_SGS_LIVE'
+        }, { onConflict: 'serie_bacen, ano, mes' });
 
-        if (dataSGS && dataSGS.length > 0) {
-          const taxaMensalPercent = parseFloat(dataSGS[dataSGS.length - 1].valor)
-          const taxaMediaMensal = taxaMensalPercent / 100
-          const taxaMediaAnual = Math.pow(1 + taxaMediaMensal, 12) - 1
-
-          console.log('Taxa encontrada via SGS:', { taxaMensalPercent, taxaMediaMensal, taxaMediaAnual })
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              fonte: 'SGS',
-              data: dataSGS[dataSGS.length - 1].data,
-              taxaMediaMensal,
-              taxaMediaAnual,
-              taxaMediaMensalPercent: (taxaMediaMensal * 100).toFixed(4),
-              taxaMediaAnualPercent: (taxaMediaAnual * 100).toFixed(2),
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
+        return new Response(
+          JSON.stringify({
+            success: true,
+            fonte: 'SGS_LIVE',
+            data: point.data,
+            taxaMediaMensal: taxaDecimal,
+            taxaMediaAnual: taxaAnual,
+            taxaMediaMensalPercent: val,
+            taxaMediaAnualPercent: (taxaAnual * 100).toFixed(2),
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-    } catch (errorSGS) {
-      console.warn('API SGS falhou:', errorSGS)
+    } catch (err) {
+      console.error('[BuscarTaxa] Fetch error:', err);
     }
 
-    // Se chegou aqui, nenhuma API funcionou
     return new Response(
       JSON.stringify({
         success: false,
-        error: 'Nenhuma API do BACEN retornou dados para a data especificada'
+        error: 'Nenhuma taxa encontrada para a data'
       }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Erro na Edge Function:', error)
+    console.error('Erro:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

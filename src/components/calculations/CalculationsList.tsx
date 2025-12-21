@@ -55,10 +55,10 @@ export function CalculationsList({ onNavigate }: CalculationsListProps) {
     },
     {
       id: 'emprestimos',
-      title: 'Revisão Geral (Empréstimos e Financiamentos)',
-      description: 'Revise empréstimos e financiamentos em geral para assegurar a transparência e justiça.',
+      title: 'Revisão Geral (v3.0)',
+      description: 'Wizard completo com análise automática de capitalização diária e taxas Bacen.',
       icon: DollarSign,
-      route: 'calc-emprestimos'
+      route: 'calc-wizard'
     }
   ];
 

@@ -6,23 +6,28 @@ import { Topbar } from './components/layout/Topbar';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { GeneralSettings } from './components/settings/GeneralSettings';
 import { FunnelSettings } from './components/settings/FunnelSettings';
+import { OCRSettingsPage } from './components/settings/OCRSettingsPage';
 import { UserManagement } from './components/users/UserManagement';
 import { PermissionsManagement } from './components/users/PermissionsManagement';
 import { ContactsList } from './components/contacts/ContactsList';
 import { ContactDetails } from './components/contacts/ContactDetails';
 import { CRMKanban } from './components/crm/CRMKanban';
 import { OpportunityDetails } from './components/crm/OpportunityDetails';
-import { CalculationsList } from './components/calculations/CalculationsList';
-import { FinanciamentoImobiliario } from './components/calculations/FinanciamentoImobiliario';
-import { CartaoCredito } from './components/calculations/CartaoCredito';
-import { EmprestimosFinanciamentos } from './components/calculations/EmprestimosFinanciamentos';
-import { AnalisePrevia } from './components/calculations/AnalisePrevia';
-import { AnalisePreviaCartao } from './components/calculations/AnalisePreviaCartao';
+import { CRMCalendar } from './components/crm/CRMCalendar';
+import { ListaCasos } from './components/calculations/ListaCasos';
 import { RelatorioCompleto } from './components/calculations/RelatorioCompleto';
-import { UploadContratos } from './components/calculations/UploadContratos';
+import { ModuleSelection } from './components/calculations/ModuleSelection';
+
+import { CalculationWizard } from './components/calculations/wizard';
+import { ResultsDashboard } from './components/calculations/results';
+import { TriagemRapida } from './components/triagem/TriagemRapida';
 import { PeticoesList } from './components/peticoes/PeticoesList';
+
 import { PeticoesEditor } from './components/peticoes/PeticoesEditor';
+import { DocumentSettingsPage } from './components/settings/DocumentSettingsPage';
 import { Toaster } from './components/ui/sonner';
+import { wizardResultToResultsDashboard, resultToLaudoData } from '@/lib/calculationAdapters';
+import { laudoExportService } from '@/services/laudoExport.service';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -54,8 +59,8 @@ function AppContent() {
   // Show loading screen while checking auth
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-white dark:bg-gray-900">
-        <div className="text-gray-600 dark:text-gray-400">Carregando...</div>
+      <div className="flex h-screen items-center justify-center bg-white">
+        <div className="text-gray-600">Carregando...</div>
       </div>
     );
   }
@@ -78,36 +83,64 @@ function AppContent() {
         return <GeneralSettings />;
       case 'settings-funnel':
         return <FunnelSettings />;
+      case 'settings-ocr':
+        return <OCRSettingsPage />;
+      case 'settings-documents':
+        return <DocumentSettingsPage />;
       case 'users':
         return <UserManagement onNavigate={navigate} />;
       case 'permissions':
         return <PermissionsManagement />;
-      case 'contacts':
+      case 'contacts': // Legacy fallback/redirect if needed, but updated items use crm/contatos
+      case 'crm/contatos':
         return <ContactsList onNavigate={navigate} />;
       case 'contact-details':
         return <ContactDetails contactId={selectedId} onNavigate={navigate} />;
-      case 'crm':
+      case 'crm': // Legacy fallback
+      case 'crm/oportunidades':
         return <CRMKanban onNavigate={navigate} />;
+      case 'crm/calendario':
+        return <CRMCalendar onNavigate={navigate} />;
       case 'opportunity-details':
         return <OpportunityDetails opportunityId={selectedId} onNavigate={navigate} />;
       case 'calculations':
-        return <CalculationsList onNavigate={navigate} />;
-      case 'calc-financiamento':
-        return <FinanciamentoImobiliario calcId={selectedId} onNavigate={navigate} />;
-      case 'calc-cartao':
-        return <CartaoCredito calcId={selectedId} onNavigate={navigate} />;
-      case 'calc-emprestimos':
-        return <EmprestimosFinanciamentos calcId={selectedId} onNavigate={navigate} />;
-      case 'calc-analise':
-        return <AnalisePrevia calcId={selectedId} onNavigate={navigate} data={routeData} />;
-      case 'calc-analise-cartao':
-        // DEPRECATED: Agora usa 'calc-analise' (UI unificada)
-        // Mantido para compatibilidade com casos antigos
-        return <AnalisePrevia calcId={selectedId} onNavigate={navigate} data={routeData} />;
+        return <ListaCasos onNavigate={navigate} />;
+      case 'lista-casos':
+        return <ListaCasos onNavigate={navigate} />;
       case 'calc-relatorio':
         return <RelatorioCompleto calcId={selectedId} onNavigate={navigate} data={routeData} />;
-      case 'upload-contratos':
-        return <UploadContratos onNavigate={navigate} />;
+      case 'novo-calculo':
+        return <ModuleSelection onNavigate={navigate} />;
+      case 'triagem':
+        return <TriagemRapida onNavigateToWizard={() => navigate('novo-calculo')} />;
+      case 'calc-wizard':
+        // Get module and optional resume data from routeData
+        const wizardModule = routeData?.module || 'GERAL';
+        const resumeData = routeData?.initialData || undefined;
+        const resumeContratoId = routeData?.contratoId || undefined;
+        return <CalculationWizard
+          module={wizardModule}
+          initialData={resumeData}
+          existingContratoId={resumeContratoId}
+          onBack={() => navigate('lista-casos')}
+          onComplete={(result) => {
+            navigate('calc-results', undefined, result);
+          }}
+        />;
+      case 'calc-results':
+        // Convert wizard result to dashboard data format
+        if (routeData) {
+          const dashboardData = wizardResultToResultsDashboard(routeData);
+          return <ResultsDashboard
+            data={dashboardData}
+            onBack={() => navigate('calculations')}
+            onExportPDF={() => {
+              const laudoData = resultToLaudoData(routeData.wizardData, routeData.result);
+              laudoExportService.exportToPdf(laudoData);
+            }}
+          />;
+        }
+        return <ListaCasos onNavigate={navigate} />;
       case 'peticoes':
         return <PeticoesList onNavigate={navigate} />;
       case 'peticoes-editor':
@@ -118,7 +151,7 @@ function AppContent() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white dark:bg-gray-900">
+    <div className="flex h-screen overflow-hidden bg-slate-50">
       <Sidebar
         currentRoute={currentRoute}
         onNavigate={navigate}
@@ -133,7 +166,7 @@ function AppContent() {
           onMobileMenuToggle={() => setIsMobileSidebarOpen(true)}
         />
 
-        <main className="flex-1 overflow-y-auto bg-white dark:bg-gray-900">
+        <main className="flex-1 overflow-y-auto bg-slate-50">
           {renderContent()}
         </main>
       </div>

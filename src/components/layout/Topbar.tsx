@@ -1,8 +1,7 @@
 'use client';
 
-import { Bell, Sun, Moon, User, Menu, LogOut } from 'lucide-react';
+import { Bell, User, Menu, LogOut } from 'lucide-react';
 import { useState } from 'react';
-import type { ThemeMode } from '@/app/providers';
 import { useAuth } from '../../hooks/useAuth';
 import {
   DropdownMenu,
@@ -13,6 +12,8 @@ import {
 } from '../ui/dropdown-menu';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+
+type ThemeMode = 'light' | 'dark';
 
 interface TopbarProps {
   theme: ThemeMode;
@@ -42,11 +43,11 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
   };
 
   return (
-    <header className="h-16 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 flex items-center justify-between px-4 lg:px-6">
+    <header className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-4">
         <button
           onClick={onMobileMenuToggle}
-          className="lg:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          className="lg:hidden text-gray-600 hover:text-gray-900"
         >
           <Menu className="w-6 h-6" />
         </button>
@@ -85,7 +86,7 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
               {notifications.map(notif => (
                 <DropdownMenuItem
                   key={notif.id}
-                  className={`flex flex-col items-start gap-1 p-3 ${!notif.read ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                  className={`flex flex-col items-start gap-1 p-3 ${!notif.read ? 'bg-blue-50' : ''}`}
                 >
                   <div className="flex items-start gap-2 w-full">
                     {!notif.read && (
@@ -93,7 +94,7 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
                     )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm">{notif.text}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{notif.time}</p>
+                      <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
                     </div>
                   </div>
                 </DropdownMenuItem>
@@ -107,24 +108,11 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Theme Toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onThemeToggle}
-        >
-          {theme === 'light' ? (
-            <Sun className="w-5 h-5" />
-          ) : (
-            <Moon className="w-5 h-5" />
-          )}
-        </Button>
-
         {/* User Profile */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2">
-              <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                 <User className="w-4 h-4" />
               </div>
               <span className="hidden sm:inline">{profile?.nome_completo || user?.email || 'Usuário'}</span>

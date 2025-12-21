@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Search, MoreVertical, User, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, MoreVertical, User, Loader2, ChevronLeft, ChevronRight, Building2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
@@ -16,6 +17,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { usePermissions } from '../../hooks/usePermissions';
 import type { Contact } from '../../types/contact';
 import { isValidEmail } from '../ui/utils';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 
 interface ContactsListProps {
   onNavigate: (route: string, id?: string) => void;
@@ -31,19 +33,23 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(true);
+
   const [newContact, setNewContact] = useState({
     name: '',
     cpfCnpj: '',
     email: '',
     phone: '',
     status: 'Lead' as 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente',
+    tipo: 'PF' as 'PF' | 'PJ'
   });
+
   const [editContact, setEditContact] = useState({
     name: '',
     cpfCnpj: '',
     email: '',
     phone: '',
     status: 'Lead' as 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente',
+    tipo: 'PF' as 'PF' | 'PJ'
   });
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -113,14 +119,10 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
     setLoading(true);
     try {
-      // Determinar tipo baseado no tamanho do CPF/CNPJ
-      const cleanCpfCnpj = newContact.cpfCnpj.replace(/\D/g, '');
-      const tipo = cleanCpfCnpj.length === 14 ? 'Pessoa Jurídica' : 'Pessoa Física';
-
       const { data, error } = await supabase
         .from('contatos')
         .insert([{
-          tipo,
+          tipo: newContact.tipo === 'PJ' ? 'Pessoa Jurídica' : 'Pessoa Física',
           nome_completo: newContact.name,
           email: newContact.email,
           cpf_cnpj: newContact.cpfCnpj || null,
@@ -142,6 +144,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
         email: '',
         phone: '',
         status: 'Lead',
+        tipo: 'PF'
       });
 
       // Reload contacts from first page
@@ -163,7 +166,6 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const openEditDialog = (id: string) => {
-    // Verificar permissão de editar
     if (!canUpdate('contacts')) {
       toast.error('Você não tem permissão para editar contatos');
       return;
@@ -172,19 +174,23 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
     const contact = contacts.find(c => c.id === id);
     if (contact) {
       setSelectedContactId(id);
+
+      // Determine PF/PJ
+      const isPJ = contact.tipo === 'Pessoa Jurídica' || (contact.cpf_cnpj?.replace(/\D/g, '').length || 0) > 11;
+
       setEditContact({
         name: contact.nome_completo,
         cpfCnpj: contact.cpf_cnpj || '',
         email: contact.email || '',
         phone: contact.telefone_principal || '',
         status: contact.status_contato,
+        tipo: isPJ ? 'PJ' : 'PF'
       });
       setEditDialogOpen(true);
     }
   };
 
   const openDeleteDialog = (id: string) => {
-    // Verificar permissão de deletar
     if (!canDelete('contacts')) {
       toast.error('Você não tem permissão para excluir contatos');
       return;
@@ -195,7 +201,6 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const handleEditContact = async () => {
-    // Verificar permissão de editar
     if (!canUpdate('contacts')) {
       toast.error('Você não tem permissão para editar contatos');
       return;
@@ -214,14 +219,10 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
     setLoading(true);
     try {
-      // Determinar tipo baseado no tamanho do CPF/CNPJ
-      const cleanCpfCnpj = editContact.cpfCnpj.replace(/\D/g, '');
-      const tipo = cleanCpfCnpj.length === 14 ? 'Pessoa Jurídica' : 'Pessoa Física';
-
       const { error } = await supabase
         .from('contatos')
         .update({
-          tipo,
+          tipo: editContact.tipo === 'PJ' ? 'Pessoa Jurídica' : 'Pessoa Física',
           nome_completo: editContact.name,
           email: editContact.email,
           cpf_cnpj: editContact.cpfCnpj || null,
@@ -237,7 +238,6 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
       setEditDialogOpen(false);
       setSelectedContactId(null);
 
-      // Reload contacts
       await loadContacts();
     } catch (error: any) {
       console.error('Error updating contact:', error);
@@ -248,7 +248,6 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   const handleDeleteContact = async () => {
-    // Verificar permissão de deletar
     if (!canDelete('contacts')) {
       toast.error('Você não tem permissão para excluir contatos');
       return;
@@ -268,7 +267,6 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
       setDeleteDialogOpen(false);
       setSelectedContactId(null);
 
-      // Reload contacts
       await loadContacts();
     } catch (error: any) {
       console.error('Error deleting contact:', error);
@@ -340,20 +338,40 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+
+              <div className="space-y-3">
+                <Label>Tipo de Pessoa</Label>
+                <RadioGroup
+                  defaultValue="PF"
+                  value={newContact.tipo}
+                  onValueChange={(val: 'PF' | 'PJ') => setNewContact(prev => ({ ...prev, tipo: val, cpfCnpj: '' }))}
+                  className="flex gap-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="PF" id="pf" />
+                    <Label htmlFor="pf" className="cursor-pointer">Pessoa Física</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="PJ" id="pj" />
+                    <Label htmlFor="pj" className="cursor-pointer">Pessoa Jurídica</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo *</Label>
+                <Label htmlFor="name">{newContact.tipo === 'PJ' ? 'Razão Social *' : 'Nome Completo *'}</Label>
                 <Input
                   id="name"
                   value={newContact.name}
                   onChange={(e) => setNewContact(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Nome do contato"
+                  placeholder={newContact.tipo === 'PJ' ? 'Empresa LTDA' : 'Nome do contato'}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cpfCnpj">CPF/CNPJ</Label>
+                <Label htmlFor="cpfCnpj">{newContact.tipo === 'PJ' ? 'CNPJ' : 'CPF'}</Label>
                 <InputMask
-                  mask={newContact.cpfCnpj.replace(/\D/g, '').length <= 11 ? "999.999.999-999" : "99.999.999/9999-99"}
+                  mask={newContact.tipo === 'PJ' ? "99.999.999/9999-99" : "999.999.999-99"}
                   value={newContact.cpfCnpj}
                   onChange={(e) => setNewContact(prev => ({ ...prev, cpfCnpj: e.target.value }))}
                   formatChars={{
@@ -365,7 +383,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                     <Input
                       {...inputProps}
                       id="cpfCnpj"
-                      placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                      placeholder={newContact.tipo === 'PJ' ? "00.000.000/0000-00" : "000.000.000-00"}
                     />
                   )}
                 </InputMask>
@@ -465,6 +483,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nome</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>CPF/CNPJ</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Telefone</TableHead>
@@ -479,10 +498,15 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                          <User className="w-4 h-4" />
+                          {contact.tipo === 'Pessoa Jurídica' ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
                         </div>
                         <span className="text-gray-900 dark:text-white">{contact.nome_completo}</span>
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {contact.tipo === 'Pessoa Jurídica' ? 'PJ' : 'PF'}
+                      </Badge>
                     </TableCell>
                     <TableCell>{contact.cpf_cnpj || '-'}</TableCell>
                     <TableCell>{contact.email || '-'}</TableCell>
@@ -584,20 +608,39 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+
+            <div className="space-y-3">
+              <Label>Tipo de Pessoa</Label>
+              <RadioGroup
+                value={editContact.tipo}
+                onValueChange={(val: 'PF' | 'PJ') => setEditContact(prev => ({ ...prev, tipo: val }))}
+                className="flex gap-6"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="PF" id="edit-pf" />
+                  <Label htmlFor="edit-pf" className="cursor-pointer">Pessoa Física</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="PJ" id="edit-pj" />
+                  <Label htmlFor="edit-pj" className="cursor-pointer">Pessoa Jurídica</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="edit-name">Nome Completo *</Label>
+              <Label htmlFor="edit-name">{editContact.tipo === 'PJ' ? 'Razão Social *' : 'Nome Completo *'}</Label>
               <Input
                 id="edit-name"
                 value={editContact.name}
                 onChange={(e) => setEditContact(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nome do contato"
+                placeholder={editContact.tipo === 'PJ' ? 'Empresa LTDA' : 'Nome do contato'}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-cpfCnpj">CPF/CNPJ</Label>
+              <Label htmlFor="edit-cpfCnpj">{editContact.tipo === 'PJ' ? 'CNPJ' : 'CPF'}</Label>
               <InputMask
-                mask={editContact.cpfCnpj.replace(/\D/g, '').length <= 11 ? "999.999.999-999" : "99.999.999/9999-99"}
+                mask={editContact.tipo === 'PJ' ? "99.999.999/9999-99" : "999.999.999-99"}
                 value={editContact.cpfCnpj}
                 onChange={(e) => setEditContact(prev => ({ ...prev, cpfCnpj: e.target.value }))}
                 formatChars={{
@@ -609,7 +652,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                   <Input
                     {...inputProps}
                     id="edit-cpfCnpj"
-                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                    placeholder={editContact.tipo === 'PJ' ? "00.000.000/0000-00" : "000.000.000-00"}
                   />
                 )}
               </InputMask>

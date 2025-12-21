@@ -2,105 +2,32 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Plus, MoreVertical, Calendar, DollarSign, User, Loader2 } from 'lucide-react';
+import { Plus, Loader2, FileText, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { toast } from 'sonner';
-import { Badge } from '../ui/badge';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
 import type { Opportunity } from '../../types/opportunity';
 import type { Contact } from '../../types/contact';
-
-interface OpportunityCardProps {
-  opportunity: any;
-  onNavigate: (route: string, id: string) => void;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  canUpdate: boolean;
-  canDelete: boolean;
-}
-
-function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, canUpdate, canDelete }: OpportunityCardProps) {
-  const formatCurrency = (value: number | null | undefined) => {
-    if (!value) return 'R$ 0,00';
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('pt-BR');
-  };
-
-  return (
-    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer">
-      <div className="flex items-start justify-between mb-3">
-        <h4
-          className="text-sm text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 dark:hover:text-blue-400"
-          onClick={() => onNavigate('opportunity-details', opportunity.id)}
-        >
-          {opportunity.titulo}
-        </h4>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-              <MoreVertical className="w-4 h-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onNavigate('opportunity-details', opportunity.id)}>
-              Visualizar
-            </DropdownMenuItem>
-            {canUpdate && (
-              <DropdownMenuItem onClick={() => onEdit(opportunity.id)}>
-                Editar
-              </DropdownMenuItem>
-            )}
-            {canDelete && (
-              <DropdownMenuItem
-                className="text-red-600 dark:text-red-400"
-                onClick={() => onDelete(opportunity.id)}
-              >
-                Excluir
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="space-y-2 text-xs">
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-          <User className="w-3 h-3" />
-          <span>{opportunity.contatos?.nome_completo || 'Sem contato'}</span>
-        </div>
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-          <DollarSign className="w-3 h-3" />
-          <span className="text-green-600 dark:text-green-400">
-            {formatCurrency(opportunity.valor_estimado)}
-          </span>
-        </div>
-        <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-          <Calendar className="w-3 h-3" />
-          <span>{formatDate(opportunity.data_criacao)}</span>
-        </div>
-      </div>
-
-      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-        <Badge variant="secondary" className="text-xs">
-          {opportunity.tipo_acao || 'Sem tipo'}
-        </Badge>
-      </div>
-    </div>
-  );
-}
+import {
+  DndContext,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay
+} from '@dnd-kit/core';
+import { SortableOpportunityCard } from './SortableOpportunityCard';
+import { DroppableColumn } from './DroppableColumn';
+import { useKanbanDnd } from '../../hooks/useKanbanDnd';
+import { OpportunityCard } from './OpportunityCard';
+import { NewLeadDialog } from './NewLeadDialog';
 
 interface CRMKanbanProps {
   onNavigate: (route: string, id?: string) => void;
@@ -117,7 +44,8 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const [loading, setLoading] = useState(false);
   const [loadingOpportunities, setLoadingOpportunities] = useState(true);
 
-  const [newOpportunity, setNewOpportunity] = useState({
+  // Edit Opportunity State
+  const initialFormState = {
     titulo: '',
     contato_id: '',
     tipo_acao: '',
@@ -125,21 +53,22 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     etapa_funil_id: '',
     responsavel_id: '',
     origem: '',
-  });
+  };
 
-  const [editOpportunity, setEditOpportunity] = useState({
-    titulo: '',
-    contato_id: '',
-    tipo_acao: '',
-    valor_estimado: '',
-    etapa_funil_id: '',
-    responsavel_id: '',
-    origem: '',
-  });
+  const [editOpportunity, setEditOpportunity] = useState(initialFormState);
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+
+  // DND Hook
+  const { handleDragEnd, handleDragStart, activeId } = useKanbanDnd(opportunities, setOpportunities);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 }
+    })
+  );
 
   // Load data when user changes
   useEffect(() => {
@@ -183,8 +112,11 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
 
       if (error) throw error;
 
-      // Filtrar oportunidades cujos contatos estão ativos
-      const activeOpportunities = (data || []).filter(opp => {
+      // Filtrar oportunidades cujos contatos estão ativos e lidar com contatos null
+      const activeOpportunities = (data || []).map((opp: any) => ({
+        ...opp,
+        contatos: opp.contatos ? { ...opp.contatos, ativo: opp.contatos.ativo ?? true } : null
+      })).filter((opp: any) => {
         // Se não tem contato vinculado, mantém a oportunidade
         if (!opp.contatos) return true;
         // Se tem contato, só mantém se o contato estiver ativo
@@ -207,7 +139,6 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         return;
       }
 
-      // Buscar apenas contatos do usuário (criado por ele ou onde ele é responsável)
       const { data, error } = await supabase
         .from('contatos')
         .select('id, nome_completo, email')
@@ -216,7 +147,6 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         .order('nome_completo');
 
       if (error) throw error;
-
       setContacts(data || []);
     } catch (error) {
       console.error('Error loading contacts:', error);
@@ -232,74 +162,17 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         .order('nome_completo');
 
       if (error) throw error;
-
       setProfiles(data || []);
     } catch (error) {
       console.error('Error loading profiles:', error);
     }
   };
 
-  const handleCreateOpportunity = async () => {
-    // Verificar permissão de criar
-    if (!canCreate('crm')) {
-      toast.error('Você não tem permissão para criar oportunidades');
-      return;
-    }
-
-    if (!newOpportunity.titulo) {
-      toast.error('Preencha o nome da oportunidade');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('oportunidades')
-        .insert([{
-          titulo: newOpportunity.titulo,
-          contato_id: newOpportunity.contato_id || null,
-          tipo_acao: newOpportunity.tipo_acao || null,
-          valor_estimado: newOpportunity.valor_estimado ? parseFloat(newOpportunity.valor_estimado) : null,
-          etapa_funil_id: newOpportunity.etapa_funil_id || null,
-          responsavel_id: newOpportunity.responsavel_id || null,
-          origem: newOpportunity.origem || null,
-          criado_por: user?.id || null,
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      toast.success('Oportunidade criada com sucesso!');
-      setIsCreateDialogOpen(false);
-      setNewOpportunity({
-        titulo: '',
-        contato_id: '',
-        tipo_acao: '',
-        valor_estimado: '',
-        etapa_funil_id: '',
-        responsavel_id: '',
-        origem: '',
-      });
-
-      // Reload opportunities
-      await loadOpportunities();
-    } catch (error: any) {
-      console.error('Error creating opportunity:', error);
-      toast.error(error.message || 'Erro ao criar oportunidade');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOpenEdit = (id: string) => {
-    // Verificar permissão de editar
+  const handleOpenEdit = (opp: Opportunity) => {
     if (!canUpdate('crm')) {
       toast.error('Você não tem permissão para editar oportunidades');
       return;
     }
-
-    const opp = opportunities.find(o => o.id === id);
     if (opp) {
       setEditOpportunity({
         titulo: opp.titulo,
@@ -310,18 +183,16 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         responsavel_id: opp.responsavel_id || '',
         origem: opp.origem || '',
       });
-      setSelectedOpportunityId(id);
+      setSelectedOpportunityId(opp.id);
       setIsEditDialogOpen(true);
     }
   };
 
   const handleEditOpportunity = async () => {
-    // Verificar permissão de editar
     if (!canUpdate('crm')) {
       toast.error('Você não tem permissão para editar oportunidades');
       return;
     }
-
     if (!editOpportunity.titulo) {
       toast.error('Preencha o nome da oportunidade');
       return;
@@ -348,8 +219,6 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
       toast.success('Oportunidade atualizada com sucesso!');
       setIsEditDialogOpen(false);
       setSelectedOpportunityId(null);
-
-      // Reload opportunities
       await loadOpportunities();
     } catch (error: any) {
       console.error('Error updating opportunity:', error);
@@ -359,24 +228,20 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     }
   };
 
-  const handleOpenDelete = (id: string) => {
-    // Verificar permissão de deletar
+  const handleOpenDelete = (opp: Opportunity) => {
     if (!canDelete('crm')) {
       toast.error('Você não tem permissão para excluir oportunidades');
       return;
     }
-
-    setSelectedOpportunityId(id);
+    setSelectedOpportunityId(opp.id);
     setIsDeleteDialogOpen(true);
   };
 
   const handleConfirmDelete = async () => {
-    // Verificar permissão de deletar
     if (!canDelete('crm')) {
       toast.error('Você não tem permissão para excluir oportunidades');
       return;
     }
-
     if (!selectedOpportunityId) return;
 
     setLoading(true);
@@ -391,8 +256,6 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
       toast.success('Oportunidade excluída com sucesso!');
       setIsDeleteDialogOpen(false);
       setSelectedOpportunityId(null);
-
-      // Reload opportunities
       await loadOpportunities();
     } catch (error: any) {
       console.error('Error deleting opportunity:', error);
@@ -403,173 +266,46 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   };
 
   const getStageOpportunities = (etapaId: string) => {
-    // Filtrar apenas por etapa_funil_id
     return opportunities.filter(opp => opp.etapa_funil_id === etapaId);
   };
 
-  const getStageTotal = (etapaId: string) => {
-    return getStageOpportunities(etapaId).reduce((sum, opp) => sum + (opp.valor_estimado || 0), 0);
-  };
+  // Find the active opportunity for DragOverlay
+  const activeOpportunity = activeId ? opportunities.find(o => o.id === activeId) : null;
 
   return (
     <div className="h-full flex flex-col">
       <div className="p-4 lg:p-8 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
-            <h1 className="text-gray-900 dark:text-white mb-2">Pipeline - Kanban de Oportunidades</h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Gerencie suas oportunidades de vendas
-            </p>
+            <h1 className="text-gray-900 dark:text-white mb-2 font-bold text-2xl">Pipeline - Kanban</h1>
           </div>
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                className="gap-2"
-                disabled={!canCreate('crm')}
-                onClick={(e) => {
-                  if (!canCreate('crm')) {
-                    e.preventDefault();
-                    toast.error('Você não tem permissão para criar oportunidades');
-                  }
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Nova Oportunidade
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Criar Nova Oportunidade</DialogTitle>
-                <DialogDescription>
-                  Preencha os dados da oportunidade
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="titulo">Nome da Oportunidade *</Label>
-                  <Input
-                    id="titulo"
-                    value={newOpportunity.titulo}
-                    onChange={(e) => setNewOpportunity(prev => ({ ...prev, titulo: e.target.value }))}
-                    placeholder="Ex: Revisão de Financiamento"
-                  />
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="contato_id">Contato</Label>
-                  <Select
-                    value={newOpportunity.contato_id}
-                    onValueChange={(value) => setNewOpportunity(prev => ({ ...prev, contato_id: value }))}
-                  >
-                    <SelectTrigger id="contato_id">
-                      <SelectValue placeholder="Selecione um contato" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {contacts.map(contact => (
-                        <SelectItem key={contact.id} value={contact.id}>
-                          {contact.nome_completo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              className="gap-2 w-full sm:w-auto"
+              disabled={!canCreate('crm')}
+              onClick={(e) => {
+                if (!canCreate('crm')) {
+                  e.preventDefault();
+                  toast.error('Você não tem permissão para criar oportunidades');
+                } else {
+                  setIsCreateDialogOpen(true);
+                }
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              Nova Oportunidade
+            </Button>
+          </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="tipo_acao">Tipo de Ação</Label>
-                  <Select
-                    value={newOpportunity.tipo_acao}
-                    onValueChange={(value) => setNewOpportunity(prev => ({ ...prev, tipo_acao: value }))}
-                  >
-                    <SelectTrigger id="tipo_acao">
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Revisional">Revisional</SelectItem>
-                      <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
-                      <SelectItem value="Empréstimo">Empréstimo</SelectItem>
-                      <SelectItem value="Financiamento Imobiliário">Financiamento Imobiliário</SelectItem>
-                      <SelectItem value="Consultoria">Consultoria</SelectItem>
-                      <SelectItem value="Outros">Outros</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <NewLeadDialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+            onSuccess={loadOpportunities}
+            contacts={contacts}
+            profiles={profiles}
+          />
 
-                <div className="space-y-2">
-                  <Label htmlFor="valor_estimado">Valor da Proposta (R$)</Label>
-                  <Input
-                    id="valor_estimado"
-                    type="number"
-                    value={newOpportunity.valor_estimado}
-                    onChange={(e) => setNewOpportunity(prev => ({ ...prev, valor_estimado: e.target.value }))}
-                    placeholder="0,00"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="etapa_funil_id">Etapa do Funil</Label>
-                  <Select
-                    value={newOpportunity.etapa_funil_id}
-                    onValueChange={(value: any) => setNewOpportunity(prev => ({ ...prev, etapa_funil_id: value }))}
-                  >
-                    <SelectTrigger id="etapa_funil_id">
-                      <SelectValue placeholder="Selecione a etapa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {etapas.map(etapa => (
-                        <SelectItem key={etapa.id} value={etapa.id}>{etapa.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="responsavel_id">Responsável</Label>
-                  <Select
-                    value={newOpportunity.responsavel_id}
-                    onValueChange={(value) => setNewOpportunity(prev => ({ ...prev, responsavel_id: value }))}
-                  >
-                    <SelectTrigger id="responsavel_id">
-                      <SelectValue placeholder="Selecione o responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {profiles.map(profile => (
-                        <SelectItem key={profile.id} value={profile.id}>
-                          {profile.nome_completo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="origem">Origem</Label>
-                  <Input
-                    id="origem"
-                    value={newOpportunity.origem}
-                    onChange={(e) => setNewOpportunity(prev => ({ ...prev, origem: e.target.value }))}
-                    placeholder="Ex: Indicação, Website, etc."
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={loading}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleCreateOpportunity} disabled={loading}>
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    'Criar Oportunidade'
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </div>
 
@@ -579,34 +315,23 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>
         ) : (
-          <div className="flex gap-4 min-w-max">
-            {etapas.map(etapa => {
-              const etapaOpps = getStageOpportunities(etapa.id);
-              const etapaTotal = getStageTotal(etapa.id);
-
-              return (
-                <div key={etapa.id} className="w-80 flex-shrink-0">
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: etapa.cor }}
-                      />
-                      <h3 className="text-gray-900 dark:text-white">
-                        {etapa.nome}
-                      </h3>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        ({etapaOpps.length})
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
-                      Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(etapaTotal)}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 min-h-[200px] bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-4 min-w-max h-full">
+              {etapas.map(etapa => {
+                const etapaOpps = getStageOpportunities(etapa.id);
+                return (
+                  <DroppableColumn
+                    key={etapa.id}
+                    etapa={etapa}
+                    opportunities={etapaOpps}
+                  >
                     {etapaOpps.map(opp => (
-                      <OpportunityCard
+                      <SortableOpportunityCard
                         key={opp.id}
                         opportunity={opp}
                         onNavigate={onNavigate}
@@ -616,26 +341,37 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                         canDelete={canDelete('crm')}
                       />
                     ))}
-                    {etapaOpps.length === 0 && (
-                      <div className="text-center text-gray-400 dark:text-gray-500 py-8">
-                        Nenhuma oportunidade
-                      </div>
-                    )}
-                  </div>
+                  </DroppableColumn>
+                );
+              })}
+            </div>
+            <DragOverlay>
+              {activeOpportunity ? (
+                <div
+                  className="cursor-grabbing shadow-2xl rotate-2 z-50 rounded-lg overflow-hidden ring-2 ring-blue-500/50"
+                  style={{ cursor: 'grabbing' }}
+                >
+                  <OpportunityCard
+                    opportunity={activeOpportunity}
+                    onNavigate={() => { }}
+                    onEdit={() => { }}
+                    onDelete={() => { }}
+                    canUpdate={false}
+                    canDelete={false}
+                  />
                 </div>
-              );
-            })}
-          </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </div>
 
+      {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Editar Oportunidade</DialogTitle>
-            <DialogDescription>
-              Atualize os dados da oportunidade
-            </DialogDescription>
+            <DialogDescription>Atualize os dados da oportunidade</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -644,38 +380,25 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                 id="edit-titulo"
                 value={editOpportunity.titulo}
                 onChange={(e) => setEditOpportunity(prev => ({ ...prev, titulo: e.target.value }))}
-                placeholder="Ex: Revisão de Financiamento"
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="edit-contato_id">Contato</Label>
               <Select
                 value={editOpportunity.contato_id}
                 onValueChange={(value) => setEditOpportunity(prev => ({ ...prev, contato_id: value }))}
               >
-                <SelectTrigger id="edit-contato_id">
-                  <SelectValue placeholder="Selecione um contato" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contacts.map(contact => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contact.nome_completo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectTrigger id="edit-contato_id"><SelectValue placeholder="Selecione um contato" /></SelectTrigger>
+                <SelectContent>{contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="edit-tipo_acao">Tipo de Ação</Label>
               <Select
                 value={editOpportunity.tipo_acao}
                 onValueChange={(value) => setEditOpportunity(prev => ({ ...prev, tipo_acao: value }))}
               >
-                <SelectTrigger id="edit-tipo_acao">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
+                <SelectTrigger id="edit-tipo_acao"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Revisional">Revisional</SelectItem>
                   <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
@@ -686,79 +409,33 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="edit-valor_estimado">Valor da Proposta (R$)</Label>
-              <Input
-                id="edit-valor_estimado"
-                type="number"
-                value={editOpportunity.valor_estimado}
-                onChange={(e) => setEditOpportunity(prev => ({ ...prev, valor_estimado: e.target.value }))}
-                placeholder="0,00"
-                min="0"
-                step="0.01"
-              />
+              <Label htmlFor="edit-valor_estimado">Valor (R$)</Label>
+              <Input type="number" id="edit-valor_estimado" value={editOpportunity.valor_estimado} onChange={e => setEditOpportunity(prev => ({ ...prev, valor_estimado: e.target.value }))} />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="edit-etapa_funil_id">Etapa do Funil</Label>
-              <Select
-                value={editOpportunity.etapa_funil_id}
-                onValueChange={(value: any) => setEditOpportunity(prev => ({ ...prev, etapa_funil_id: value }))}
-              >
-                <SelectTrigger id="edit-etapa_funil_id">
-                  <SelectValue placeholder="Selecione a etapa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {etapas.map(etapa => (
-                    <SelectItem key={etapa.id} value={etapa.id}>{etapa.nome}</SelectItem>
-                  ))}
-                </SelectContent>
+              <Label htmlFor="edit-etapa_funil_id">Etapa</Label>
+              <Select value={editOpportunity.etapa_funil_id} onValueChange={v => setEditOpportunity(prev => ({ ...prev, etapa_funil_id: v }))}>
+                <SelectTrigger id="edit-etapa_funil_id"><SelectValue placeholder="Selecione a etapa" /></SelectTrigger>
+                <SelectContent>{etapas.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="edit-responsavel_id">Responsável</Label>
-              <Select
-                value={editOpportunity.responsavel_id}
-                onValueChange={(value) => setEditOpportunity(prev => ({ ...prev, responsavel_id: value }))}
-              >
-                <SelectTrigger id="edit-responsavel_id">
-                  <SelectValue placeholder="Selecione o responsável" />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.map(profile => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.nome_completo}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
+              <Select value={editOpportunity.responsavel_id} onValueChange={v => setEditOpportunity(prev => ({ ...prev, responsavel_id: v }))}>
+                <SelectTrigger id="edit-responsavel_id"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>{profiles.map(p => <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="edit-origem">Origem</Label>
-              <Input
-                id="edit-origem"
-                value={editOpportunity.origem}
-                onChange={(e) => setEditOpportunity(prev => ({ ...prev, origem: e.target.value }))}
-                placeholder="Ex: Indicação, Website, etc."
-              />
+              <Input id="edit-origem" value={editOpportunity.origem} onChange={e => setEditOpportunity(prev => ({ ...prev, origem: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={loading}>
-              Cancelar
-            </Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={loading}>Cancelar</Button>
             <Button onClick={handleEditOpportunity} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Atualizando...
-                </>
-              ) : (
-                'Atualizar Oportunidade'
-              )}
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Atualizar'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -768,27 +445,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir Oportunidade</AlertDialogTitle>
-            <AlertDialogDescription>
-              Você tem certeza que deseja excluir esta oportunidade? Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Você tem certeza que deseja excluir esta oportunidade?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)} disabled={loading}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDelete}
-              disabled={loading}
-              className="bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Excluindo...
-                </>
-              ) : (
-                'Excluir'
-              )}
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)} disabled={loading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} disabled={loading} className="bg-red-600 hover:bg-red-700">
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -12,6 +12,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { peticoesService } from '@/services/peticoes.service';
 import { Peticao } from '@/types/peticoes.types';
 import { exportService, PeticaoExportData } from '@/services/export.service';
+import { pdf } from '@react-pdf/renderer';
+import { saveAs } from 'file-saver';
+import { PeticaoTemplate } from '@/components/pdf-templates/PeticaoTemplate';
+import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 
 interface PeticoesEditorProps {
   documentId: string | null;
@@ -19,6 +23,7 @@ interface PeticoesEditorProps {
 }
 
 export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) {
+  const { settings } = useDocumentSettings();
   const isNewDocument = documentId === 'new';
   const isViewMode = documentId && documentId !== 'new';
 
@@ -157,7 +162,13 @@ export function PeticoesEditor({ documentId, onNavigate }: PeticoesEditorProps) 
 
       // Exportar no formato selecionado
       if (format === 'pdf') {
-        await exportService.exportToPdf(exportData);
+        const blob = await pdf(
+          <PeticaoTemplate data={exportData} settings={settings} />
+        ).toBlob();
+
+        const timestamp = new Date().getTime();
+        saveAs(blob, `Peticao_${timestamp}.pdf`);
+
         toast.success('Documento exportado em PDF com sucesso!');
       } else {
         await exportService.exportToWord(exportData);

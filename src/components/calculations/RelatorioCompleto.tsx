@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { ArrowLeft, Download } from 'lucide-react';
 import { toast } from 'sonner';
+import { laudoExportService } from "@/services/laudoExport.service";
+import { relatorioToLaudoData } from "@/lib/calculationAdapters";
 import { RelatorioCompletoResponse } from '@/types/calculation.types';
 import { formatarMoeda } from '@/services/calculationEngine';
 
@@ -21,10 +23,40 @@ interface RelatorioCompletoProps {
   };
 }
 
+import { pdf } from '@react-pdf/renderer';
+import { saveAs } from 'file-saver';
+import { FinancialReportTemplate } from '@/components/pdf-templates/FinancialReportTemplate';
+import { useDocumentSettings } from '../pdf-engine/DocumentContext';
+
 export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioCompletoProps) {
-  const handleExport = () => {
-    // TODO: Implementar geração de PDF
-    toast.success('Relatório exportado em PDF com sucesso!');
+  const { settings } = useDocumentSettings();
+
+  const handleExport = async () => {
+    try {
+      if (!data) {
+        toast.error("Dados insuficientes para gerar o relatório.");
+        return;
+      }
+
+      toast.loading("Gerando PDF...");
+
+      // Ensure data structure is compatible or fallback if needed
+      const exportData = relatorioToLaudoData(data);
+
+      const blob = await pdf(
+        <FinancialReportTemplate data={exportData} settings={settings} />
+      ).toBlob();
+
+      const timestamp = new Date().getTime();
+      saveAs(blob, `Relatorio_OctoApps_${data.contratoNum || 'Calculo'}_${timestamp}.pdf`);
+
+      toast.dismiss();
+      toast.success("Relatório exportado em PDF com sucesso!");
+    } catch (error) {
+      console.error("Erro na exportação:", error);
+      toast.dismiss();
+      toast.error("Erro ao gerar o PDF. Tente novamente.");
+    }
   };
 
   // ========== TYPE DETECTION ==========
@@ -74,8 +106,8 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
 
   return (
     <div className="p-4 lg:p-8">
-      <Button 
-        variant="ghost" 
+      <Button
+        variant="ghost"
         onClick={() => onNavigate('calculations')}
         className="gap-2 mb-6"
       >
@@ -300,12 +332,12 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
             <p className="text-gray-900 dark:text-white leading-relaxed">
               {tipoCalculo === 'financiamento' && (
                 <>
-                  Este relatório apresenta o cálculo revisional de financiamento imobiliário, comparando os valores efetivamente cobrados com os valores que deveriam ter sido cobrados considerando a taxa média de mercado. O cálculo envolve o credor {dadosRelatorio.credor} e o devedor {dadosRelatorio.devedor}, referente ao contrato {dadosRelatorio.contratoNum || 'não informado'}. A análise contempla {data?.tabelaAmortizacao?.length || 0} parcelas, utilizando a metodologia {dadosRelatorio.metodologia}.
+                  Este relatório apresenta o cálculo revisional de financiamento imobiliário, comparando os valores efetivamente cobrados com os valores que deveriam ter sido cobrados considerando a taxa média de mercado. O cálculo envolve o credor {dadosRelatorio.credor} e o devedor {dadosRelatorio.devedor}, referente ao contrato {data?.contratoNum || 'não informado'}. A análise contempla {data?.tabelaAmortizacao?.length || 0} parcelas, utilizando a metodologia {dadosRelatorio.metodologia}.
                 </>
               )}
               {tipoCalculo === 'emprestimo' && (
                 <>
-                  Este relatório apresenta a análise revisional de empréstimo {data?.sistemaAmortizacao ? `utilizando o Sistema ${data.sistemaAmortizacao}` : ''}, comparando os valores efetivamente cobrados com os valores devidos considerando a taxa média de mercado e identificando irregularidades contratuais. O cálculo envolve o credor {dadosRelatorio.credor} e o devedor {dadosRelatorio.devedor}, referente ao contrato {dadosRelatorio.contratoNum || 'não informado'}. A análise contempla {data?.tabelaAmortizacao?.length || 0} parcelas e considera os encargos iniciais, tarifas recorrentes e o Custo Efetivo Total (CET).
+                  Este relatório apresenta a análise revisional de empréstimo {data?.sistemaAmortizacao ? `utilizando o Sistema ${data.sistemaAmortizacao}` : ''}, comparando os valores efetivamente cobrados com os valores devidos considerando a taxa média de mercado e identificando irregularidades contratuais. O cálculo envolve o credor {dadosRelatorio.credor} e o devedor {dadosRelatorio.devedor}, referente ao contrato {data?.contratoNum || 'não informado'}. A análise contempla {data?.tabelaAmortizacao?.length || 0} parcelas e considera os encargos iniciais, tarifas recorrentes e o Custo Efetivo Total (CET).
                 </>
               )}
               {tipoCalculo === 'cartao' && (
