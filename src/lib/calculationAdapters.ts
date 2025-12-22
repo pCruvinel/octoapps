@@ -284,9 +284,6 @@ export function wizardToDetalhadoRequest(data: WizardData): CalculoDetalhadoRequ
         usarJurosSimples: s2.sistemaAmortizacao === 'GAUSS',
         expurgarTarifas: outrasTarifas.some(t => t.expurgar),
         restituicaoEmDobro: s2.repetirEmDobro || false,
-
-        // Valor do Imóvel (para DFI percentual)
-        valorImovel: s1.valorImovel || s1.valorCompraVenda,
     };
 }
 
