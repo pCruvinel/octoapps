@@ -4,21 +4,19 @@
  * Este script busca as taxas históricas da API do Bacen e popula
  * a tabela taxas_bacen_historico no Supabase.
  *
- * Uso: npx vite-node scripts/seed-bacen-rates.ts
+ * Uso: node --loader tsx scripts/seed-bacen-rates.ts
+ * Ou:  npm run seed:bacen (se configurado no package.json)
  *
  * Período: Últimos 120 meses (10 anos) - adequado para contratos imobiliários
  * Séries: Taxas de financiamento + Indexadores (TR, IPCA, INPC, IGPM)
+ *
+ * IMPORTANTE: Configure as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY
+ * nas variáveis de ambiente ou edite diretamente abaixo.
  */
 
-import { config } from 'dotenv';
-import { resolve } from 'path';
-
-// Load environment variables from .env.local
-config({ path: resolve(process.cwd(), '.env.local') });
-
-// Configuração do Supabase
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://uyeubtqxwrhpuafcpgtg.supabase.co';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5ZXVidHF4d3JocHVhZmNwZ3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMjYwOTIsImV4cCI6MjA3ODkwMjA5Mn0.Qz1xjbBqDOpkOslxbxH7gOApFQb7heR455M9Dk15bK8';
+// Configuração do Supabase (pode ser sobrescrita por variáveis de ambiente)
+const SUPABASE_URL = 'https://uyeubtqxwrhpuafcpgtg.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5ZXVidHF4d3JocHVhZmNwZ3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMjYwOTIsImV4cCI6MjA3ODkwMjA5Mn0.Qz1xjbBqDOpkOslxbxH7gOApFQb7heR455M9Dk15bK8';
 
 const BACEN_API_URL = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs';
 
@@ -93,42 +91,50 @@ async function upsertToSupabase(records: any[]): Promise<number> {
 // Função principal
 async function seedBacenRates() {
     console.log('🚀 Iniciando seed de taxas Bacen...\n');
+    console.log(`🔧 Conectando ao Supabase: ${SUPABASE_URL}\n`);
 
-    // Definir período: últimos 36 meses
+    // Definir período: últimos 120 meses (10 anos)
+    // Adequado para contratos imobiliários de longo prazo
     const endDate = new Date();
     const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - 36);
+    startDate.setMonth(startDate.getMonth() - 120);
 
-    console.log(`📅 Período: ${formatDateBacen(startDate)} até ${formatDateBacen(endDate)}\n`);
+    console.log(`📅 Período: ${formatDateBacen(startDate)} até ${formatDateBacen(endDate)}`);
+    console.log(`📦 Total de séries: ${SERIES.length}\n`);
 
     let totalInserted = 0;
+    let totalErrors = 0;
 
     for (const serie of SERIES) {
-        console.log(`\n📊 Processando: ${serie.name} (${serie.id})`);
+        console.log(`\n📊 Processando: ${serie.name}`);
+        console.log(`   Série: ${serie.id} | Categoria: ${serie.category}`);
 
         const data = await fetchSeries(serie.id, startDate, endDate);
 
-        if (data.length === 0) continue;
+        if (data.length === 0) {
+            console.log('   ⚠️  Nenhum dado retornado');
+            totalErrors++;
+            continue;
+        }
 
-        // Transformar para formato do banco
+        // Transformar para formato do banco (schema simplificado)
         const records = data.map(item => {
             const [day, month, year] = item.data.split('/');
             const anoMes = `${year}-${month}`;
-            const taxaMensalPercent = parseFloat(item.valor);
-            const taxaMensalDecimal = taxaMensalPercent / 100;
-            const taxaAnualDecimal = Math.pow(1 + taxaMensalDecimal, 12) - 1;
+            const valorStr = item.valor.replace(',', '.');
+            const taxaMensalPercent = parseFloat(valorStr);
+
+            // Schema atual da tabela taxas_bacen_historico:
+            // - ano_mes: string (YYYY-MM)
+            // - serie_bacen: string (código da série)
+            // - taxa_mensal_percent: number (valor percentual)
+            // - created_at: timestamp (auto)
+            // - id: uuid (auto)
 
             return {
                 ano_mes: anoMes,
-                ano: parseInt(year),
-                mes: parseInt(month),
-                taxa_mensal_percent: taxaMensalPercent,
-                taxa_mensal_decimal: taxaMensalDecimal,
-                taxa_anual_decimal: taxaAnualDecimal,
                 serie_bacen: serie.id,
-                modalidade: serie.name,
-                fonte: 'BACEN - API SGS/OLINDA',
-                data_atualizacao: new Date().toISOString(),
+                taxa_mensal_percent: taxaMensalPercent,
             };
         });
 
@@ -149,13 +155,31 @@ async function seedBacenRates() {
         }
 
         console.log(`   ✅ Inseridos/atualizados: ${uniqueRecords.length}`);
+
+        // Aguardar 500ms entre séries para não sobrecarregar API do BACEN
+        if (serie !== SERIES[SERIES.length - 1]) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
     }
 
-    console.log(`\n✅ Seed concluído! Total de registros: ${totalInserted}`);
-    console.log('\n📊 Resumo das séries:');
-    for (const serie of SERIES) {
-        console.log(`   - ${serie.id}: ${serie.name}`);
+    console.log(`\n${'='.repeat(60)}`);
+    console.log('✅ SEED CONCLUÍDO!\n');
+    console.log(`📊 Estatísticas:`);
+    console.log(`   Total de registros inseridos/atualizados: ${totalInserted}`);
+    console.log(`   Séries processadas com sucesso: ${SERIES.length - totalErrors}/${SERIES.length}`);
+    if (totalErrors > 0) {
+        console.log(`   ⚠️  Erros encontrados: ${totalErrors}`);
     }
+    console.log(`\n📋 Séries sincronizadas:`);
+    console.log(`\n   TAXAS DE FINANCIAMENTO:`);
+    SERIES.filter(s => s.category === 'TAXA_FINANCIAMENTO').forEach(s => {
+        console.log(`   ✓ ${s.id.padEnd(6)} - ${s.name}`);
+    });
+    console.log(`\n   INDEXADORES (Correção Monetária):`);
+    SERIES.filter(s => s.category === 'INDEXADOR').forEach(s => {
+        console.log(`   ✓ ${s.id.padEnd(6)} - ${s.name}`);
+    });
+    console.log(`\n${'='.repeat(60)}\n`);
 }
 
 // Executar

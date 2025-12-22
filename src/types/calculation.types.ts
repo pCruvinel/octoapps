@@ -1375,7 +1375,28 @@ export interface CalculoDetalhadoRequest {
 
   // Valor do Imóvel (para DFI percentual - Mantido para compatibilidade SFH)
   valorImovel?: number;
+
+  // NEW: Data do cálculo (para classificar PAGA/VENCIDA/VINCENDA)
+  dataCalculo?: string;             // YYYY-MM-DD (default: data atual)
+
+  // NEW: Encargos Moratórios (para período de atraso)
+  jurosMora?: number;               // Padrão: 1% a.m. (Art. 406 CC)
+  multaMoratoria?: number;          // Padrão: 2% (Art. 52 §1º CDC)
+  encargosIncidirSobrePrincipalCorrigido?: boolean; // Se true, incide sobre principal + correção
+
+  // NEW: Dados de conciliação (do perito)
+  conciliacao?: Array<{
+    numeroParcela: number;
+    dataPagamento?: string;         // YYYY-MM-DD
+    valorPago?: number;
+    isPago: boolean;                // Confirmado pelo perito
+  }>;
 }
+
+/**
+ * Situação da parcela baseada na Data do Cálculo
+ */
+export type SituacaoParcela = 'PAGA' | 'VENCIDA' | 'VINCENDA';
 
 /**
  * Linha da tabela de amortização detalhada (para apêndices)
@@ -1411,6 +1432,22 @@ export interface LinhaAmortizacaoDetalhada {
   parcelaMercado?: number;
   diferenca: number;
   diferencaAcumulada: number;
+
+  // NEW: Campos técnicos XTIR (AP01)
+  diasEntreParcelas?: number;      // Dias desde última parcela
+  fatorNaoPeriodico?: number;      // Fator NP = (1+i)^(dias/30)
+  quocienteXTIR?: number;          // Quociente = parcela / saldoDevedor
+
+  // NEW: Situação da parcela (AP03)
+  situacao?: SituacaoParcela;      // PAGA, VENCIDA, VINCENDA
+  valorPago?: number;              // Valor efetivamente pago (AP01)
+  valorDevido?: number;            // Valor que deveria ser pago (AP02)
+
+  // NEW: Compensação mensal (AP04/AP05)
+  amortizacaoCompensada?: number;  // Amortização + diferença absorvida
+  saldoDevedorCompensado?: number; // Saldo após compensação
+  saldoCredor?: number;            // Saldo credor (quando negativo)
+  quitacaoAntecipada?: boolean;    // Flag para linha onde dívida foi quitada
 
   // Status e Override
   status: 'PAGO' | 'PENDENTE' | 'OVERRIDE' | 'PROJETADO';
@@ -1518,6 +1555,14 @@ export interface CalculoDetalhadoResponse {
     diferenca: number;
     metodoDeteccao: 'XTIR' | 'REVERSO' | 'NENHUM';
     evidencia: string;
+  };
+
+  // NOVO: Detecção de renegociação para cadeia de contratos
+  renegociacao?: {
+    detectada: boolean;
+    mesRenegociacao?: number;
+    dataRenegociacao?: string;
+    saldoFidedigno?: number;
   };
 
   // Formatados para exibição

@@ -24,18 +24,19 @@ import { toast } from 'sonner';
 // SCHEMA
 // ============================================================================
 
-// Modalidades de contrato disponíveis (define série temporal Bacen)
-const MODALIDADES_CONTRATO = [
-    { value: 'AQUISICAO_VEICULOS', label: 'Aquisição de Veículos - Pessoa Física' },
-    { value: 'EMPRESTIMO_PESSOAL', label: 'Empréstimo Pessoal não Consignado' },
-    { value: 'CONSIGNADO_PRIVADO', label: 'Consignado Privado' },
-    { value: 'CONSIGNADO_PUBLICO', label: 'Consignado Público' },
-    { value: 'CONSIGNADO_INSS', label: 'Consignado INSS' },
-    { value: 'CAPITAL_GIRO', label: 'Capital de Giro' },
-    { value: 'CHEQUE_ESPECIAL', label: 'Cheque Especial' },
+// Tipos de operação disponíveis (define série temporal Bacen) - Mesmo formato do Cálculo Revisional
+const TIPOS_CONTRATO = [
+    { value: 'EMPRESTIMO_PESSOAL', label: '25464 - Empréstimo Pessoal PF (% a.a.)' },
+    { value: 'CONSIGNADO_PRIVADO', label: '25463 - Consignado Privado (% a.a.)' },
+    { value: 'CONSIGNADO_PUBLICO', label: '25462 - Consignado Público (% a.a.)' },
+    { value: 'CONSIGNADO_INSS', label: '25470 - Consignado INSS (% a.a.)' },
+    { value: 'CAPITAL_GIRO', label: '20739 - Capital de Giro até 365 dias PJ (% a.a.)' },
+    { value: 'FINANCIAMENTO_VEICULO', label: '20749 - Aquisição de Veículos PF (% a.a.)' },
+    { value: 'FINANCIAMENTO_VEICULO_PJ', label: '20728 - Aquisição de Veículos PJ (% a.a.)' },
+    { value: 'CHEQUE_ESPECIAL', label: '20712 - Cheque Especial PF (% a.a.)' },
 ] as const;
 
-type ModalidadeContrato = typeof MODALIDADES_CONTRATO[number]['value'];
+type TipoContrato = typeof TIPOS_CONTRATO[number]['value'];
 
 const moduloGeralSchema = z.object({
     // Dados básicos
@@ -44,16 +45,17 @@ const moduloGeralSchema = z.object({
     prazoMeses: z.number().min(1, 'Prazo inválido').nullable(),
     taxaAnualContrato: z.number().min(0, 'Taxa anual inválida').nullable(),
 
-    // Modalidade (para API Bacen)
-    modalidadeContrato: z.enum([
-        'AQUISICAO_VEICULOS',
+    // Tipo de Operação (para API Bacen)
+    tipoContrato: z.enum([
         'EMPRESTIMO_PESSOAL',
         'CONSIGNADO_PRIVADO',
         'CONSIGNADO_PUBLICO',
         'CONSIGNADO_INSS',
         'CAPITAL_GIRO',
+        'FINANCIAMENTO_VEICULO',
+        'FINANCIAMENTO_VEICULO_PJ',
         'CHEQUE_ESPECIAL'
-    ]).default('AQUISICAO_VEICULOS'),
+    ]).default('FINANCIAMENTO_VEICULO'),
 
     // Datas importantes
     dataContrato: z.string().min(1, 'Data do contrato obrigatória'),
@@ -122,7 +124,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             valorPrestacao: null,
             prazoMeses: null,
             taxaAnualContrato: null,
-            modalidadeContrato: 'AQUISICAO_VEICULOS' as const,
+            tipoContrato: 'FINANCIAMENTO_VEICULO' as const,
             dataContrato: '',
             dataLiberacao: '',
             dataPrimeiroVencimento: '',
@@ -141,14 +143,14 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
 
     const watchDataContrato = form.watch('dataContrato');
     const watchTaxaAnual = form.watch('taxaAnualContrato');
-    const watchModalidade = form.watch('modalidadeContrato');
+    const watchTipoContrato = form.watch('tipoContrato');
 
     // Calcular taxa mensal automaticamente a partir da anual
     const taxaMensalCalculada = watchTaxaAnual ? taxaAnualParaMensal(watchTaxaAnual) : null;
 
-    // Mapear modalidade do formulário para tipo da API
-    const getModuloParaBacen = (modalidade: string): 'GERAL' | 'VEICULOS' => {
-        if (modalidade === 'AQUISICAO_VEICULOS') return 'VEICULOS';
+    // Mapear tipo de contrato do formulário para módulo da API
+    const getModuloParaBacen = (tipoContrato: string): 'GERAL' | 'VEICULOS' => {
+        if (tipoContrato === 'FINANCIAMENTO_VEICULO' || tipoContrato === 'FINANCIAMENTO_VEICULO_PJ') return 'VEICULOS';
         return 'GERAL'; // Default para outras modalidades
     };
 
@@ -158,8 +160,8 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
 
         const buscarTaxa = async () => {
             setLoadingTaxa(true);
-            const modulo = getModuloParaBacen(watchModalidade);
-            console.log('[ModuloGeral] Buscando taxa BACEN para:', { data: watchDataContrato, modalidade: watchModalidade, modulo });
+            const modulo = getModuloParaBacen(watchTipoContrato);
+            console.log('[ModuloGeral] Buscando taxa BACEN para:', { data: watchDataContrato, tipoContrato: watchTipoContrato, modulo });
 
             try {
                 const taxa = await fetchMarketRate(modulo, watchDataContrato);
@@ -181,7 +183,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
         };
 
         buscarTaxa();
-    }, [watchDataContrato, watchModalidade]);
+    }, [watchDataContrato, watchTipoContrato]);
 
     // Handler OCR
     const handleOcrData = (data: any) => {
@@ -192,14 +194,41 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             form.setValue('valorFinanciado', Number(data.valor_financiado), { shouldValidate: true });
             filledFields.add('valorFinanciado');
         }
-        if (data.valor_prestacao) {
-            form.setValue('valorPrestacao', Number(data.valor_prestacao), { shouldValidate: true });
+        // Ajuste: ocr.types define como 'valor_parcela', mas aqui usamos 'valorPrestacao'
+        if (data.valor_parcela || data.valor_prestacao) {
+            const valor = Number(data.valor_parcela || data.valor_prestacao);
+            form.setValue('valorPrestacao', valor, { shouldValidate: true });
             filledFields.add('valorPrestacao');
         }
         if (data.prazo_meses) {
             form.setValue('prazoMeses', Number(data.prazo_meses), { shouldValidate: true });
             filledFields.add('prazoMeses');
         }
+
+        // Mapeamento de Modalidade
+        if (data.modalidade) {
+            const modalidadeLower = String(data.modalidade).toLowerCase();
+            let tipoDetectado: TipoContrato | null = null;
+
+            if (modalidadeLower.includes('veículo') || modalidadeLower.includes('cdc') || modalidadeLower.includes('auto')) {
+                tipoDetectado = 'FINANCIAMENTO_VEICULO';
+            } else if (modalidadeLower.includes('consignado')) {
+                tipoDetectado = 'CONSIGNADO_PRIVADO'; // Default seguro
+                if (modalidadeLower.includes('inss')) tipoDetectado = 'CONSIGNADO_INSS';
+                if (modalidadeLower.includes('público') || modalidadeLower.includes('publico')) tipoDetectado = 'CONSIGNADO_PUBLICO';
+            } else if (modalidadeLower.includes('pessoal') || modalidadeLower.includes('pessoal')) {
+                tipoDetectado = 'EMPRESTIMO_PESSOAL';
+            } else if (modalidadeLower.includes('giro')) {
+                tipoDetectado = 'CAPITAL_GIRO';
+            }
+
+            if (tipoDetectado) {
+                form.setValue('tipoContrato', tipoDetectado);
+                filledFields.add('tipoContrato');
+                toast.success(`Modalidade detectada: ${tipoDetectado}`);
+            }
+        }
+
         if (data.taxa_juros_anual) {
             form.setValue('taxaAnualContrato', Number(data.taxa_juros_anual), { shouldValidate: true });
             filledFields.add('taxaAnualContrato');
@@ -221,18 +250,31 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             filledFields.add('dataLiberacao');
         }
         if (data.data_primeiro_vencimento) {
+            // Verifica se data.data_primeiro_vencimento (ocr.types) ou data.data_primeira_parcela (ocr.types IMOBILIARIO as reference)
+            // No types de veiculos é 'data_primeiro_vencimento'
             form.setValue('dataPrimeiroVencimento', data.data_primeiro_vencimento, { shouldValidate: true });
             filledFields.add('dataPrimeiroVencimento');
         }
-        if (data.tac || data.seguro_prestamista) {
+
+        // Tarifas
+        if (data.tarifa_tac || data.tac || data.seguro_prestamista || data.tarifa_registro || data.tarifa_avaliacao) {
             setTarifasExpanded(true);
-            if (data.tac) {
-                form.setValue('tarifaTAC', Number(data.tac));
+
+            if (data.tarifa_tac || data.tac) {
+                form.setValue('tarifaTAC', Number(data.tarifa_tac || data.tac));
                 filledFields.add('tarifaTAC');
             }
             if (data.seguro_prestamista) {
                 form.setValue('seguroPrestamista', Number(data.seguro_prestamista));
                 filledFields.add('seguroPrestamista');
+            }
+            if (data.tarifa_registro) {
+                form.setValue('tarifaRegistro', Number(data.tarifa_registro));
+                filledFields.add('tarifaRegistro');
+            }
+            if (data.tarifa_avaliacao) {
+                form.setValue('tarifaAvaliacao', Number(data.tarifa_avaliacao));
+                filledFields.add('tarifaAvaliacao');
             }
         }
 
@@ -346,24 +388,23 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             // =========================================================================
             const prestacaoOriginal = data.valorPrestacao || 0;
 
-            // Recalcular prestação com taxa de mercado (após expurgo de tarifas)
-            const pvLiquido = Math.max(0, pvAjustado - tarifasExpurgadas);
+            // Recalcular prestação com taxa de mercado E expurgo de tarifas
             const taxaMercadoDecimal = taxaMercadoMensal / 100;
-
-            console.log('[ModuloGeral] ===== CÁLCULO PMT =====');
-            console.log('[ModuloGeral] pvLiquido:', pvLiquido);
-            console.log('[ModuloGeral] taxaMercadoMensal:', taxaMercadoMensal, '%');
-            console.log('[ModuloGeral] taxaMercadoDecimal:', taxaMercadoDecimal);
-            console.log('[ModuloGeral] prazoMeses:', data.prazoMeses);
-
+            const pvLiquido = Math.max(0, pvAjustado - tarifasExpurgadas);
             const prestacaoRevisada = calculatePMT(pvLiquido, taxaMercadoDecimal, data.prazoMeses);
             const diferencaPrestacao = prestacaoOriginal > 0
                 ? roundToDisplayPrecision(prestacaoOriginal - prestacaoRevisada)
                 : 0;
 
+            console.log('[ModuloGeral] ===== CÁLCULO PMT =====');
+            console.log('[ModuloGeral] Valor Financiado:', pvAjustado);
+            console.log('[ModuloGeral] Tarifas Expurgadas:', tarifasExpurgadas);
+            console.log('[ModuloGeral] PV Líquido (após expurgo):', pvLiquido);
+            console.log('[ModuloGeral] Taxa Mercado:', taxaMercadoMensal, '% a.m.');
+            console.log('[ModuloGeral] Prazo:', data.prazoMeses, 'meses');
             console.log('[ModuloGeral] Prestação Original:', prestacaoOriginal);
             console.log('[ModuloGeral] Prestação Revisada:', prestacaoRevisada);
-            console.log('[ModuloGeral] Diferença mensal:', diferencaPrestacao);
+            console.log('[ModuloGeral] Economia Mensal:', diferencaPrestacao);
 
             // =========================================================================
             // 6. SOBRETAXA E ABUSIVIDADE (STJ)
@@ -376,15 +417,25 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             console.log('[ModuloGeral] É Abusivo:', isAbusivo);
 
             // =========================================================================
-            // 7. ECONOMIA (Abordagem Simplificada: diferença × parcelas)
+            // 7. ECONOMIA (Cálculo Correto: Total primeiro, depois decomposição)
             // =========================================================================
-            // Economia de juros = diferença da prestação × número de parcelas
-            const economiaJuros = diferencaPrestacao > 0
+            // A economia TOTAL é a diferença entre o que o cliente paga e o que deveria pagar
+            // (com taxa de mercado E expurgo de tarifas)
+            const economiaTotal = diferencaPrestacao > 0
                 ? diferencaPrestacao * data.prazoMeses
                 : 0;
-            const economiaTotal = economiaJuros + tarifasExpurgadas;
-            console.log('[ModuloGeral] Economia de Juros:', economiaJuros, `(${diferencaPrestacao} × ${data.prazoMeses})`);
+
+            // Decomposição para exibição separada:
+            // - economiaTarifas = valor das tarifas expurgadas (restituição direta)
+            // - economiaJuros = economiaTotal - tarifas (redução de taxa + juros não pagos sobre tarifas)
+            const economiaTarifas = tarifasExpurgadas;
+            const economiaJuros = Math.max(0, economiaTotal - economiaTarifas);
+
+            console.log('[ModuloGeral] ===== ECONOMIA DETALHADA =====');
+            console.log('[ModuloGeral] Diferença mensal:', diferencaPrestacao, '× ', data.prazoMeses);
             console.log('[ModuloGeral] Economia Total:', economiaTotal);
+            console.log('[ModuloGeral] └─ Economia de Juros:', economiaJuros);
+            console.log('[ModuloGeral] └─ Restituição de Tarifas:', economiaTarifas);
 
             // =========================================================================
             // 8. CLASSIFICAÇÃO (SCORECARD)
@@ -435,7 +486,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
                 sobretaxaPercentual,
                 isAbusivo,
                 economiaJuros: Math.max(0, economiaJuros),
-                economiaTarifas: tarifasExpurgadas,
+                economiaTarifas: economiaTarifas,
                 economiaTotal,
                 recomendacao,
 
@@ -484,7 +535,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
                             Arraste o PDF ou clique para preencher automaticamente
                         </p>
                         <ContractUploadButton
-                            category="revisao_geral"
+                            category="EMPRESTIMOS_VEICULOS"
                             onDataExtracted={handleOcrData}
                             variant="outline"
                         />
@@ -576,20 +627,20 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
 
                                 <FormField
                                     control={form.control}
-                                    name="modalidadeContrato"
+                                    name="tipoContrato"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Modalidade de Contrato</FormLabel>
+                                            <FormLabel>Tipo de Operação</FormLabel>
                                             <Select onValueChange={field.onChange} value={field.value}>
                                                 <FormControl>
-                                                    <SelectTrigger className={getOcrFieldClass('modalidadeContrato', ocrFilledFields)}>
+                                                    <SelectTrigger className={getOcrFieldClass('tipoContrato', ocrFilledFields)}>
                                                         <SelectValue placeholder="Selecione..." />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    {MODALIDADES_CONTRATO.map((mod) => (
-                                                        <SelectItem key={mod.value} value={mod.value}>
-                                                            {mod.label}
+                                                    {TIPOS_CONTRATO.map((tipo) => (
+                                                        <SelectItem key={tipo.value} value={tipo.value}>
+                                                            {tipo.label}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>

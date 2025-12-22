@@ -20,9 +20,12 @@ interface NewLeadDialogProps {
 }
 
 const CATEGORIA_OPTIONS = [
-    { value: 'Veículos/Empréstimos', label: 'Veículos/Empréstimos' },
-    { value: 'Imobiliário', label: 'Imobiliário' },
+    { value: 'Revisional', label: 'Revisional (Veículos)' },
+    { value: 'Empréstimo', label: 'Empréstimo' },
+    { value: 'Financiamento Imobiliário', label: 'Financiamento Imobiliário' },
     { value: 'Cartão de Crédito', label: 'Cartão de Crédito' },
+    { value: 'Consultoria', label: 'Consultoria' },
+    { value: 'Outros', label: 'Outros' },
 ];
 
 const ORIGEM_OPTIONS = [
@@ -81,7 +84,7 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                     telefone_principal: newContact.telefone_principal || null,
                     email: newContact.email || null,
                     criado_por: user?.id,
-                    tipo: 'PF',
+                    tipo: 'Pessoa Física',
                     status_contato: 'Ativo',
                 })
                 .select()

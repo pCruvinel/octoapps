@@ -29,7 +29,10 @@ import {
     Plus,
     MoreHorizontal,
     MapPin,
-    AlignLeft
+    AlignLeft,
+    User,
+    Trash2,
+    X
 } from 'lucide-react';
 
 import { Button } from '../ui/button';
@@ -564,10 +567,13 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                                 </div>
                             )}
                             {/* Links */}
-                            {selectedEvent.type === 'agendamento' && (selectedEvent.original as Agendamento).contato_id && (
-                                <div className="flex items-center gap-2 text-sm">
-                                    <AlignLeft className="w-4 h-4" />
-                                    <span className="font-semibold">Contato Vinculado</span>
+                            {selectedEvent.type === 'agendamento' && (selectedEvent.original as Agendamento).contato && (
+                                <div className="flex items-center gap-2 text-sm bg-blue-50/50 dark:bg-blue-900/20 p-2 rounded-md border border-blue-100 dark:border-blue-800">
+                                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                    <span className="text-gray-600 dark:text-gray-400">Contato:</span>
+                                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                                        {(selectedEvent.original as Agendamento).contato?.nome_completo}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -583,8 +589,14 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                                 </Button>
                             ) : (
                                 <>
-                                    <Button variant="destructive" onClick={handleDeleteEvent}>Excluir</Button>
-                                    <Button onClick={() => setSelectedEvent(null)}>Fechar</Button>
+                                    <Button variant="destructive" onClick={handleDeleteEvent} className="gap-2">
+                                        <Trash2 className="w-4 h-4" />
+                                        Excluir
+                                    </Button>
+                                    <Button onClick={() => setSelectedEvent(null)} className="gap-2">
+                                        <X className="w-4 h-4" />
+                                        Fechar
+                                    </Button>
                                 </>
                             )}
                         </DialogFooter>

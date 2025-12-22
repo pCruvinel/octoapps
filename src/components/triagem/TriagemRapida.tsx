@@ -183,7 +183,7 @@ export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
             {/* Header */}
             <div className="space-y-1 pt-6">
                 <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                    Triagem Rápida
+                    Análise Prévia
                 </h1>
                 <p className="text-muted-foreground">
                     Avalie a viabilidade de uma revisão contratual em segundos

@@ -40,6 +40,14 @@ function formatCurrency(value: number): string {
 
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+        const banco = payload.find((p: any) => p.dataKey === 'saldoBanco');
+        const recalculado = payload.find((p: any) => p.dataKey === 'saldoRecalculado');
+
+        // Calculate diff manually to ensure consistency or get from payload if available
+        const valorBanco = banco?.value || 0;
+        const valorRecalculado = recalculado?.value || 0;
+        const valorDiferenca = valorBanco - valorRecalculado;
+
         return (
             <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700">
                 <p className="font-medium text-slate-900 dark:text-white mb-2">Mês {label}</p>
@@ -48,21 +56,21 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                         <div className="w-3 h-3 rounded-full bg-red-500" />
                         <span className="text-slate-600 dark:text-slate-400">Saldo Banco:</span>
                         <span className="font-mono font-medium">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload[0]?.value || 0)}
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorBanco)}
                         </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-blue-500" />
                         <span className="text-slate-600 dark:text-slate-400">Saldo Recalculado:</span>
                         <span className="font-mono font-medium">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload[1]?.value || 0)}
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorRecalculado)}
                         </span>
                     </div>
                     <div className="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-700">
                         <div className="w-3 h-3 rounded-full bg-emerald-500" />
                         <span className="text-slate-600 dark:text-slate-400">Indébito:</span>
                         <span className="font-mono font-medium text-emerald-600">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payload[0]?.value - payload[1]?.value || 0)}
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valorDiferenca)}
                         </span>
                     </div>
                 </div>

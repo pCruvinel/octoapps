@@ -14,6 +14,7 @@ import { saveAs } from 'file-saver';
 import { TriagemImobiliarioTemplate } from '@/components/pdf-templates/TriagemImobiliarioTemplate';
 import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 import { toast } from 'sonner';
+import { HelpExplainerModal } from '@/components/shared/HelpExplainerModal';
 
 export interface ResultadoImobiliarioType {
     classificacao: 'VIAVEL' | 'ATENCAO' | 'INVIAVEL';
@@ -132,6 +133,7 @@ export function ResultadoImobiliario({
                         <div className="flex items-center gap-3">
                             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{config.title}</h2>
                             {resultado.isAbusivo && <Badge variant="destructive">Abusivo</Badge>}
+                            <HelpExplainerModal moduleType="ANALISE_PREVIA_IMOBILIARIO" />
                         </div>
                         <p className="text-slate-500 max-w-xl text-lg leading-relaxed mt-2">{config.description}</p>
                     </div>

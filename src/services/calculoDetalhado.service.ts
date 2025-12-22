@@ -172,9 +172,12 @@ export async function calcularEvolucaoDetalhada(
             valorImovel: request.valorImovel,
         },
         taxaAdm: request.taxaAdministrativa,
-        taxaAdm: request.taxaAdministrativa,
         overrides: request.overrides,
         valorPrimeiraParcela: request.valorParcelaCobrada,
+        // NOVO: Parâmetros de conciliação e mora
+        conciliacao: request.conciliacao,
+        jurosMora: request.jurosMora,
+        multaMoratoria: request.multaMoratoria,
     });
     const ap01EndTime = performance.now();
 
@@ -265,6 +268,8 @@ export async function calcularEvolucaoDetalhada(
             dfiTipo: request.seguroDFITipo,
             valorImovel: request.valorImovel,
         },
+        // NOVO: Conciliação para amortização extra
+        conciliacao: request.conciliacao,
     });
     const ap02EndTime = performance.now();
 
@@ -284,7 +289,16 @@ export async function calcularEvolucaoDetalhada(
     // 5. GERAR AP03 - DIFERENÇAS NOMINAIS
     // ==========================================
     console.log('\n[Engine] 📊 Fase 5: Gerando AP03 - Diferenças Nominais');
-    const ap03 = gerarAP03_Diferencas(ap01, ap02);
+
+    // Usar dataCalculo do request ou data atual
+    const dataCalculo = request.dataCalculo || new Date().toISOString().split('T')[0];
+
+    const ap03 = gerarAP03_Diferencas({
+        ap01,
+        ap02,
+        dataCalculo,
+        conciliacao: request.conciliacao,
+    });
 
     console.log('  • Total Pago (Banco):', formatCurrency(ap03.totais.totalPago));
     console.log('  • Total Devido (Justo):', formatCurrency(ap03.totais.totalDevido));
@@ -299,15 +313,40 @@ export async function calcularEvolucaoDetalhada(
     let ap04: ApendiceResult | undefined;
     let ap05: ApendiceResult | undefined;
 
+    // Parâmetros para compensação mensal
+    const paramsCompensacao = {
+        ap01: ap03, // Usar AP03 que tem situacao
+        ap02,
+        taxaMercado: taxaMercadoDecimal,
+        principal: principalRecalculo.toNumber(),
+    };
+
     if (request.restituicaoEmDobro) {
-        ap04 = gerarAP04_RestituicaoDobro(ap03);
+        ap04 = gerarAP04_RestituicaoDobro(paramsCompensacao);
         console.log('  • AP04 (Dobro) gerado: Art. 42 CDC');
         console.log('    Total a restituir em dobro:', formatCurrency(ap04.totais.totalRestituir));
+        if (ap04.descricao.includes('Quitação antecipada')) {
+            console.log('    ⚡ QUITAÇÃO ANTECIPADA DETECTADA');
+        }
     }
 
-    ap05 = gerarAP05_RestituicaoSimples(ap03);
-    console.log('  • AP05 (Simples) gerado');
+    ap05 = gerarAP05_RestituicaoSimples(paramsCompensacao);
+    console.log('  • AP05 (Simples) gerado: Art. 368 CC');
     console.log('    Total a restituir:', formatCurrency(ap05.totais.totalRestituir));
+    if (ap05.descricao.includes('Saldo CREDOR')) {
+        console.log('    💰 SALDO CREDOR AO CLIENTE');
+    }
+
+    // ==========================================
+    // 6.5. DETECTAR RENEGOCIAÇÃO (CADEIA DE CONTRATOS)
+    // ==========================================
+    const renegociacao = detectarRenegociacao(request.conciliacao, ap02);
+    if (renegociacao.detectada) {
+        console.log('\n[Engine] 🔄 Fase 6.5: Renegociação Detectada');
+        console.log(`  • Parcela: ${renegociacao.mesRenegociacao}`);
+        console.log(`  • Saldo Fidedigno: ${formatCurrency(renegociacao.saldoFidedigno || 0)}`);
+        console.log('  ⚠️ Use este saldo como PV do próximo contrato');
+    }
 
     // ==========================================
     // 7. MONTAR RESPOSTA
@@ -380,6 +419,14 @@ export async function calcularEvolucaoDetalhada(
         // Análise XTIR detalhada
         analiseXTIR,
 
+        // NOVO: Detecção de renegociação para cadeia de contratos
+        renegociacao: renegociacao.detectada ? {
+            detectada: true,
+            mesRenegociacao: renegociacao.mesRenegociacao,
+            dataRenegociacao: renegociacao.dataRenegociacao,
+            saldoFidedigno: renegociacao.saldoFidedigno,
+        } : undefined,
+
         formatted: {
             valorFinanciado: formatCurrency(request.valorFinanciado),
             valorTotalPago: formatCurrency(ap01.totais.totalPago),
@@ -427,6 +474,16 @@ interface GerarAPParams {
     overrides?: OverrideParcela[];
     usarJurosSimples?: boolean;
     valorPrimeiraParcela?: number;
+    // NOVO: Dados da conciliação para amortização extra e mora
+    conciliacao?: Array<{
+        numeroParcela: number;
+        dataPagamento?: string;
+        valorPago?: number;
+        amortizacaoExtra?: number;
+        isPago: boolean;
+    }>;
+    jurosMora?: number;        // % a.m. (padrão 1%)
+    multaMoratoria?: number;   // % (padrão 2%)
 }
 
 /**
@@ -545,6 +602,46 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
         totalTarifas += taxaAdm;
         totalPago += parcelaTotal.toNumber();
 
+        // 9. Calcular campos técnicos XTIR
+        const dataAnterior = mes === 1 ? params.dataInicio : adicionarMeses(params.dataInicio, mes - 2);
+        const diasEntreParcelas = calcularDiasEntre(dataAnterior, dataVencimento);
+
+        // Fator Não Periódico: (1 + i)^(dias/30)
+        const fatorNaoPeriodico = Math.pow(1 + params.taxaMensal, diasEntreParcelas / 30);
+
+        // Quociente XTIR: parcela / saldoDevedorAnterior
+        const quocienteXTIR = saldoAbertura > 0 ? parcelaTotal.toNumber() / saldoAbertura : 0;
+
+        // 10. NOVO: Calcular encargos moratórios se houver atraso
+        const dadosConciliacao = params.conciliacao?.find(c => c.numeroParcela === mes);
+        let diasAtraso = 0;
+        let encargosMora = 0;
+        let principalPago = 0;
+
+        if (dadosConciliacao?.dataPagamento && dadosConciliacao.dataPagamento !== dataVencimento) {
+            const dataVenc = new Date(dataVencimento);
+            const dataPgto = new Date(dadosConciliacao.dataPagamento);
+            diasAtraso = Math.max(0, Math.floor((dataPgto.getTime() - dataVenc.getTime()) / (1000 * 60 * 60 * 24)));
+
+            if (diasAtraso > 0) {
+                const jurosMora = params.jurosMora ?? 1; // % a.m.
+                const multaMoratoria = params.multaMoratoria ?? 2; // %
+                const baseCalculo = parcelaTotal.toNumber();
+
+                // Juros de mora pro-rata
+                const jurosMoraValor = baseCalculo * (jurosMora / 100) * (diasAtraso / 30);
+                // Multa fixa
+                const multaValor = baseCalculo * (multaMoratoria / 100);
+
+                encargosMora = jurosMoraValor + multaValor;
+
+                // Separar principal de encargos
+                if (dadosConciliacao.valorPago) {
+                    principalPago = Math.max(0, dadosConciliacao.valorPago - encargosMora);
+                }
+            }
+        }
+
         tabela.push({
             mes,
             data: dataVencimento,
@@ -562,6 +659,14 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
             parcelaTotal: parcelaTotal.toNumber(),
             diferenca: 0, // Será preenchido no AP03
             diferencaAcumulada: 0,
+            // Campos técnicos XTIR
+            diasEntreParcelas,
+            fatorNaoPeriodico,
+            quocienteXTIR,
+            // NOVO: Campos de mora
+            diasAtraso,
+            encargosMora,
+            principalPago,
             status,
             override,
         });
@@ -613,6 +718,10 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
     for (let mes = 1; mes <= params.prazo; mes++) {
         const dataVencimento = adicionarMeses(params.dataInicio, mes - 1);
         const saldoAbertura = saldoDevedor.toNumber();
+
+        // NOVO: Buscar dados da conciliação para esta parcela
+        const dadosConciliacao = params.conciliacao?.find(c => c.numeroParcela === mes);
+        const amortExtra = new Decimal(dadosConciliacao?.amortizacaoExtra || 0);
 
         // 1. Índice de correção (do mapa)
         const indiceCorrecao = obterIndicePorData(
@@ -666,11 +775,23 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
             }
         }
 
-        // 6. Atualizar saldo
-        saldoDevedor = saldoCorrigido.minus(amortizacao);
+        // 6. NOVO: Aplicar amortização extraordinária
+        const amortizacaoTotal = amortizacao.plus(amortExtra);
+
+        // 7. Atualizar saldo
+        saldoDevedor = saldoCorrigido.minus(amortizacaoTotal);
         if (saldoDevedor.lessThan(0)) saldoDevedor = new Decimal(0);
 
-        // 7. Totais
+        // 8. NOVO: RECÁLCULO EM CASCATA - Se houver amort. extra, recalcular PMT
+        if (amortExtra.greaterThan(0) && params.sistema === 'PRICE' && !params.usarJurosSimples) {
+            const mesesRestantes = params.prazo - mes;
+            if (mesesRestantes > 0 && saldoDevedor.greaterThan(0)) {
+                pmt = calcularPMT(saldoDevedor, taxaDecimal, mesesRestantes);
+                console.log(`[AP02] 🔄 Recálculo em cascata: Mes ${mes}, Amort.Extra: ${amortExtra.toFixed(2)}, Novo PMT: ${pmt.toFixed(2)}`);
+            }
+        }
+
+        // 9. Totais
         const parcelaTotal = parcelaBase.plus(seguroMIP).plus(seguroDFI);
 
         totalCorrecao += correcaoMonetaria;
@@ -687,6 +808,7 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
             saldoCorrigido: saldoCorrigido.toNumber(),
             juros: juros.toNumber(),
             amortizacao: amortizacao.toNumber(),
+            amortizacaoExtra: amortExtra.toNumber(), // NOVO
             saldoDevedor: saldoDevedor.toNumber(),
             seguroMIP,
             seguroDFI,
@@ -720,14 +842,43 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
 /**
  * AP03 - Diferenças Nominais
  * Compara AP01 (banco) vs AP02 (justo) mês a mês
+ * Adiciona classificação de situação (PAGA/VENCIDA/VINCENDA)
  */
-function gerarAP03_Diferencas(ap01: ApendiceResult, ap02: ApendiceResult): ApendiceResult {
+interface GerarAP03Params {
+    ap01: ApendiceResult;
+    ap02: ApendiceResult;
+    dataCalculo: string;
+    conciliacao?: Array<{
+        numeroParcela: number;
+        dataPagamento?: string;
+        valorPago?: number;
+        isPago: boolean;
+    }>;
+}
+
+function gerarAP03_Diferencas(params: GerarAP03Params): ApendiceResult {
+    const { ap01, ap02, dataCalculo, conciliacao } = params;
     const tabela: LinhaAmortizacaoDetalhada[] = [];
     let diferencaAcumulada = 0;
+
+    const dataRef = new Date(dataCalculo);
 
     for (let i = 0; i < ap01.tabela.length; i++) {
         const linhaBanco = ap01.tabela[i];
         const linhaJusto = ap02.tabela[i];
+        const dataVenc = new Date(linhaBanco.data);
+
+        // Determinar situação da parcela
+        const dadosConciliacao = conciliacao?.find(c => c.numeroParcela === linhaBanco.mes);
+        let situacao: 'PAGA' | 'VENCIDA' | 'VINCENDA';
+
+        if (dadosConciliacao?.isPago) {
+            situacao = 'PAGA';
+        } else if (dataVenc < dataRef) {
+            situacao = 'VENCIDA';
+        } else {
+            situacao = 'VINCENDA';
+        }
 
         const diferenca = linhaBanco.parcelaTotal - linhaJusto.parcelaTotal;
         diferencaAcumulada += Math.max(0, diferenca); // Só acumula diferença positiva
@@ -738,6 +889,10 @@ function gerarAP03_Diferencas(ap01: ApendiceResult, ap02: ApendiceResult): Apend
             parcelaMercado: linhaJusto.parcelaTotal,
             diferenca,
             diferencaAcumulada,
+            // NEW: Campos de situação
+            situacao,
+            valorPago: dadosConciliacao?.valorPago ?? linhaBanco.parcelaTotal,
+            valorDevido: linhaJusto.parcelaTotal,
         });
     }
 
@@ -745,8 +900,8 @@ function gerarAP03_Diferencas(ap01: ApendiceResult, ap02: ApendiceResult): Apend
 
     return {
         tipo: 'AP03',
-        titulo: 'Demonstrativo das Diferenças',
-        descricao: 'Comparativo mês a mês entre os valores cobrados pelo banco e os valores devidos conforme recálculo.',
+        titulo: 'Demonstrativo das Diferenças Excedentes',
+        descricao: 'Comparativo mês a mês entre os valores cobrados pelo banco e os valores devidos, com classificação de situação (PAGA/VENCIDA/VINCENDA).',
         tabela,
         totais: {
             principal: ap01.totais.principal,
@@ -764,36 +919,225 @@ function gerarAP03_Diferencas(ap01: ApendiceResult, ap02: ApendiceResult): Apend
 
 /**
  * AP04 - Restituição em Dobro (Art. 42 CDC)
+ * Simula abatimento MENSAL no saldo devedor com compensação em dobro
+ * Exibe quitação antecipada e saldo credor quando aplicável
  */
-function gerarAP04_RestituicaoDobro(ap03: ApendiceResult): ApendiceResult {
-    const tabela = ap03.tabela.map(linha => ({
-        ...linha,
-        diferenca: linha.diferenca > 0 ? linha.diferenca * 2 : 0,
-        diferencaAcumulada: linha.diferencaAcumulada * 2,
-    }));
+interface GerarAP04Params {
+    ap01: ApendiceResult;
+    ap02: ApendiceResult;
+    taxaMercado: number;
+    principal: number;
+}
+
+function gerarAP04_RestituicaoDobro(params: GerarAP04Params): ApendiceResult {
+    const { ap01, ap02, taxaMercado, principal } = params;
+    const tabela: LinhaAmortizacaoDetalhada[] = [];
+    let saldoDevedor = principal;
+    let totalRestituir = 0;
+    let quitacaoOcorreu = false;
+    let mesQuitacao = 0;
+
+    for (let i = 0; i < ap01.tabela.length; i++) {
+        const linhaBanco = ap01.tabela[i];
+        const linhaJusto = ap02.tabela[i];
+
+        const prestacaoPaga = linhaBanco.parcelaTotal;
+        const prestacaoDevida = linhaJusto.parcelaTotal;
+        const diferenca = Math.max(0, prestacaoPaga - prestacaoDevida);
+
+        // Juros devidos sobre saldo corrente (taxa de mercado)
+        const jurosDevidos = saldoDevedor > 0 ? saldoDevedor * taxaMercado : 0;
+
+        // Amortização = (Prestação Paga - Juros Devidos) + Diferença * 2
+        // Art. 42 CDC: restituição em dobro
+        const amortizacaoNormal = Math.max(0, prestacaoPaga - jurosDevidos);
+        const creditoDobro = diferenca * 2;
+        const amortizacaoCompensada = amortizacaoNormal + creditoDobro;
+
+        // Atualizar saldo
+        const saldoAnterior = saldoDevedor;
+        saldoDevedor = saldoDevedor - amortizacaoCompensada;
+
+        // Verificar quitação antecipada
+        let saldoCredor = 0;
+        if (saldoDevedor < 0 && !quitacaoOcorreu) {
+            saldoCredor = Math.abs(saldoDevedor);
+            quitacaoOcorreu = true;
+            mesQuitacao = linhaBanco.mes;
+        }
+
+        totalRestituir += creditoDobro;
+
+        tabela.push({
+            ...linhaBanco,
+            valorPago: prestacaoPaga,
+            valorDevido: prestacaoDevida,
+            diferenca: creditoDobro, // Diferença em dobro
+            diferencaAcumulada: totalRestituir,
+            juros: jurosDevidos,
+            jurosMercado: jurosDevidos,
+            amortizacao: amortizacaoNormal,
+            amortizacaoCompensada,
+            saldoDevedor: Math.max(0, saldoDevedor),
+            saldoDevedorCompensado: saldoDevedor,
+            saldoCredor: saldoCredor > 0 ? saldoCredor : undefined,
+            quitacaoAntecipada: saldoDevedor <= 0 && saldoAnterior > 0,
+            situacao: linhaBanco.situacao,
+        });
+    }
 
     return {
         tipo: 'AP04',
         titulo: 'Restituição em Dobro (Art. 42 CDC)',
-        descricao: 'Valores cobrados indevidamente multiplicados por 2, conforme Art. 42 do Código de Defesa do Consumidor.',
+        descricao: quitacaoOcorreu
+            ? `Compensação mensal em dobro conforme Art. 42 do CDC. Quitação antecipada na parcela ${mesQuitacao}.`
+            : 'Compensação mensal em dobro conforme Art. 42 do Código de Defesa do Consumidor.',
         tabela,
         totais: {
-            ...ap03.totais,
-            totalRestituir: ap03.totais.totalRestituir * 2,
+            ...ap01.totais,
+            totalRestituir,
+            totalDiferenca: totalRestituir,
         },
     };
 }
 
 /**
- * AP05 - Restituição Simples
+ * AP05 - Restituição Simples (Art. 368 CC)
+ * Simula abatimento MENSAL simples (1:1) no saldo devedor
+ * Para vincendas, recalcula prestação com saldo fidedigno
  */
-function gerarAP05_RestituicaoSimples(ap03: ApendiceResult): ApendiceResult {
+function gerarAP05_RestituicaoSimples(params: GerarAP04Params): ApendiceResult {
+    const { ap01, ap02, taxaMercado, principal } = params;
+    const tabela: LinhaAmortizacaoDetalhada[] = [];
+    let saldoDevedor = principal;
+    let totalRestituir = 0;
+    let quitacaoOcorreu = false;
+    let mesQuitacao = 0;
+
+    // Calcular prazo restante para recálculo de vincendas
+    const prazoTotal = ap01.tabela.length;
+
+    for (let i = 0; i < ap01.tabela.length; i++) {
+        const linhaBanco = ap01.tabela[i];
+        const linhaJusto = ap02.tabela[i];
+        const isVincenda = linhaBanco.situacao === 'VINCENDA';
+
+        const prestacaoPaga = linhaBanco.parcelaTotal;
+        const prestacaoDevida = linhaJusto.parcelaTotal;
+        const diferenca = Math.max(0, prestacaoPaga - prestacaoDevida);
+
+        // Para vincendas, recalcular prestação com saldo fidedigno
+        let prestacaoRecalculada = prestacaoDevida;
+        if (isVincenda && saldoDevedor > 0) {
+            const prazoRestante = prazoTotal - i;
+            if (prazoRestante > 0) {
+                // PMT = PV * [i * (1+i)^n] / [(1+i)^n - 1]
+                const fator = Math.pow(1 + taxaMercado, prazoRestante);
+                prestacaoRecalculada = saldoDevedor * (taxaMercado * fator) / (fator - 1);
+            }
+        }
+
+        // Juros devidos sobre saldo corrente
+        const jurosDevidos = saldoDevedor > 0 ? saldoDevedor * taxaMercado : 0;
+
+        // Amortização = (Prestação Paga - Juros Devidos) + Diferença (simples)
+        const amortizacaoNormal = Math.max(0, prestacaoPaga - jurosDevidos);
+        const creditoSimples = diferenca;
+        const amortizacaoCompensada = amortizacaoNormal + creditoSimples;
+
+        // Atualizar saldo
+        const saldoAnterior = saldoDevedor;
+        saldoDevedor = saldoDevedor - amortizacaoCompensada;
+
+        // Verificar quitação
+        let saldoCredor = 0;
+        if (saldoDevedor < 0 && !quitacaoOcorreu) {
+            saldoCredor = Math.abs(saldoDevedor);
+            quitacaoOcorreu = true;
+            mesQuitacao = linhaBanco.mes;
+        }
+
+        totalRestituir += creditoSimples;
+
+        tabela.push({
+            ...linhaBanco,
+            valorPago: prestacaoPaga,
+            valorDevido: isVincenda ? prestacaoRecalculada : prestacaoDevida,
+            diferenca: creditoSimples,
+            diferencaAcumulada: totalRestituir,
+            juros: jurosDevidos,
+            jurosMercado: jurosDevidos,
+            amortizacao: amortizacaoNormal,
+            amortizacaoCompensada,
+            saldoDevedor: Math.max(0, saldoDevedor),
+            saldoDevedorCompensado: saldoDevedor,
+            saldoCredor: saldoCredor > 0 ? saldoCredor : undefined,
+            quitacaoAntecipada: saldoDevedor <= 0 && saldoAnterior > 0,
+            situacao: linhaBanco.situacao,
+        });
+    }
+
+    const saldoFinal = tabela[tabela.length - 1]?.saldoDevedorCompensado ?? 0;
+
     return {
         tipo: 'AP05',
-        titulo: 'Restituição Simples',
-        descricao: 'Valores cobrados indevidamente a serem restituídos de forma simples.',
-        tabela: ap03.tabela,
-        totais: ap03.totais,
+        titulo: 'Restituição Simples (Art. 368 CC)',
+        descricao: saldoFinal < 0
+            ? `Compensação mensal simples conforme Art. 368 do Código Civil. Saldo CREDOR ao cliente: R$ ${Math.abs(saldoFinal).toFixed(2)}.`
+            : `Compensação mensal simples. Real Saldo Devedor: R$ ${Math.max(0, saldoFinal).toFixed(2)}.`,
+        tabela,
+        totais: {
+            ...ap01.totais,
+            totalRestituir,
+            totalDiferenca: totalRestituir,
+        },
+    };
+}
+
+/**
+ * Detecta parcela com status RENEGOCIADO e captura saldo fidedigno
+ * Usado para cadeia de contratos (renegociações sucessivas)
+ */
+interface RenegociacaoDetectada {
+    detectada: boolean;
+    mesRenegociacao?: number;
+    dataRenegociacao?: string;
+    saldoFidedigno?: number;        // Saldo do AP02 na data da renegociação
+    saldoBancoImposoto?: number;    // Saldo que o banco alegou
+    diferencaSaldo?: number;        // saldoBanco - saldoFidedigno
+}
+
+function detectarRenegociacao(
+    conciliacao?: Array<{
+        numeroParcela: number;
+        status?: 'PAGO' | 'EM_ABERTO' | 'RENEGOCIADO' | 'ATRASO';
+        dataPagamento?: string;
+    }>,
+    ap02?: ApendiceResult
+): RenegociacaoDetectada {
+    if (!conciliacao || !ap02) {
+        return { detectada: false };
+    }
+
+    // Procurar parcela com status RENEGOCIADO
+    const parcelaRenegociada = conciliacao.find(c => c.status === 'RENEGOCIADO');
+
+    if (!parcelaRenegociada) {
+        return { detectada: false };
+    }
+
+    // Capturar saldo fidedigno do AP02
+    const linhaAP02 = ap02.tabela.find(l => l.mes === parcelaRenegociada.numeroParcela);
+    const saldoFidedigno = linhaAP02?.saldoDevedor ?? 0;
+
+    console.log(`[Engine] 🔄 Renegociação detectada na parcela ${parcelaRenegociada.numeroParcela}`);
+    console.log(`  • Saldo Fidedigno (AP02): ${formatCurrency(saldoFidedigno)}`);
+
+    return {
+        detectada: true,
+        mesRenegociacao: parcelaRenegociada.numeroParcela,
+        dataRenegociacao: parcelaRenegociada.dataPagamento,
+        saldoFidedigno,
     };
 }
 

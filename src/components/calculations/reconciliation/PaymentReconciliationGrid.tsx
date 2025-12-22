@@ -30,6 +30,9 @@ export interface PaymentRow {
     amortizacaoExtra: number;
     status: 'PAGO' | 'EM_ABERTO' | 'RENEGOCIADO' | 'ATRASO';
     isEdited: boolean;
+    // Campos calculados (readonly) para transparência
+    diasAtraso?: number;       // Dias entre vencimento e data de pagamento
+    encargosApurados?: number; // Juros + multa calculados pelo sistema
 }
 
 interface PaymentReconciliationGridProps {
@@ -242,34 +245,73 @@ const columns = [
         cell: EditableDateCell,
         size: 140,
     }),
+    // Coluna calculada: Dias de Atraso (readonly) - calculado dinamicamente
+    columnHelper.display({
+        id: 'diasAtraso',
+        header: 'Dias Atraso',
+        cell: ({ row }) => {
+            const venc = row.original.vencimento;
+            const pgto = row.original.dataPagamentoReal;
+            if (!venc || !pgto) return <span className="text-sm text-slate-400">-</span>;
+
+            const vencDate = new Date(venc);
+            const pgtoDate = new Date(pgto);
+            const dias = Math.floor((pgtoDate.getTime() - vencDate.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (dias <= 0) return <span className="text-sm text-slate-400">-</span>;
+
+            return (
+                <span className={`font-mono text-sm ${dias > 30 ? 'text-red-600 font-medium' : 'text-amber-600'}`}>
+                    {dias}d
+                </span>
+            );
+        },
+        size: 80,
+    }),
+    // Coluna calculada: Encargos Apurados (readonly) - calculado dinamicamente
+    columnHelper.display({
+        id: 'encargosApurados',
+        header: 'Juros/Multa',
+        cell: ({ row }) => {
+            const venc = row.original.vencimento;
+            const pgto = row.original.dataPagamentoReal;
+            const valorContrato = row.original.valorContrato;
+
+            if (!venc || !pgto || !valorContrato) return <span className="text-sm text-slate-400">-</span>;
+
+            const vencDate = new Date(venc);
+            const pgtoDate = new Date(pgto);
+            const dias = Math.floor((pgtoDate.getTime() - vencDate.getTime()) / (1000 * 60 * 60 * 24));
+
+            if (dias <= 0) return <span className="text-sm text-slate-400">-</span>;
+
+            // Cálculo: 1% a.m. pro-rata + 2% multa fixa
+            const jurosMora = valorContrato * (1 / 100) * (dias / 30);
+            const multa = valorContrato * (2 / 100);
+            const total = jurosMora + multa;
+
+            return (
+                <span className="font-mono text-sm text-orange-600">
+                    {formatCurrency(total)}
+                </span>
+            );
+        },
+        size: 100,
+    }),
     columnHelper.accessor('valorPagoReal', {
         header: 'Valor Pago Real',
         cell: EditableCurrencyCell,
-        size: 140,
+        size: 160,
     }),
     columnHelper.accessor('amortizacaoExtra', {
         header: 'Amort. Extra',
         cell: EditableCurrencyCell,
-        size: 120,
+        size: 140,
     }),
     columnHelper.accessor('status', {
         header: 'Status',
         cell: EditableStatusCell,
         size: 130,
-    }),
-    columnHelper.display({
-        id: 'edited',
-        header: '',
-        cell: ({ row }) => {
-            if (!row.original.isEdited) return null;
-            const statusConfig = STATUS_CONFIG[row.original.status];
-            return (
-                <Badge variant="outline" className="text-xs bg-slate-100 border-slate-300 text-slate-900">
-                    Editado
-                </Badge>
-            );
-        },
-        size: 70,
     }),
 ];
 
@@ -324,11 +366,8 @@ export function PaymentReconciliationGrid({
                 });
                 onDataChange(newData);
 
-                // Trigger recalculation in cascade
-                if (onRecalculate) {
-                    toast.info('Recalculando saldo devedor...', { duration: 1500 });
-                    onRecalculate();
-                }
+                // NOTE: Removed automatic recalculation
+                // User must explicitly click "Gerar Resultado" button
             },
             handleRowClick: (row, event) => {
                 const isSelected = row.getIsSelected();
@@ -505,13 +544,13 @@ export function PaymentReconciliationGrid({
                             <div>
                                 <span className="text-slate-500">Total Contrato:</span>{' '}
                                 <span className="font-mono font-medium">
-                                    {formatCurrency(data.reduce((sum, r) => sum + r.valorContrato, 0))}
+                                    {formatCurrency(data.reduce((sum, r) => sum + (r.valorContrato || 0), 0))}
                                 </span>
                             </div>
                             <div>
                                 <span className="text-slate-500">Total Pago Real:</span>{' '}
                                 <span className="font-mono font-medium text-blue-600">
-                                    {formatCurrency(data.reduce((sum, r) => sum + r.valorPagoReal, 0))}
+                                    {formatCurrency(data.filter(r => r.status === 'PAGO').reduce((sum, r) => sum + (r.valorPagoReal || 0), 0))}
                                 </span>
                             </div>
                         </div>

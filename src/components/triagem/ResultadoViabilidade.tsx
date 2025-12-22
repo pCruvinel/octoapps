@@ -15,6 +15,7 @@ import { saveAs } from 'file-saver';
 import { TriagemTemplate } from '@/components/pdf-templates/TriagemTemplate';
 import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 import { toast } from 'sonner';
+import { HelpExplainerModal, type HelpModuleType } from '@/components/shared/HelpExplainerModal';
 
 interface ResultadoViabilidadeProps {
     resultado: ResultadoTriagem;
@@ -84,6 +85,7 @@ export function ResultadoViabilidade({
                             <Badge variant={resultado.isAbusivo ? "destructive" : "secondary"} className="ml-1">
                                 Score: {resultado.score}/100
                             </Badge>
+                            <HelpExplainerModal moduleType="ANALISE_PREVIA_VEICULOS" />
                         </div>
                         <p className="text-slate-500 max-w-xl text-lg leading-relaxed mt-2">{config.description}</p>
                     </div>

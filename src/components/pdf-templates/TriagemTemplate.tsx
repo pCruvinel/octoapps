@@ -11,6 +11,10 @@ const formatCurrency = (value: number) =>
 const formatPercent = (value: number) =>
     (value * 100).toFixed(2).replace('.', ',') + '%';
 
+// For values already in percent format (e.g., 26.97 for 26.97%)
+const formatPercentDirect = (value: number) =>
+    (value || 0).toFixed(2).replace('.', ',') + '%';
+
 interface TriagemTemplateProps {
     data: ResultadoTriagem;
     settings: UserDocumentSettings;
@@ -25,14 +29,14 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
             borderRadius: 5,
             marginBottom: 15,
             borderWidth: 1,
-            borderColor: '#e2e8f0',
+            borderColor: settings.table_border_color || '#e2e8f0',
         },
         table: {
             display: 'flex',
             width: 'auto',
             borderStyle: 'solid',
             borderWidth: 1,
-            borderColor: '#e2e8f0',
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderRightWidth: 0,
             borderBottomWidth: 0,
             marginBottom: 15,
@@ -44,7 +48,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
             width: '33.33%',
             borderStyle: 'solid',
             borderWidth: 1,
-            borderColor: '#e2e8f0',
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderLeftWidth: 0,
             borderTopWidth: 0,
         },
@@ -52,7 +56,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
             width: '25%',
             borderStyle: 'solid',
             borderWidth: 1,
-            borderColor: '#e2e8f0',
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderLeftWidth: 0,
             borderTopWidth: 0,
         },
@@ -60,15 +64,16 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
             margin: 5,
             fontSize: 9,
             textAlign: 'center',
+            color: settings.text_color || '#0f172a',
         },
         tableHeader: {
-            backgroundColor: '#f1f5f9',
+            backgroundColor: settings.table_header_bg || '#f1f5f9',
         },
         watermarkImage: {
             position: 'absolute',
             top: '30%',
-            left: '25%',
-            width: '50%',
+            left: `${(1 - (settings.watermark_scale ?? 0.5)) / 2 * 100}%`,
+            width: `${(settings.watermark_scale ?? 0.5) * 100}%`,
             height: 'auto',
             opacity: settings.watermark_opacity ?? 0.15,
             transform: 'rotate(-45deg)',
@@ -78,7 +83,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
             fontSize: 11,
             fontWeight: 'bold',
             marginBottom: 8,
-            color: '#334155',
+            color: settings.heading_color || '#334155',
             textTransform: 'uppercase',
         },
         alertBox: {
@@ -91,16 +96,38 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
     const BrandingHeader = () => (
         <View style={PdfEngine.styles.header} fixed>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                {settings.logo_url ? (
-                    <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
-                ) : (
-                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
-                        OCTOAPPS
+                {/* Left: Logo */}
+                <View style={{ flex: 1 }}>
+                    {settings.logo_url ? (
+                        <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
+                    ) : (
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
+                            OCTOAPPS
+                        </Text>
+                    )}
+                </View>
+
+                {/* Center: Timbre (Company Name/CNPJ) */}
+                <View style={{ flex: 2, alignItems: 'center' }}>
+                    {settings.header_text && (
+                        <Text style={{
+                            fontSize: 10,
+                            textAlign: 'center',
+                            color: settings.secondary_color || '#64748b',
+                            textTransform: 'uppercase',
+                            fontWeight: 'bold'
+                        }}>
+                            {settings.header_text}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Right: Document Type & Date */}
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>
+                        Dossiê de Viabilidade • {new Date().toLocaleDateString('pt-BR')}
                     </Text>
-                )}
-                <Text style={{ fontSize: 10, color: '#94a3b8' }}>
-                    Dossiê de Viabilidade • {new Date().toLocaleDateString('pt-BR')}
-                </Text>
+                </View>
             </View>
         </View>
     );
@@ -116,7 +143,8 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
         return <Image src={settings.watermark_url} style={styles.watermarkImage} fixed />;
     };
 
-    // Derive monthly rates
+    // Derive monthly rates - data comes as decimal (e.g., 0.2697 for 26.97%)
+    // formatPercent multiplies by 100, so we just divide by 12 for monthly
     const taxaMensal = data.taxaContratoAnual / 12;
     const taxaMercadoMensal = data.taxaMercadoAnual / 12;
 
@@ -168,7 +196,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
                     <View style={{ flex: 1, padding: 12, backgroundColor: '#f8fafc', borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
                         <Text style={{ fontSize: 9, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' }}>Sobretaxa Encontrada</Text>
                         <Text style={{ fontSize: 18, fontWeight: 'bold', color: data.isAbusivo ? '#dc2626' : '#0f172a', marginTop: 4 }}>
-                            +{(data.sobretaxaPercentual * 100).toFixed(2)}%
+                            +{formatPercent(data.sobretaxaPercentual)}
                         </Text>
                         <Text style={{ fontSize: 8, color: '#64748b', marginTop: 2 }}>acima da média de mercado</Text>
                     </View>
@@ -204,27 +232,27 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
                 <View style={styles.table}>
                     <View style={[styles.tableRow, styles.tableHeader]}>
                         <View style={styles.tableCol4}><Text style={styles.tableCell}>Tipo de Taxa</Text></View>
-                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Praticada</Text></View>
-                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Média (BACEN)</Text></View>
+                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Taxa Praticada</Text></View>
+                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Média de Mercado</Text></View>
                         <View style={styles.tableCol4}><Text style={styles.tableCell}>Diferença</Text></View>
                     </View>
                     <View style={styles.tableRow}>
-                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Taxa Mensal</Text></View>
-                        <View style={styles.tableCol4}><Text style={styles.tableCell}>{formatPercent(taxaMensal / 100)} a.m.</Text></View>
-                        <View style={styles.tableCol4}><Text style={{ ...styles.tableCell, color: '#166534' }}>{formatPercent(taxaMercadoMensal / 100)} a.m.</Text></View>
+                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Taxa Mensal (a.m.)</Text></View>
+                        <View style={styles.tableCol4}><Text style={styles.tableCell}>{formatPercent(taxaMensal)}</Text></View>
+                        <View style={styles.tableCol4}><Text style={{ ...styles.tableCell, color: '#166534' }}>{formatPercent(taxaMercadoMensal)}</Text></View>
                         <View style={styles.tableCol4}>
                             <Text style={{ ...styles.tableCell, color: taxaMensal > taxaMercadoMensal ? '#dc2626' : '#10b981', fontWeight: 'bold' }}>
-                                {taxaMensal > taxaMercadoMensal ? '+' : ''}{formatPercent((taxaMensal - taxaMercadoMensal) / 100)}
+                                {taxaMensal > taxaMercadoMensal ? '+' : ''}{formatPercent(taxaMensal - taxaMercadoMensal)}
                             </Text>
                         </View>
                     </View>
                     <View style={styles.tableRow}>
-                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Taxa Anual</Text></View>
-                        <View style={styles.tableCol4}><Text style={styles.tableCell}>{formatPercent(data.taxaContratoAnual / 100)} a.a.</Text></View>
-                        <View style={styles.tableCol4}><Text style={{ ...styles.tableCell, color: '#166534' }}>{formatPercent(data.taxaMercadoAnual / 100)} a.a.</Text></View>
+                        <View style={styles.tableCol4}><Text style={styles.tableCell}>Taxa Anual (a.a.)</Text></View>
+                        <View style={styles.tableCol4}><Text style={styles.tableCell}>{formatPercent(data.taxaContratoAnual)}</Text></View>
+                        <View style={styles.tableCol4}><Text style={{ ...styles.tableCell, color: '#166534' }}>{formatPercent(data.taxaMercadoAnual)}</Text></View>
                         <View style={styles.tableCol4}>
                             <Text style={{ ...styles.tableCell, color: data.taxaContratoAnual > data.taxaMercadoAnual ? '#dc2626' : '#10b981', fontWeight: 'bold' }}>
-                                {data.taxaContratoAnual > data.taxaMercadoAnual ? '+' : ''}{formatPercent((data.taxaContratoAnual - data.taxaMercadoAnual) / 100)}
+                                {data.taxaContratoAnual > data.taxaMercadoAnual ? '+' : ''}{formatPercent(data.taxaContratoAnual - data.taxaMercadoAnual)}
                             </Text>
                         </View>
                     </View>

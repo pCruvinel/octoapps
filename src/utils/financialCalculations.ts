@@ -796,13 +796,14 @@ export async function fetchMarketRate(
 ): Promise<number | null> {
     let serieCode = 25471; // Default: Crédito Pessoal Total
 
-    // Mapeamento de Séries Bacen (SGS)
-    // 25471: Pessoas Físicas - Total (Recursos Livres)
+    // Mapeamento de Séries Bacen (SGS) - TODAS para Pessoas Físicas (PF)
+    // 25471: PF - Crédito Total (Recursos Livres)
     // 25478: Cartão de Crédito - Rotativo Total
-    // 20718: Crédito Pessoal Não Consignado
-    // 20749: Aquisição de Veículos - PF (Taxa Média ANUAL % a.a.)
-    // 20773: Financiamento Imobiliário SFH (Taxas Reguladas - até 12% a.a. + TR)
-    // 25497: Financiamento Imobiliário SFI (Taxas de Mercado - livre negociação)
+    // 20742: PF - Crédito Pessoal Não Consignado (CORRETO - ~22% a.a.)
+    // 20749: PF - Aquisição de Veículos (Taxa Média ANUAL % a.a.)
+    // 20773: PF - Financiamento Imobiliário SFH (Taxas Reguladas - até 12% a.a. + TR)
+    // 25497: PF - Financiamento Imobiliário SFI (Taxas de Mercado - livre negociação)
+    // NOTA: 20718 é para PJ (Pessoas Jurídicas), NÃO usar para PF!
     switch (module) {
         case 'VEICULOS':
             serieCode = 20749; // Aquisição de Veículos - PF (% a.a.)
@@ -817,11 +818,11 @@ export async function fetchMarketRate(
             serieCode = 20773; // Default para Imobiliário: SFH (mais conservador)
             break;
         case 'CARTAO':
-            serieCode = 25478;
+            serieCode = 20739; // Cartão de Crédito Rotativo Total - Anual
             break;
         case 'GERAL':
         default:
-            serieCode = 20718; // Crédito Pessoal Não Consignado
+            serieCode = 20742; // CORRETO: Crédito Pessoal Não Consignado - PF (~22% a.a.)
             break;
     }
 
@@ -845,34 +846,13 @@ export async function fetchMarketRate(
         }
 
         if (data && data.success && data.taxaMediaMensalPercent) {
-            const taxaBruta = Number(data.taxaMediaMensalPercent);
+            // A Edge Function já retorna a taxa MENSAL corretamente convertida
+            // No campo taxaMediaMensalPercent (% a.m.)
+            const taxaMensalPercent = Number(data.taxaMediaMensalPercent);
+            const taxaAnualPercent = data.taxaMediaAnualPercent ? Number(data.taxaMediaAnualPercent) : 0;
 
-            // IMPORTANTE: Todas as séries de crédito (20718, 20773, 25497, etc.) 
-            // retornam taxa ANUAL no campo taxaMediaMensalPercent
-            // Séries de Cartão (25478) podem retornar mensal
-
-            // Séries que retornam taxa ANUAL:
-            // 20718: Crédito Pessoal Não Consignado
-            // 20749: Aquisição de Veículos - PF
-            // 20773: Financiamento Imobiliário SFH
-            // 25497: Financiamento Imobiliário SFI
-            // 25471: Crédito Pessoal Total
-            const seriesAnuais = [20718, 20749, 20773, 25497, 25471];
-            const isSerieAnual = seriesAnuais.includes(serieCode);
-
-            if (isSerieAnual) {
-                // Taxa bruta é ANUAL - converter para MENSAL
-                const taxaAnualPercent = taxaBruta;
-                const taxaAnualDecimal = taxaAnualPercent / 100;
-                const taxaMensalDecimal = Math.pow(1 + taxaAnualDecimal, 1 / 12) - 1;
-                const taxaMensalPercent = taxaMensalDecimal * 100;
-                console.log(`[Financial] BACEN (série ${serieCode}): ${taxaAnualPercent.toFixed(2)}% a.a. → ${taxaMensalPercent.toFixed(4)}% a.m.`);
-                return taxaMensalPercent;
-            } else {
-                // Séries que já retornam taxa mensal (ex: cartão rotativo)
-                console.log(`[Financial] BACEN (série ${serieCode}): ${taxaBruta.toFixed(4)}% a.m.`);
-                return taxaBruta;
-            }
+            console.log(`[Financial] BACEN (série ${serieCode}): ${taxaAnualPercent.toFixed(2)}% a.a. → ${taxaMensalPercent.toFixed(4)}% a.m.`);
+            return taxaMensalPercent;
         }
 
         console.warn('[Financial] BACEN data empty or invalid, using fallback');

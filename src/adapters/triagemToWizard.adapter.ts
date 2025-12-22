@@ -19,7 +19,7 @@ export interface TriagemGeralFormData {
     valorPrestacao: number | null;
     prazoMeses: number | null;
     taxaAnualContrato: number | null;
-    modalidadeContrato: string;
+    tipoContrato: string;
     dataContrato: string;
     dataLiberacao?: string;
     dataPrimeiroVencimento?: string;
@@ -54,16 +54,7 @@ export interface TriagemImobiliarioFormData {
 // MAPEAMENTOS
 // ============================================================================
 
-/** Converte modalidade da triagem para tipo de contrato do wizard */
-const MODALIDADE_TO_TIPO: Record<string, TipoContratoGeral> = {
-    'AQUISICAO_VEICULOS': 'FINANCIAMENTO_VEICULO',
-    'EMPRESTIMO_PESSOAL': 'EMPRESTIMO_PESSOAL',
-    'CONSIGNADO_PRIVADO': 'CONSIGNADO_PRIVADO',
-    'CONSIGNADO_PUBLICO': 'CONSIGNADO_PUBLICO',
-    'CONSIGNADO_INSS': 'CONSIGNADO_INSS',
-    'CAPITAL_GIRO': 'CAPITAL_GIRO',
-    'CHEQUE_ESPECIAL': 'CHEQUE_ESPECIAL',
-};
+
 
 /** Converte tipo de financiamento imobiliário */
 const TIPO_IMOB_MAP: Record<'SFH' | 'SFI', TipoFinanciamentoImob> = {
@@ -104,7 +95,7 @@ export function adaptTriagemGeralToStep1(
         // Identificação (preenchido pelo usuário no wizard ou defaults)
         credor: options?.credor || '',
         devedor: options?.devedor || '',
-        tipoContrato: MODALIDADE_TO_TIPO[triagem.modalidadeContrato] || 'EMPRESTIMO_PESSOAL',
+        tipoContrato: (triagem.tipoContrato as TipoContratoGeral) || 'EMPRESTIMO_PESSOAL',
 
         // Valores
         valorFinanciado: triagem.valorFinanciado || 0,

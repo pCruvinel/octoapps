@@ -15,12 +15,16 @@ import type {
     CalculationPreviewResult,
     CalculationFullResult,
     AmortizationLineV3,
+    ScenarioResult,
+    PaymentStatus,
 } from '@/services/calculationEngine/types';
 import type {
     CalculoDetalhadoRequest,
     ModalidadeCredito,
     IndexadorCorrecao,
     TarifaExpurgo,
+    LinhaAmortizacaoDetalhada,
+    SituacaoParcela,
 } from '@/types/calculation.types';
 
 // Re-export types for convenience
@@ -218,7 +222,9 @@ export function wizardToDetalhadoRequest(data: WizardData): CalculoDetalhadoRequ
 
     // Convert percentage to decimal for rates
     const taxaMensal = s2.taxaMensalContrato || s2.taxaJurosMensal || 0;
-    const taxaAnual = s2.taxaAnualContrato || s2.taxaJurosNominal || 0;
+    // Se taxa anual não informada, calcular a partir da mensal (juros compostos)
+    const taxaAnual = s2.taxaAnualContrato || s2.taxaJurosNominal ||
+        (taxaMensal > 0 ? (Math.pow(1 + taxaMensal / 100, 12) - 1) * 100 : 0);
 
     // Valor da parcela informado pelo cliente (Step1)
     const valorParcela = s1.valorPrestacao || s1.valorParcela || 0;
@@ -574,10 +580,20 @@ export function detalhadoToResultsDashboard(
         ? request.valorParcelaCobrada
         : apendices.ap01?.tabela?.[0]?.parcelaTotal ?? 0;
 
+    const parcelaRecalculada = apendices.ap02?.tabela?.[0]?.parcelaTotal ?? 0;
+    const totalJurosBanco = apendices.ap01?.totais?.totalJuros ?? 0;
+    const valorFinanciado = request?.valorFinanciado ?? 0;
+
+    // Calculate extended fields
+    const diferençaMensal = parcelaOriginal - parcelaRecalculada;
+    const indebitoAcumulado = resumo.restituicaoSimples;
+    const tarifasExpurgadas = request?.tarifas?.reduce((sum, t) => sum + (t.valor || 0), 0) || 0;
+    const percentualJurosCapital = valorFinanciado > 0 ? (totalJurosBanco / valorFinanciado) * 100 : 0;
+
     const kpis: KPIData = {
         economiaTotal: resumo.diferencaTotal,
         parcelaOriginalValor: parcelaOriginal,
-        novaParcelaValor: apendices.ap02?.tabela?.[0]?.parcelaTotal ?? 0,
+        novaParcelaValor: parcelaRecalculada,
         taxaPraticada: resumo.taxaContratoAnual / 12, // Convert to monthly
         taxaMercado: resumo.taxaMercadoAnual / 12,
         restituicaoSimples: resumo.restituicaoSimples,
@@ -585,9 +601,20 @@ export function detalhadoToResultsDashboard(
         classificacaoAbuso: resumo.isAbusivo
             ? (resumo.sobretaxaPercent >= 100 ? 'CRITICA' : 'ALTA')
             : (resumo.sobretaxaPercent >= 30 ? 'MEDIA' : 'BAIXA'),
+        // Extended fields for new UI
+        indebitoAcumulado,
+        diferençaMensal,
+        reducaoSaldoDevedor: resumo.diferencaTotal - indebitoAcumulado,
+        valorFinanciadoOriginal: valorFinanciado,
+        valorFinanciadoExpurgado: valorFinanciado - tarifasExpurgadas,
+        tarifasExpurgadas: tarifasExpurgadas > 0 ? tarifasExpurgadas : undefined,
+        capitalizacaoDiariaDetectada: result.flags?.capitalizacaoDiariaDetectada ?? false,
+        percentualJurosCapital,
     };
 
+
     // Map evolution data from AP01 and AP02 tables
+
     const evolucao: EvolutionDataPoint[] = (apendices.ap01?.tabela || []).map((linha, index) => ({
         mes: linha.mes,
         saldoBanco: linha.saldoDevedor,
@@ -595,21 +622,48 @@ export function detalhadoToResultsDashboard(
         diferenca: (apendices.ap03?.tabela?.[index]?.diferenca ?? 0),
     }));
 
+
+
     // Map conciliation data (all rows from AP01)
     const isFixedSystem = request?.sistemaAmortizacao === 'PRICE' || request?.sistemaAmortizacao === 'GAUSS';
     const fixedParcela = request?.valorParcelaCobrada && request.valorParcelaCobrada > 0 ? request.valorParcelaCobrada : null;
 
+    // Parâmetros de mora (default: 1% a.m. e 2% multa)
+    const jurosMora = request?.jurosMora ?? 1;
+    const multaMoratoria = request?.multaMoratoria ?? 2;
+
     const conciliacao: PaymentRow[] = (apendices.ap01?.tabela || []).map(linha => {
         const valorContrato = (isFixedSystem && fixedParcela) ? fixedParcela : linha.parcelaTotal;
+
+        // Calcular dias de atraso (se houver data de pagamento diferente do vencimento)
+        let diasAtraso = 0;
+        const dataPgto = linha.override?.dataPagamento || linha.data;
+        if (dataPgto && linha.data) {
+            const venc = new Date(linha.data);
+            const pgto = new Date(dataPgto);
+            diasAtraso = Math.max(0, Math.floor((pgto.getTime() - venc.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+
+        // Calcular encargos moratórios (juros de mora pro-rata + multa fixa se dias > 0)
+        let encargosApurados = 0;
+        if (diasAtraso > 0) {
+            const baseCalculo = valorContrato; // Sobre o principal (não corrigido por padrão)
+            const jurosMoraValor = baseCalculo * (jurosMora / 100) * (diasAtraso / 30); // Pro-rata mensal
+            const multaValor = baseCalculo * (multaMoratoria / 100); // Multa fixa (uma vez)
+            encargosApurados = jurosMoraValor + multaValor;
+        }
+
         return {
             n: linha.mes,
             vencimento: linha.data,
             valorContrato: valorContrato,
-            dataPagamentoReal: linha.data,
-            valorPagoReal: valorContrato, // Default to contract value
+            dataPagamentoReal: dataPgto,
+            valorPagoReal: linha.status === 'PAGO' ? valorContrato : 0, // Only set if PAGO, otherwise 0
             amortizacaoExtra: linha.override?.amortizacaoExtra || 0,
             status: (linha.status === 'PAGO' ? 'PAGO' : 'EM_ABERTO') as 'PAGO' | 'EM_ABERTO' | 'PARCIAL',
             isEdited: !!linha.override,
+            diasAtraso,
+            encargosApurados,
         };
     });
 
@@ -663,14 +717,148 @@ export function detalhadoToResultsDashboard(
             totalJurosBanco: apendices.ap01?.totais?.totalJuros || 0,
             parcelaBanco: parcelaOriginal,
             taxaContrato: resumo.taxaContratoAnual / 12 || 0, // Convert to monthly
+            valorFinanciadoBanco: valorFinanciado,
             totalPagoRecalculado: resumo.valorTotalDevido || apendices.ap02?.totais?.totalPago || 0,
             totalJurosRecalculado: apendices.ap02?.totais?.totalJuros || 0,
-            parcelaRecalculada: apendices.ap02?.tabela?.[0]?.parcelaTotal ?? 0,
+            parcelaRecalculada: parcelaRecalculada,
             taxaMercado: resumo.taxaMercadoAnual / 12 || 0, // Convert to monthly
+            valorFinanciadoExpurgado: valorFinanciado - tarifasExpurgadas,
+            tarifasExpurgadas: tarifasExpurgadas > 0 ? tarifasExpurgadas : undefined,
             economiaTotal: resumo.diferencaTotal || 0,
             economiaJuros: (apendices.ap01?.totais?.totalJuros || 0) - (apendices.ap02?.totais?.totalJuros || 0),
-            economiaParcela: parcelaOriginal - (apendices.ap02?.tabela?.[0]?.parcelaTotal ?? 0),
+            economiaParcela: diferençaMensal,
             sobretaxaPercentual: resumo.sobretaxaPercent || 0,
         },
+    };
+}
+
+// ============================================================================
+// Engine v3 → UI Legacy Format Adapters
+// ============================================================================
+
+/**
+ * Map v3 PaymentStatus to legacy SituacaoParcela
+ */
+function mapPaymentStatusToSituacao(status: PaymentStatus): SituacaoParcela {
+    const mapping: Record<PaymentStatus, SituacaoParcela> = {
+        'PAID': 'PAGA',
+        'PENDING': 'VINCENDA',
+        'OVERDUE': 'VENCIDA',
+        'RENEGOTIATED': 'PAGA', // Treat renegotiated as paid
+    };
+    return mapping[status] || 'VINCENDA';
+}
+
+/**
+ * Convert ScenarioResult (v3 engine) to LinhaAmortizacaoDetalhada[] (legacy UI format)
+ *
+ * This adapter bridges the gap between the new calculation engine (v3) and the
+ * existing UI components that expect the old data format.
+ *
+ * @param scenario - ScenarioResult from v3 calculation engine
+ * @param scenarioType - Type identifier ('AP01', 'AP02', 'AP03', etc.)
+ * @param comparisonScenario - Optional comparison scenario for calculating differences
+ * @returns Array of LinhaAmortizacaoDetalhada compatible with legacy UI
+ */
+export function scenarioToLegacyFormat(
+    scenario: ScenarioResult,
+    scenarioType: string = 'AP01',
+    comparisonScenario?: ScenarioResult
+): LinhaAmortizacaoDetalhada[] {
+    if (!scenario || !scenario.table) {
+        return [];
+    }
+
+    let diferencaAcumulada = 0;
+
+    return scenario.table.map((line: AmortizationLineV3, index: number) => {
+        const comparisonLine = comparisonScenario?.table[index];
+
+        // Calculate difference if comparison scenario provided
+        const diferenca = comparisonLine
+            ? line.total_installment.minus(comparisonLine.total_installment).toNumber()
+            : (line.difference?.toNumber() || 0);
+
+        diferencaAcumulada += diferenca;
+
+        // Build legacy format
+        const legacyLine: LinhaAmortizacaoDetalhada = {
+            // Identification
+            mes: line.n,
+            data: line.date,
+
+            // Balance evolution
+            saldoAbertura: line.opening_balance.toNumber(),
+            indiceCorrecao: line.monetary_correction?.toNumber(),
+            correcaoMonetaria: line.monetary_correction?.toNumber(),
+            saldoCorrigido: line.corrected_balance?.toNumber(),
+
+            // Installment components
+            juros: line.interest.toNumber(),
+            amortizacao: line.amortization.toNumber(),
+            saldoDevedor: line.closing_balance.toNumber(),
+
+            // Charges
+            seguroMIP: line.insurance?.toNumber(),
+            seguroDFI: 0, // DFI typically combined in insurance field
+            taxaAdm: line.admin_fee?.toNumber(),
+
+            // Totals
+            parcelaBase: line.installment_value.toNumber(),
+            parcelaTotal: line.total_installment.toNumber(),
+
+            // Comparison fields
+            jurosMercado: comparisonLine?.interest.toNumber(),
+            parcelaMercado: comparisonLine?.total_installment.toNumber(),
+            diferenca,
+            diferencaAcumulada,
+
+            // Technical fields for XTIR (AP01)
+            diasEntreParcelas: 30, // Default to 30 days
+            fatorNaoPeriodico: undefined, // Would need to be calculated separately
+
+            // Payment status
+            situacao: mapPaymentStatusToSituacao(line.payment_status),
+            valorPago: line.paid_value?.toNumber(),
+            valorDevido: line.total_installment.toNumber(),
+
+            // Compensation fields (AP04/AP05)
+            amortizacaoCompensada: undefined,
+            saldoDevedorCompensado: undefined,
+            saldoCredor: undefined,
+            quitacaoAntecipada: false,
+
+            // Status
+            status: line.payment_status === 'PAID' ? 'PAGO' :
+                line.payment_status === 'PENDING' ? 'PENDENTE' :
+                    'PROJETADO',
+        };
+
+        return legacyLine;
+    });
+}
+
+/**
+ * Convert multiple scenarios from v3 engine to legacy appendices format
+ *
+ * @param result - Full calculation result from v3 engine
+ * @returns Object with ap01-ap05 in legacy format
+ */
+export function v3ResultToLegacyAppendices(result: CalculationFullResult) {
+    const { scenarios } = result;
+
+    return {
+        ap01: scenarios.ap01 ? scenarioToLegacyFormat(scenarios.ap01, 'AP01') : undefined,
+        ap02: scenarios.ap02 ? scenarioToLegacyFormat(scenarios.ap02, 'AP02') : undefined,
+        ap03: scenarios.ap03 ? scenarioToLegacyFormat(scenarios.ap03, 'AP03', scenarios.ap02) : undefined,
+        ap04: scenarios.ap04 ? scenarioToLegacyFormat(scenarios.ap04, 'AP04') : undefined,
+        ap05: scenarios.ap05 ? scenarioToLegacyFormat(scenarios.ap05, 'AP05') : undefined,
+
+        // Include INPC metadata if available
+        parametros: scenarios.ap03?.totals ? {
+            inpcCorrection: scenarios.ap03.totals.total_refund_inpc_corrected?.toNumber(),
+            inpcAccumulated: scenarios.ap03.totals.inpc_accumulated?.toNumber(),
+            correctionDate: scenarios.ap03.totals.correction_reference_date,
+        } : undefined,
     };
 }

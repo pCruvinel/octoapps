@@ -398,7 +398,7 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
           <div className="flex gap-2">
             <Button variant="outline" className="gap-2" onClick={() => onNavigate('triagem')}>
               <Zap className="w-4 h-4" />
-              Triagem Rápida
+              Análise Prévia
             </Button>
             <Button variant="outline" className="gap-2" onClick={handleOpenEditDialog}>
               <Edit className="w-4 h-4" />

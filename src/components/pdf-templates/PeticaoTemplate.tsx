@@ -15,8 +15,8 @@ export const PeticaoTemplate = ({ data, settings }: PeticaoTemplateProps) => {
         watermarkImage: {
             position: 'absolute',
             top: '30%',
-            left: '25%',
-            width: '50%',
+            left: `${(1 - (settings.watermark_scale ?? 0.5)) / 2 * 100}%`,
+            width: `${(settings.watermark_scale ?? 0.5) * 100}%`,
             height: 'auto',
             opacity: settings.watermark_opacity ?? 0.15,
             transform: 'rotate(-45deg)',
@@ -27,17 +27,39 @@ export const PeticaoTemplate = ({ data, settings }: PeticaoTemplateProps) => {
     const BrandingHeader = () => (
         <View style={PdfEngine.styles.header} fixed>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                {settings.logo_url ? (
-                    <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
-                ) : (
-                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
-                        {data.nome || 'Petição'}
+                {/* Left: Logo */}
+                <View style={{ flex: 1 }}>
+                    {settings.logo_url ? (
+                        <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
+                    ) : (
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
+                            {data.nome || 'Petição'}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Center: Timbre (Company Name/CNPJ) */}
+                <View style={{ flex: 2, alignItems: 'center' }}>
+                    {settings.header_text && (
+                        <Text style={{
+                            fontSize: 10,
+                            textAlign: 'center',
+                            color: settings.secondary_color || '#64748b',
+                            textTransform: 'uppercase',
+                            fontWeight: 'bold'
+                        }}>
+                            {settings.header_text}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Right: Page Numbers */}
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>
+                        {settings.show_page_numbers ? `Pág. ` : ''}
+                        <Text render={({ pageNumber, totalPages }) => settings.show_page_numbers ? `${pageNumber}/${totalPages}` : ''} />
                     </Text>
-                )}
-                <Text style={{ fontSize: 10, color: '#94a3b8' }}>
-                    {settings.show_page_numbers ? `Pág. ` : ''}
-                    <Text render={({ pageNumber, totalPages }) => settings.show_page_numbers ? `${pageNumber}/${totalPages}` : ''} />
-                </Text>
+                </View>
             </View>
         </View>
     );
@@ -69,7 +91,8 @@ export const PeticaoTemplate = ({ data, settings }: PeticaoTemplateProps) => {
 
                     {contentLines.map((line, index) => (
                         <Text key={index} style={[PdfEngine.styles.text, {
-                            marginBottom: (line.trim() === '') ? 10 : 5 // Bigger margin for empty lines
+                            marginBottom: (line.trim() === '') ? 10 : 5, // Bigger margin for empty lines
+                            color: settings.text_color || '#0f172a'
                         }]}>
                             {line}
                         </Text>

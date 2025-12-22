@@ -85,7 +85,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       adminOnly: false,
       module: 'calculations' as const,
       submenu: [
-        { id: 'triagem', label: 'Triagem Rápida', route: 'triagem', icon: Zap },
+        { id: 'triagem', label: 'Análise Prévia', route: 'triagem', icon: Zap },
         { id: 'lista-casos', label: 'Lista de Casos', route: 'lista-casos', icon: List },
       ]
     },

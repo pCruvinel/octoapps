@@ -577,7 +577,7 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
                             Arraste o CCB/Contrato para preencher automaticamente
                         </p>
                         <ContractUploadButton
-                            category="financiamento_imobiliario"
+                            category="IMOBILIARIO"
                             onDataExtracted={handleOcrData}
                             variant="outline"
                         />

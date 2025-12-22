@@ -85,12 +85,14 @@ export const SERIES_SGS_BACEN: Record<ModalidadeCredito, {
     descricao: 'Aquisição de veículos - Pessoa jurídica'
   },
 
-  // Empréstimo Pessoal - usar série 20718 (alinhado com financialCalculations.ts)
+
+  // Empréstimo Pessoal - usar série 20742 (PF - Pessoas Físicas)
+  // NOTA: 20718 é para PJ (Pessoas Jurídicas ~1% a.a.) - NÃO usar!
   EMPRESTIMO_PESSOAL: {
-    mensal: 20718,   // Tax anual % a.a. - Crédito Pessoal Não Consignado
-    anual: 20718,
+    mensal: 20742,   // Taxa anual % a.a. - Crédito Pessoal Não Consignado PF (~22% a.a.)
+    anual: 20742,
     tipo: 'ANUAL',   // Retorna taxa ANUAL, converter para mensal
-    descricao: 'Crédito pessoal não consignado'
+    descricao: 'Crédito pessoal não consignado - PF'
   },
 
   // Consignado - usar séries anuais
@@ -135,12 +137,12 @@ export const SERIES_SGS_BACEN: Record<ModalidadeCredito, {
     descricao: 'Cheque especial pessoa física'
   },
 
-  // Cartão de Crédito - manter mensal (rotativo é muito volátil)
+  // Cartão de Crédito - usar série ANUAL 20739
   CARTAO_ROTATIVO: {
-    mensal: 25461,
+    mensal: 20739,   // Usando ID da série anual para busca
     anual: 20739,
-    tipo: 'MENSAL',
-    descricao: 'Cartão de crédito rotativo total'
+    tipo: 'ANUAL',
+    descricao: 'Cartão de crédito rotativo total (Anual)'
   },
 
   // Imobiliário (séries são anuais, precisam conversão)

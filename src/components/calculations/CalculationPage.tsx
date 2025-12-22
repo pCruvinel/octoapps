@@ -10,6 +10,10 @@ import { useCalculation } from '@/hooks/useCalculation';
 import { wizardToDetalhadoRequest, detalhadoToResultsDashboard } from '@/lib/calculationAdapters';
 import { supabase } from '@/lib/supabase';
 import { contratoRevisionalService } from '@/services/contratoRevisionalService';
+import { pdf } from '@react-pdf/renderer';
+import { saveAs } from 'file-saver';
+import { LaudoRevisionalTemplate } from '@/components/pdf-templates/LaudoRevisionalTemplate';
+import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 
 // Tab Components
 import { DataEntryTab } from './tabs/DataEntryTab';
@@ -47,6 +51,10 @@ export interface CalculationPageData {
     valorEntrada?: number;
     tipoFinanciamento?: 'SFH' | 'SFI';
     dataLiberacao?: string; // Data de liberação do crédito (para detectar carência)
+    // Encargos Moratórios
+    jurosMora?: number; // Padrão: 1% a.m.
+    multaMoratoria?: number; // Padrão: 2%
+    encargosIncidirSobrePrincipalCorrigido?: boolean;
     // Revisão
     expurgarTarifas: boolean;
     restituicaoEmDobro: boolean;
@@ -84,6 +92,7 @@ export function CalculationPage({
     initialTab = 'dados',
 }: CalculationPageProps) {
     const { calculateDetalhado, isLoading } = useCalculation();
+    const { settings } = useDocumentSettings();
 
     // UI State
     const [activeTab, setActiveTab] = React.useState<TabId>(initialTab);
@@ -208,6 +217,8 @@ export function CalculationPage({
         setIsFormValid(isValid);
     }, []);
 
+    // NOTE: handleConciliacaoChange is defined after handleGenerateResults (line ~436)
+
     // ========== SALVAR RASCUNHO ==========
     const handleSaveDraft = async () => {
         if (!userId) {
@@ -272,19 +283,28 @@ export function CalculationPage({
             return;
         }
 
-        // TODO: Integrar com serviço de PDF
-        // Dados disponíveis para exportação:
-        // - formData: Dados do contrato (credor, devedor, valores, taxas)
-        // - calculationResult: CalculoDetalhadoResponse (apêndices AP01-AP05, resumo)
-        // - dashboardData: Dados formatados para dashboard (kpis, evolucao, totais)
-        // - conciliacaoData: PaymentRow[] com parcelas e pagamentos
-        toast.info('Funcionalidade de PDF em desenvolvimento');
-        console.log('[PDF Export] Dados disponíveis:', {
-            formData,
-            calculationResult,
-            dashboardData,
-            conciliacaoData
-        });
+        try {
+            toast.loading('Gerando PDF...', { id: 'pdf-loading' });
+
+            const blob = await pdf(
+                <LaudoRevisionalTemplate
+                    formData={formData}
+                    resultado={calculationResult}
+                    dashboard={dashboardData}
+                    settings={settings}
+                />
+            ).toBlob();
+
+            const nomeArquivo = `Laudo_${formData.devedor || 'Cliente'}_${new Date().getTime()}.pdf`;
+            saveAs(blob, nomeArquivo);
+
+            toast.dismiss('pdf-loading');
+            toast.success('PDF gerado com sucesso!');
+        } catch (error) {
+            toast.dismiss('pdf-loading');
+            toast.error('Erro ao gerar PDF');
+            console.error('[PDF Export] Erro:', error);
+        }
     };
 
     // Generate Conciliation (first calculation)
@@ -604,6 +624,10 @@ export function CalculationPage({
                                 ap01={calculationResult.apendices.ap01?.tabela}
                                 ap02={calculationResult.apendices.ap02?.tabela}
                                 ap03={calculationResult.apendices.ap03?.tabela}
+                                ap04={calculationResult.apendices.ap04?.tabela}
+                                ap05={calculationResult.apendices.ap05?.tabela}
+                                ap04Descricao={calculationResult.apendices.ap04?.descricao}
+                                ap05Descricao={calculationResult.apendices.ap05?.descricao}
                                 parametros={dashboardData?.appendices?.parametros}
                             />
                         ) : (
@@ -640,6 +664,11 @@ function formDataToRequest(data: CalculationPageData) {
         sistemaAmortizacao: data.sistemaAmortizacao || 'PRICE',
         capitalizacao: data.capitalizacao || 'MENSAL',
         usarTaxaBacen: data.usarTaxaBacen ?? true,
+
+        // Encargos Moratórios
+        jurosMora: data.jurosMora ?? 1, // Padrão: 1% a.m. (Art. 406 CC)
+        multaMoratoria: data.multaMoratoria ?? 2, // Padrão: 2% (Art. 52 §1º CDC)
+        encargosIncidirSobrePrincipalCorrigido: data.encargosIncidirSobrePrincipalCorrigido ?? false,
 
         // Revisão
         expurgarTarifas: data.expurgarTarifas ?? false,

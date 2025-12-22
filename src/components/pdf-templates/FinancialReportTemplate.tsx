@@ -53,7 +53,7 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
             fontSize: 16,
             marginBottom: 15,
             borderBottomWidth: 1,
-            borderBottomColor: '#e2e8f0',
+            borderBottomColor: settings.table_border_color || '#e2e8f0',
             paddingBottom: 5,
             color: settings.primary_color || '#000000',
         },
@@ -62,6 +62,7 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
             width: 'auto',
             borderStyle: 'solid',
             borderWidth: 1,
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderRightWidth: 0,
             borderBottomWidth: 0,
         },
@@ -73,18 +74,20 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
             width: '14%', // 7 cols -> ~14%
             borderStyle: 'solid',
             borderWidth: 1,
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderLeftWidth: 0,
             borderTopWidth: 0,
         },
         tableCell: {
             margin: 5,
             fontSize: 8,
+            color: settings.text_color || '#0f172a',
         },
         watermarkImage: {
             position: 'absolute',
             top: '30%',
-            left: '25%',
-            width: '50%',
+            left: `${(1 - (settings.watermark_scale ?? 0.5)) / 2 * 100}%`,
+            width: `${(settings.watermark_scale ?? 0.5) * 100}%`,
             height: 'auto',
             opacity: settings.watermark_opacity ?? 0.15,
             transform: 'rotate(-45deg)',
@@ -95,16 +98,38 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
     const BrandingHeader = () => (
         <View style={PdfEngine.styles.header} fixed>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                {settings.logo_url ? (
-                    <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
-                ) : (
-                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color }}>
-                        OCTOAPPS
+                {/* Left: Logo */}
+                <View style={{ flex: 1 }}>
+                    {settings.logo_url ? (
+                        <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
+                    ) : (
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color }}>
+                            OCTOAPPS
+                        </Text>
+                    )}
+                </View>
+
+                {/* Center: Timbre (Company Name/CNPJ) */}
+                <View style={{ flex: 2, alignItems: 'center' }}>
+                    {settings.header_text && (
+                        <Text style={{
+                            fontSize: 10,
+                            textAlign: 'center',
+                            color: settings.secondary_color || '#64748b',
+                            textTransform: 'uppercase',
+                            fontWeight: 'bold'
+                        }}>
+                            {settings.header_text}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Right: Date */}
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>
+                        Gerado em {new Date().toLocaleDateString('pt-BR')}
                     </Text>
-                )}
-                <Text style={{ fontSize: 10, color: '#94a3b8' }}>
-                    Gerado em {new Date().toLocaleDateString('pt-BR')}
-                </Text>
+                </View>
             </View>
         </View>
     );

@@ -8,8 +8,9 @@ import { ResultadoImobiliarioType } from '@/components/triagem/ResultadoImobilia
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
+// Imobiliário data comes already as percentage (e.g., 8.75 for 8.75%), NOT as decimal
 const formatPercent = (value: number) =>
-    (value * 100).toFixed(2).replace('.', ',') + '%';
+    (value || 0).toFixed(2).replace('.', ',') + '%';
 
 interface TriagemImobiliarioTemplateProps {
     data: ResultadoImobiliarioType;
@@ -25,13 +26,14 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
             borderRadius: 5,
             marginBottom: 15,
             borderWidth: 1,
-            borderColor: '#e2e8f0',
+            borderColor: settings.table_border_color || '#e2e8f0',
         },
         table: {
             display: 'flex',
             width: 'auto',
             borderStyle: 'solid',
             borderWidth: 1,
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderRightWidth: 0,
             borderBottomWidth: 0,
             marginBottom: 20,
@@ -44,6 +46,7 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
             width: '25%',
             borderStyle: 'solid',
             borderWidth: 1,
+            borderColor: settings.table_border_color || '#e2e8f0',
             borderLeftWidth: 0,
             borderTopWidth: 0,
         },
@@ -51,16 +54,17 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
             margin: 5,
             fontSize: 9,
             textAlign: 'center',
+            color: settings.text_color || '#0f172a',
         },
         tableHeader: {
-            backgroundColor: '#f1f5f9',
+            backgroundColor: settings.table_header_bg || '#f1f5f9',
             fontWeight: 'bold',
         },
         watermarkImage: {
             position: 'absolute',
             top: '30%',
-            left: '25%',
-            width: '50%',
+            left: `${(1 - (settings.watermark_scale ?? 0.5)) / 2 * 100}%`,
+            width: `${(settings.watermark_scale ?? 0.5) * 100}%`,
             height: 'auto',
             opacity: settings.watermark_opacity ?? 0.15,
             transform: 'rotate(-45deg)',
@@ -71,16 +75,38 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
     const BrandingHeader = () => (
         <View style={PdfEngine.styles.header} fixed>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                {settings.logo_url ? (
-                    <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
-                ) : (
-                    <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
-                        OCTOAPPS
+                {/* Left: Logo */}
+                <View style={{ flex: 1 }}>
+                    {settings.logo_url ? (
+                        <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
+                    ) : (
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
+                            OCTOAPPS
+                        </Text>
+                    )}
+                </View>
+
+                {/* Center: Timbre (Company Name/CNPJ) */}
+                <View style={{ flex: 2, alignItems: 'center' }}>
+                    {settings.header_text && (
+                        <Text style={{
+                            fontSize: 10,
+                            textAlign: 'center',
+                            color: settings.secondary_color || '#64748b',
+                            textTransform: 'uppercase',
+                            fontWeight: 'bold'
+                        }}>
+                            {settings.header_text}
+                        </Text>
+                    )}
+                </View>
+
+                {/* Right: Document Type & Date */}
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                    <Text style={{ fontSize: 10, color: '#94a3b8' }}>
+                        Triagem Imobiliária • {new Date().toLocaleDateString('pt-BR')}
                     </Text>
-                )}
-                <Text style={{ fontSize: 10, color: '#94a3b8' }}>
-                    Triagem Imobiliária • {new Date().toLocaleDateString('pt-BR')}
-                </Text>
+                </View>
             </View>
         </View>
     );
@@ -205,29 +231,29 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
                 <View style={styles.table}>
                     <View style={[styles.tableRow, styles.tableHeader]}>
                         <View style={styles.tableCol}><Text style={styles.tableCell}>Tipo de Taxa</Text></View>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>Praticada (Contrato)</Text></View>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>Média (BACEN)</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>Taxa Praticada</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>Média de Mercado</Text></View>
                         <View style={styles.tableCol}><Text style={styles.tableCell}>Diferença</Text></View>
                     </View>
                     <View style={styles.tableRow}>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>Taxa Mensal</Text></View>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaContratoMensal / 100)} a.m.</Text></View>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaMercadoMensal / 100)} a.m.</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>Taxa Mensal (a.m.)</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaContratoMensal)}</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaMercadoMensal)}</Text></View>
                         <View style={styles.tableCol}>
                             <Text style={{ ...styles.tableCell, color: data.taxaContratoMensal > data.taxaMercadoMensal ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
                                 {data.taxaContratoMensal > data.taxaMercadoMensal ? '+' : ''}
-                                {formatPercent((data.taxaContratoMensal - data.taxaMercadoMensal) / 100)}
+                                {formatPercent(data.taxaContratoMensal - data.taxaMercadoMensal)}
                             </Text>
                         </View>
                     </View>
                     <View style={styles.tableRow}>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>Taxa Anual</Text></View>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaContratoAnual / 100)} a.a.</Text></View>
-                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaMercadoAnual / 100)} a.a.</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>Taxa Anual (a.a.)</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaContratoAnual)}</Text></View>
+                        <View style={styles.tableCol}><Text style={styles.tableCell}>{formatPercent(data.taxaMercadoAnual)}</Text></View>
                         <View style={styles.tableCol}>
                             <Text style={{ ...styles.tableCell, color: data.taxaContratoAnual > data.taxaMercadoAnual ? '#ef4444' : '#10b981', fontWeight: 'bold' }}>
                                 {data.taxaContratoAnual > data.taxaMercadoAnual ? '+' : ''}
-                                {formatPercent((data.taxaContratoAnual - data.taxaMercadoAnual) / 100)}
+                                {formatPercent(data.taxaContratoAnual - data.taxaMercadoAnual)}
                             </Text>
                         </View>
                     </View>

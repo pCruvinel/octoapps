@@ -13,7 +13,7 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { PercentInput } from '@/components/ui/percent-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
-import { Trash2, Plus, Loader2, TrendingUp } from 'lucide-react';
+import { Trash2, Plus, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
 import { ContractImportCard } from '../wizard/ContractImportCard';
 import type { CalculationModuleType, CalculationPageData } from '../CalculationPage';
 
@@ -35,6 +35,10 @@ const baseSchema = z.object({
     usarTaxaBacen: z.boolean(),
     expurgarTarifas: z.boolean(),
     restituicaoEmDobro: z.boolean(),
+    // Encargos Moratórios (para período de atraso)
+    jurosMora: z.number().min(0).max(100).optional(),
+    multaMoratoria: z.number().min(0).max(100).optional(),
+    encargosIncidirSobrePrincipalCorrigido: z.boolean().optional(),
     // Imobiliário specific
     indexador: z.enum(['TR', 'IPCA', 'INPC', 'IGPM', 'NENHUM']).optional(),
     valorImovel: z.number().optional(),
@@ -56,14 +60,14 @@ interface DataEntryTabProps {
 
 // Options for each module
 const TIPOS_CONTRATO_GERAL = [
-    { value: 'EMPRESTIMO_PESSOAL', label: '25464 - Empréstimo Pessoal PF (% a.a.)' },
-    { value: 'CONSIGNADO_PRIVADO', label: '25463 - Consignado Privado (% a.a.)' },
-    { value: 'CONSIGNADO_PUBLICO', label: '25462 - Consignado Público (% a.a.)' },
-    { value: 'CONSIGNADO_INSS', label: '25470 - Consignado INSS (% a.a.)' },
-    { value: 'CAPITAL_GIRO', label: '20739 - Capital de Giro até 365 dias PJ (% a.a.)' },
+    { value: 'EMPRESTIMO_PESSOAL', label: '20742 - Empréstimo Pessoal PF (% a.a.)' },
+    { value: 'CONSIGNADO_PRIVADO', label: '20744 - Consignado Privado (% a.a.)' },
+    { value: 'CONSIGNADO_PUBLICO', label: '20745 - Consignado Público (% a.a.)' },
+    { value: 'CONSIGNADO_INSS', label: '20746 - Consignado INSS (% a.a.)' },
+    { value: 'CAPITAL_GIRO', label: '20755 - Capital de Giro até 365 dias PJ (% a.a.)' },
     { value: 'FINANCIAMENTO_VEICULO', label: '20749 - Aquisição de Veículos PF (% a.a.)' },
     { value: 'FINANCIAMENTO_VEICULO_PJ', label: '20728 - Aquisição de Veículos PJ (% a.a.)' },
-    { value: 'CHEQUE_ESPECIAL', label: '20712 - Cheque Especial PF (% a.a.)' },
+    { value: 'CHEQUE_ESPECIAL', label: '20737 - Cheque Especial PF (% a.a.)' },
 ] as const;
 
 const INDEXADORES = [
@@ -552,6 +556,49 @@ export function DataEntryTab({
                                 checked={watchedValues.usarTaxaBacen}
                                 onCheckedChange={(val) => setValue('usarTaxaBacen', val)}
                             />
+                        </div>
+
+                        {/* Encargos Moratórios */}
+                        <div className="pt-4 border-t space-y-4">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                                <h4 className="font-medium text-slate-700">Encargos Moratórios</h4>
+                                <span className="text-xs text-slate-500">(para parcelas em atraso)</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Juros de Mora (% a.m.)</Label>
+                                    <PercentInput
+                                        value={watchedValues.jurosMora ?? 1}
+                                        onChange={(val) => setValue('jurosMora', val ?? 1)}
+                                    />
+                                    <p className="text-xs text-slate-500">Padrão: 1% a.m. (Art. 406 CC)</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Multa Moratória (%)</Label>
+                                    <PercentInput
+                                        value={watchedValues.multaMoratoria ?? 2}
+                                        onChange={(val) => setValue('multaMoratoria', val ?? 2)}
+                                    />
+                                    <p className="text-xs text-slate-500">Padrão: 2% (Art. 52 §1º CDC)</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between py-2 bg-slate-50 px-3 rounded-lg">
+                                <div>
+                                    <Label className="text-sm">Base de cálculo</Label>
+                                    <p className="text-xs text-slate-500">
+                                        {watchedValues.encargosIncidirSobrePrincipalCorrigido
+                                            ? 'Encargos incidem sobre o principal CORRIGIDO'
+                                            : 'Encargos incidem apenas sobre o principal'}
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={watchedValues.encargosIncidirSobrePrincipalCorrigido ?? false}
+                                    onCheckedChange={(val) => setValue('encargosIncidirSobrePrincipalCorrigido', val)}
+                                />
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

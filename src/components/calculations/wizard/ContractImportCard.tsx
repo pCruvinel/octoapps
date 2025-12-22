@@ -31,9 +31,9 @@ export function ContractImportCard({
             return;
         }
 
-        // Validate file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
-            toast.error('Arquivo muito grande. Máximo 10MB.');
+        // Validate file size (max 25MB)
+        if (file.size > 25 * 1024 * 1024) {
+            toast.error('Arquivo muito grande. Máximo 25MB.');
             return;
         }
 

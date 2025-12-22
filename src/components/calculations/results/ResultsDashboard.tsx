@@ -9,6 +9,7 @@ import { ComparisonSummaryTable } from './ComparisonSummaryTable';
 import { AppendicesTabs } from './AppendicesTabs';
 import { PaymentReconciliationGrid, type PaymentRow } from '../reconciliation/PaymentReconciliationGrid';
 import { toast } from 'sonner';
+import { HelpExplainerModal } from '@/components/shared/HelpExplainerModal';
 
 export interface ResultsDashboardData {
     kpis: KPIData;
@@ -161,9 +162,12 @@ export function ResultsDashboard({
                                 </Button>
                             )}
                             <div>
-                                <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
-                                    Resultado do Cálculo
-                                </h1>
+                                <div className="flex items-center gap-2">
+                                    <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
+                                        Resultado do Cálculo
+                                    </h1>
+                                    <HelpExplainerModal moduleType="CALCULO_REVISIONAL_GERAL" />
+                                </div>
                                 <p className="text-sm text-slate-500">
                                     {data.cliente.nome} • Contrato: {data.cliente.contrato}
                                 </p>
@@ -189,14 +193,26 @@ export function ResultsDashboard({
             </div>
 
             {/* Content */}
-            <div className="container max-w-7xl mx-auto px-4 py-6">
-                <AppendicesTabs
-                    data={data.appendices}
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                    resumoContent={resumoContent}
-                    conciliacaoContent={conciliacaoContent}
-                />
+            <div className="container max-w-7xl mx-auto px-4 py-6 space-y-6">
+                {/* Resumo */}
+                {resumoContent}
+
+                {/* Conciliação */}
+                <div className="mt-8">
+                    <h2 className="text-lg font-semibold mb-4">Conciliação de Pagamentos</h2>
+                    {conciliacaoContent}
+                </div>
+
+                {/* Apêndices */}
+                <div className="mt-8">
+                    <h2 className="text-lg font-semibold mb-4">Apêndices Técnicos</h2>
+                    <AppendicesTabs
+                        ap01={data.appendices?.ap01}
+                        ap02={data.appendices?.ap02}
+                        ap03={data.appendices?.ap03}
+                        parametros={data.appendices?.parametros}
+                    />
+                </div>
             </div>
         </div>
     );
