@@ -15,6 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Calculator, Loader2, ChevronDown, Home, Info, Shield } from 'lucide-react';
 import { DetalhadaUploadButton } from '@/components/calculations/wizard/detalhada-upload-button';
 import { fetchMarketRate, getEstimatedMarketRate, calculateEconomia, calculatePMT } from '@/utils/financialCalculations';
+import { calcularFluxoSAC, calcularFluxoPRICE, calcularJurosSimplesDetalhado } from '@/utils/imobiliarioCalculations'; // Imported new utils
 import type { PreviaImobiliariaResultadoType as PreviaImobiliariaResultadoTypeALIAS } from '@/schemas/triagemRapida.schema'; // Note: This might be from schema or componente, verifying grep showed schema? No, wait. Grep showed import type { ResultadoImobiliario as ... } from '@/schemas/triagemRapida.schema'.. WAIT.
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
