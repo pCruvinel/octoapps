@@ -216,7 +216,7 @@ export function TipoOperacaoSelect({
     // Fallback for usage without Form context
     return (
         <div className="grid gap-2">
-            <Label htmlFor={field.name} className="text-sm font-medium">{label}</Label>
+            <Label htmlFor={effectiveName} className="text-sm font-medium">{label}</Label>
             {SelectComponent}
             {computedHelperText && (
                 <p className={`text-xs ${showSerieInHelper ? 'text-slate-400' : 'text-slate-500'}`}>

@@ -455,6 +455,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                     />
                                                 </div>
                                             </FormControl>
+                                            <p className="text-xs text-slate-500">Valor do crédito</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -475,6 +476,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                     onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)}
                                                 />
                                             </FormControl>
+                                            <p className="text-xs text-slate-500">Total de parcelas</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -504,6 +506,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                     ≈ {taxaMensalCalculada.toFixed(4)}% a.m.
                                                 </p>
                                             )}
+                                            <p className="text-xs text-slate-500">Taxa nominal anual</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -545,6 +548,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                     />
                                                 </div>
                                             </FormControl>
+                                            <p className="text-xs text-slate-500">Assinatura contrato</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -605,6 +609,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                     <SelectItem value="SACRE">SACRE</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            <p className="text-xs text-slate-500">SAC ou Price</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -629,6 +634,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                     <SelectItem value="IGPM">IGP-M</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            <p className="text-xs text-slate-500">Índice correção</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -664,6 +670,8 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                             placeholder="R$ 0,00"
                                                         />
                                                     </FormControl>
+                                                    <FormMessage />
+                                                    <p className="text-xs text-slate-500">Morte/Invalidez</p>
                                                 </FormItem>
                                             )}
                                         />
@@ -681,6 +689,8 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                             placeholder="R$ 0,00"
                                                         />
                                                     </FormControl>
+                                                    <FormMessage />
+                                                    <p className="text-xs text-slate-500">Danos Físicos</p>
                                                 </FormItem>
                                             )}
                                         />
@@ -698,6 +708,8 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                                                             placeholder="R$ 0,00"
                                                         />
                                                     </FormControl>
+                                                    <FormMessage />
+                                                    <p className="text-xs text-slate-500">Taxa mensal fixa</p>
                                                 </FormItem>
                                             )}
                                         />

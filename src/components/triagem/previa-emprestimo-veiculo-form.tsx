@@ -574,6 +574,7 @@ export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProp
                                                     />
                                                 </div>
                                             </FormControl>
+                                            <p className="text-xs text-slate-500">Valor do crédito</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -620,6 +621,7 @@ export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProp
                                                     onChange={e => field.onChange(e.target.value ? Number(e.target.value) : null)}
                                                 />
                                             </FormControl>
+                                            <p className="text-xs text-slate-500">Total de parcelas</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -778,6 +780,7 @@ export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProp
                                                     <SelectItem value="SAC">SAC</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            <p className="text-xs text-slate-500">SAC ou Price</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -800,6 +803,7 @@ export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProp
                                                     <SelectItem value="DIARIA">Diária</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            <p className="text-xs text-slate-500">Mensal ou Diária</p>
                                             <FormMessage />
                                         </FormItem>
                                     )}
