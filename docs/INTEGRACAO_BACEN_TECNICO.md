@@ -43,21 +43,112 @@ sequenceDiagram
 
 A tabela `public.taxas_bacen_historico` armazena as taxas recuperadas para evitar requisições excessivas ao BACEN e garantir performance.
 
+#### Schema Completo
+
+| Coluna | Tipo | Restrições | Default | Descrição |
+|--------|------|------------|---------|-----------|
+| `id` | `uuid` | `PK, NOT NULL` | `gen_random_uuid()` | Identificador único |
+| `serie_bacen` | `text` | - | `'432'` | Código da série SGS (ex: '20749') |
+| `ano` | `integer` | `NOT NULL` | - | Ano de referência |
+| `mes` | `integer` | `NOT NULL` | - | Mês de referência (1-12) |
+| `ano_mes` | `text` | `NOT NULL` | - | Período textual (ex: '2023-10') |
+| `taxa_mensal_percent` | `numeric(10,6)` | `NOT NULL` | - | Taxa mensal em % (ex: 1.9122) |
+| `taxa_mensal_decimal` | `numeric(10,8)` | `NOT NULL` | - | Taxa mensal decimal (ex: 0.019122) |
+| `taxa_anual_decimal` | `numeric(10,8)` | `NOT NULL` | - | Taxa anual decimal (ex: 0.2546) |
+| `modalidade` | `text` | - | `'Aquisição...'` | Descrição da modalidade |
+| `fonte` | `text` | - | `'BACEN - API SGS'` | Origem do dado |
+| `data_atualizacao` | `timestamptz` | - | `now()` | Última atualização |
+| `created_at` | `timestamptz` | - | `now()` | Data de criação |
+
+#### Índices e Constraints
+
+```sql
+-- Chave Única (para UPSERT)
+UNIQUE INDEX taxas_bacen_historico_unique_entry ON (serie_bacen, ano, mes)
+
+-- Índices de Busca (B-Tree)
+CREATE INDEX idx_taxas_bacen_ano_mes ON taxas_bacen_historico(ano_mes);
+CREATE INDEX idx_taxas_bacen_ano ON taxas_bacen_historico(ano);
+CREATE INDEX idx_taxas_bacen_mes ON taxas_bacen_historico(mes);
+```
+
+#### Exemplo de Consulta
+
+```sql
+-- Buscar taxa de veículos para abril/2025
+SELECT taxa_mensal_percent, taxa_anual_decimal 
+FROM taxas_bacen_historico 
+WHERE serie_bacen = '20749' 
+  AND ano = 2025 
+  AND mes = 4;
+
+-- Resultado: taxa_mensal_percent = 1.9122, taxa_anual_decimal = 0.2552
+```
+
+#### Exemplo de UPSERT
+
+```sql
+INSERT INTO taxas_bacen_historico (
+  serie_bacen, ano, mes, ano_mes, 
+  taxa_mensal_percent, taxa_mensal_decimal, taxa_anual_decimal,
+  modalidade, fonte
+) VALUES (
+  '20749', 2025, 4, '2025-4',
+  1.9122, 0.019122, 0.2552,
+  'Veículos PF', 'BACEN_SGS_LIVE'
+)
+ON CONFLICT (serie_bacen, ano, mes) 
+DO UPDATE SET 
+  taxa_mensal_percent = EXCLUDED.taxa_mensal_percent,
+  taxa_mensal_decimal = EXCLUDED.taxa_mensal_decimal,
+  taxa_anual_decimal = EXCLUDED.taxa_anual_decimal,
+  data_atualizacao = now();
+```
+
+> [!NOTE]
+> A tabela possui **Row Level Security (RLS)** habilitado. Consultas de leitura são permitidas para usuários autenticados.
+
+### 2.2 Tabela de Referência (`tipos_operacao_bacen`)
+
+Tabela centralizada que mapeia tipos de operação para suas séries BACEN correspondentes. Permite dropdowns dinâmicos nos formulários.
+
+#### Schema
+
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
-| `id` | uuid | Identificador único |
-| `serie_bacen` | text | Código da série SGS (ex: '20749') |
-| `ano` | int4 | Ano de referência |
-| `mes` | int4 | Mês de referência |
-| `taxa_mensal_percent` | numeric | Taxa mensal em % (ex: 1.7062) |
-| `taxa_mensal_decimal` | numeric | Taxa mensal decimal (ex: 0.017062) |
-| `taxa_anual_decimal` | numeric | Taxa anual decimal (ex: 0.2251) |
-| `data_atualizacao` | timestamptz | Data da última sincronização |
-| `fonte` | text | Origem ('BACEN_SGS_LIVE', 'CACHE_DB') |
+| `codigo` | `text` | Identificador único (ex: 'VEICULOS_PF') |
+| `nome` | `text` | Nome para exibição (ex: 'Veículos - Pessoa Física') |
+| `categoria` | `text` | EMPRESTIMO, VEICULO, IMOBILIARIO, CARTAO, EMPRESARIAL, INDICE |
+| `serie_bacen` | `integer` | Código SGS (ex: 20749) |
+| `tipo_taxa` | `text` | ANUAL ou MENSAL |
+| `ativo` | `boolean` | Se aparece nos dropdowns |
+| `ordem` | `integer` | Ordenação no dropdown |
 
-> **Nota:** A chave única para UPSERT é composta por `(serie_bacen, ano, mes)`.
+#### Uso no Frontend
 
-### 2.2 Edge Function (`buscar-taxa-bacen`)
+```typescript
+import { useTiposOperacao } from '@/hooks/useTiposOperacao';
+
+// No componente
+const { tiposOperacao, getSeriePorCodigo } = useTiposOperacao({ 
+  categoria: 'VEICULO' 
+});
+
+// Dropdown
+<Select>
+  {tiposOperacao.map(op => (
+    <SelectItem key={op.codigo} value={op.codigo}>
+      {op.nome}
+    </SelectItem>
+  ))}
+</Select>
+
+// Ao consultar taxa
+const serie = getSeriePorCodigo(valorSelecionado); // 20749
+await fetchMarketRate(serie, dataContrato);
+```
+
+### 2.3 Edge Function (`buscar-taxa-bacen`)
 
 Localizada em: `supabase/functions/buscar-taxa-bacen/index.ts`
 
@@ -295,4 +386,127 @@ flowchart LR
     D -->|OK| E[Salva Cache + Retorna]
     D -->|Erro| F[Fallback Estático]
 ```
+
+---
+
+## 10. Guia de Integração para Desenvolvedores
+
+Esta seção orienta desenvolvedores sobre **quando e como** consumir os dados de taxas BACEN no sistema.
+
+### 10.1 Estratégia Recomendada: Via Edge Function
+
+Para a **maioria dos casos de uso** (Análise Prévia, consultas pontuais), utilize a Edge Function `buscar-taxa-bacen`:
+
+```typescript
+// src/utils/financialCalculations.ts
+const taxaMensal = await fetchMarketRate('VEICULOS', '2025-04-01');
+// Retorna: 1.9122 (representando 1.9122% a.m.)
+```
+
+**Vantagens:**
+- ✅ Auto-população do cache (dados novos são salvos automaticamente)
+- ✅ Conversão de taxas centralizada (anual↔mensal)
+- ✅ Fallback automático para taxa estática em caso de erro
+- ✅ Lógica de negócio isolada no backend
+
+**Quando usar:**
+- Formulários de Triagem/Análise Prévia
+- Consultas individuais por data
+- Qualquer cenário onde você precisa de UMA taxa específica
+
+### 10.2 Estratégia Alternativa: Consulta Direta na Tabela
+
+Para **cálculos em batch** com múltiplos meses (ex: evolução de 360 parcelas com correção monetária), a consulta direta na tabela é mais eficiente:
+
+```typescript
+// Exemplo: Buscar TR de 30 meses de uma vez
+const { data: taxasTR } = await supabase
+  .from('taxas_bacen_historico')
+  .select('ano, mes, taxa_mensal_decimal')
+  .eq('serie_bacen', '226') // TR
+  .gte('ano_mes', '2023-1')
+  .lte('ano_mes', '2025-6')
+  .order('ano', { ascending: true })
+  .order('mes', { ascending: true });
+
+// Resultado: Array de 30 objetos com as taxas mensais
+```
+
+**Vantagens:**
+- ✅ Uma única query para múltiplos meses
+- ✅ Performance superior para cálculos de longo prazo
+- ✅ Permite agregações e transformações no banco
+
+**Quando usar:**
+- Cálculo Revisional completo (360 parcelas)
+- Relatórios de evolução histórica
+- Exportação de dados em massa
+
+### 10.3 Estratégia Híbrida (Recomendada para Cálculo Revisional)
+
+Para módulos complexos, combine as duas estratégias:
+
+```typescript
+async function obterTaxasParaCalculo(serie: string, meses: { ano: number, mes: number }[]) {
+  // 1. Tenta buscar tudo do cache
+  const { data: cached } = await supabase
+    .from('taxas_bacen_historico')
+    .select('*')
+    .eq('serie_bacen', serie)
+    .in('ano_mes', meses.map(m => `${m.ano}-${m.mes}`));
+
+  // 2. Identifica meses faltantes
+  const cachedPeriodos = new Set(cached?.map(c => `${c.ano}-${c.mes}`) || []);
+  const faltantes = meses.filter(m => !cachedPeriodos.has(`${m.ano}-${m.mes}`));
+
+  // 3. Busca faltantes via Edge Function (popula cache)
+  for (const falta of faltantes) {
+    await fetchMarketRate(getModuloBySerie(serie), `${falta.ano}-${falta.mes}-01`);
+  }
+
+  // 4. Retorna dados completos do cache
+  return supabase
+    .from('taxas_bacen_historico')
+    .select('*')
+    .eq('serie_bacen', serie)
+    .in('ano_mes', meses.map(m => `${m.ano}-${m.mes}`));
+}
+```
+
+### 10.4 Tabela de Decisão
+
+| Cenário | Método | Justificativa |
+|---------|--------|---------------|
+| Triagem Rápida | Edge Function | Uma taxa por consulta, auto-cache |
+| Cálculo Revisional | Híbrido | 360 meses, precisa do bulk + preenchimento |
+| Relatório PDF | Consulta Direta | Dados já no cache após cálculo |
+| Novo mês (sem dados) | Edge Function | Popula cache automaticamente |
+| Conferência de valores | Consulta Direta | Debug/auditoria |
+
+### 10.5 Mapeamento Série ↔ Módulo
+
+Use esta tabela para determinar qual série usar baseado no módulo:
+
+```typescript
+function getSerieParaModulo(modulo: string): number {
+  const mapa: Record<string, number> = {
+    'VEICULOS': 20749,
+    'VEICULOS_PJ': 20728,
+    'GERAL': 20742,
+    'CONSIGNADO': 25463,
+    'IMOBILIARIO_SFH': 20773,
+    'IMOBILIARIO_SFI': 25497,
+    'CARTAO': 25482,
+    'TR': 226,
+    'IPCA': 433,
+    'INPC': 188,
+    'IGPM': 189,
+  };
+  return mapa[modulo] || 20742; // Default: Crédito Pessoal
+}
+```
+
+> [!TIP]
+> Para novos desenvolvedores: **comece sempre pela Edge Function**. Só migre para consulta direta quando tiver certeza de que os dados já estão no cache e precisar de performance em batch.
+
 

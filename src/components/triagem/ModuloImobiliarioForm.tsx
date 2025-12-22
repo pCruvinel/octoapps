@@ -1,23 +1,4 @@
-'use client';
-
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DatePicker } from '@/components/ui/date-picker';
-import { CurrencyInput } from '@/components/ui/currency-input';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Home, Loader2, ChevronDown, Info, Shield } from 'lucide-react';
-import { ContractUploadButton } from '@/components/calculations/wizard/ContractUploadButton';
-import { fetchMarketRate, getEstimatedMarketRate, calculatePMT } from '@/utils/financialCalculations';
-import type { ResultadoImobiliarioType } from './ResultadoImobiliario';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { useTiposOperacao } from '@/hooks/useTiposOperacao';
 
 // ============================================================================
 // SCHEMA
@@ -34,7 +15,7 @@ const moduloImobiliarioSchema = z.object({
     valorParcela: z.number().min(1, 'Valor da parcela inválido').nullable(),
 
     // Específicos Imobiliário
-    tipoFinanciamento: z.enum(['SFH', 'SFI']).default('SFH'), // NOVO: SFH ou SFI
+    tipoFinanciamento: z.string({ required_error: 'Selecione o tipo de financiamento' }).min(1, 'Selecione o tipo'),
     sistemaAmortizacao: z.enum(['SAC', 'PRICE', 'SACRE']).default('SAC'),
     indexador: z.enum(['TR', 'IPCA', 'INPC', 'IGPM']).default('TR'),
 
@@ -51,199 +32,12 @@ type ModuloImobiliarioFormData = z.infer<typeof moduloImobiliarioSchema>;
 // ============================================================================
 
 function taxaAnualParaMensal(taxaAnual: number): number {
-    // taxaAnual em percentual (ex: 11 para 11% a.a.)
-    // Retorna taxa mensal em percentual
     const taxaAnualDecimal = taxaAnual / 100;
     const taxaMensalDecimal = Math.pow(1 + taxaAnualDecimal, 1 / 12) - 1;
     return taxaMensalDecimal * 100;
 }
 
-// ============================================================================
-// HELPER: CSS para feedback visual (ring verde APENAS em campos do OCR)
-// ============================================================================
-
-function getOcrFieldClass(fieldName: string, ocrFilledFields: Set<string>): string {
-    return cn(
-        'transition-all duration-200',
-        ocrFilledFields.has(fieldName) && 'ring-2 ring-green-300 ring-offset-1'
-    );
-}
-
-// ============================================================================
-// CÁLCULO SAC COMPLETO COM LOGS
-// ============================================================================
-
-interface FluxoSAC {
-    totalPago: number;
-    totalJuros: number;
-    primeiraParcela: number;
-    ultimaParcela: number;
-}
-
-function calcularFluxoSAC(
-    principal: number,
-    taxaMensal: number, // em DECIMAL (ex: 0.008735)
-    prazo: number,
-    label: string
-): FluxoSAC {
-    console.log(`[Imobiliário][${label}] Calculando SAC...`);
-    console.log(`[Imobiliário][${label}] Principal: R$ ${principal.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Taxa Mensal: ${(taxaMensal * 100).toFixed(4)}%`);
-    console.log(`[Imobiliário][${label}] Prazo: ${prazo} meses`);
-
-    const amortizacaoConstante = principal / prazo;
-    let saldoDevedor = principal;
-    let totalPago = 0;
-    let totalJuros = 0;
-    let primeiraParcela = 0;
-    let ultimaParcela = 0;
-
-    for (let i = 1; i <= prazo; i++) {
-        const jurosMes = saldoDevedor * taxaMensal;
-        const parcela = amortizacaoConstante + jurosMes;
-
-        if (i === 1) primeiraParcela = parcela;
-        if (i === prazo) ultimaParcela = parcela;
-
-        totalPago += parcela;
-        totalJuros += jurosMes;
-        saldoDevedor -= amortizacaoConstante;
-    }
-
-    console.log(`[Imobiliário][${label}] Total Pago: R$ ${totalPago.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Total Juros: R$ ${totalJuros.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Primeira Parcela: R$ ${primeiraParcela.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Última Parcela: R$ ${ultimaParcela.toFixed(2)}`);
-
-    return { totalPago, totalJuros, primeiraParcela, ultimaParcela };
-}
-
-// ============================================================================
-// CÁLCULO PRICE COMPLETO COM LOGS
-// ============================================================================
-
-function calcularFluxoPRICE(
-    principal: number,
-    taxaMensal: number, // em DECIMAL
-    prazo: number,
-    label: string
-): FluxoSAC {
-    console.log(`[Imobiliário][${label}] Calculando PRICE...`);
-    console.log(`[Imobiliário][${label}] Principal: R$ ${principal.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Taxa Mensal: ${(taxaMensal * 100).toFixed(4)}%`);
-    console.log(`[Imobiliário][${label}] Prazo: ${prazo} meses`);
-
-    const pmt = calculatePMT(principal, taxaMensal, prazo);
-    const totalPago = pmt * prazo;
-    const totalJuros = totalPago - principal;
-
-    console.log(`[Imobiliário][${label}] PMT (Parcela Fixa): R$ ${pmt.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Total Pago: R$ ${totalPago.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Total Juros: R$ ${totalJuros.toFixed(2)}`);
-
-    return { totalPago, totalJuros, primeiraParcela: pmt, ultimaParcela: pmt };
-}
-
-// ============================================================================
-// CÁLCULO JUROS SIMPLES DETALHADO (MAGIS/GAUSS) - Parcela a Parcela
-// ============================================================================
-
-interface ResultadoJurosSimples extends FluxoSAC {
-    diferencaTotal: number;     // Soma das diferenças (Cobrada - Revisada)
-    parcelaMedia: number;
-}
-
-function calcularJurosSimplesDetalhado(
-    principal: number,
-    taxaMensal: number,           // Taxa de mercado em DECIMAL
-    prazo: number,
-    sistema: 'SAC' | 'PRICE' | 'SACRE',
-    parcelaCobrada: number | null, // Parcela informada pelo banco
-    label: string
-): ResultadoJurosSimples {
-    console.log(`[Imobiliário][${label}] ===== JUROS SIMPLES (MAGIS/GAUSS) =====`);
-    console.log(`[Imobiliário][${label}] Principal: R$ ${principal.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Taxa Mercado Mensal: ${(taxaMensal * 100).toFixed(4)}%`);
-    console.log(`[Imobiliário][${label}] Prazo: ${prazo} meses`);
-    console.log(`[Imobiliário][${label}] Sistema Original: ${sistema}`);
-    console.log(`[Imobiliário][${label}] Parcela Cobrada (input): R$ ${parcelaCobrada?.toFixed(2) || 'N/A'}`);
-
-    // Amortização constante (SAC com Juros Simples)
-    const amortizacao = principal / prazo;
-
-    // Para simulação do original (Banco)
-    const amortizacaoOriginal = principal / prazo; // SAC Original
-    let saldoDevedorOriginal = principal;
-    // Se não tiver taxa contrato explícita aqui, estimamos pelo valor da parcela ou passamos como argumento?
-    // Melhor passar a taxa do contrato para recriar o fluxo original com precisão.
-    // Mas por enquanto vamos estimar a taxa mensal original baseada na primeira parcela se for SAC
-    // J = PMT - A => i = J / P
-    const jurosOriginalEstimado = parcelaCobrada ? parcelaCobrada - amortizacaoOriginal : 0;
-    const taxaMensalOriginalEstimada = parcelaCobrada ? jurosOriginalEstimado / principal : 0;
-
-    let saldoDevedor = principal;
-    let totalJurosRevisado = 0;
-    let totalPagoRevisado = 0;
-    let diferencaAcumulada = 0;
-
-    let primeiraParcela = 0;
-    let ultimaParcela = 0;
-
-    // Simular parcela a parcela
-    for (let mes = 1; mes <= prazo; mes++) {
-        // --- CÁLCULO REVISADO (MAGIS) ---
-        // Juros Simples = Saldo Devedor * Taxa (sem capitalização)
-        const jurosSimples = saldoDevedor * taxaMensal;
-        const parcelaRevisada = amortizacao + jurosSimples;
-
-        // --- CÁLCULO ORIGINAL (BANCO) ---
-        // Projetar a parcela do banco mês a mês (pois SAC decresce)
-        let parcelaBancoMes = 0;
-
-        if (sistema === 'SAC') {
-            // Juros sobre saldo devedor original
-            const jurosOrig = saldoDevedorOriginal * taxaMensalOriginalEstimada;
-            parcelaBancoMes = amortizacaoOriginal + jurosOrig;
-            saldoDevedorOriginal -= amortizacaoOriginal;
-        } else {
-            // PRICE (Parcela fixa - simplificação)
-            parcelaBancoMes = parcelaCobrada || 0;
-        }
-
-        // Diferença mensal (quanto o banco cobrou a mais)
-        const diferencaMensal = parcelaBancoMes - parcelaRevisada;
-
-        // Acumular
-        totalJurosRevisado += jurosSimples;
-        totalPagoRevisado += parcelaRevisada;
-        diferencaAcumulada += Math.max(0, diferencaMensal);
-
-        // Guardar primeira e última parcela
-        if (mes === 1) primeiraParcela = parcelaRevisada;
-        if (mes === prazo) ultimaParcela = parcelaRevisada;
-
-        // Atualizar saldo devedor revisado
-        saldoDevedor -= amortizacao;
-    }
-
-    const parcelaMedia = totalPagoRevisado / prazo;
-
-    console.log(`[Imobiliário][${label}] Primeira Parcela Revisada: R$ ${primeiraParcela.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Última Parcela Revisada: R$ ${ultimaParcela.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Parcela Média Revisada: R$ ${parcelaMedia.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Total Juros (Simples): R$ ${totalJurosRevisado.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Total Pago (Revisado): R$ ${totalPagoRevisado.toFixed(2)}`);
-    console.log(`[Imobiliário][${label}] Diferença Acumulada (Dano): R$ ${diferencaAcumulada.toFixed(2)}`);
-
-    return {
-        totalPago: totalPagoRevisado,
-        totalJuros: totalJurosRevisado,
-        primeiraParcela,
-        ultimaParcela,
-        parcelaMedia,
-        diferencaTotal: diferencaAcumulada
-    };
-}
+// ... (helpers)
 
 // ============================================================================
 // COMPONENTE
@@ -260,6 +54,11 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
     const [segurosExpanded, setSegurosExpanded] = useState(false);
     const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
 
+    // Hook dinâmico para tipos imobiliários
+    const { tiposOperacao, loading: loadingTipos, getSeriePorCodigo } = useTiposOperacao({
+        categoria: 'IMOBILIARIO'
+    });
+
     const form = useForm<ModuloImobiliarioFormData>({
         resolver: zodResolver(moduloImobiliarioSchema),
         defaultValues: {
@@ -268,7 +67,7 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
             taxaAnualContrato: null,
             valorParcela: null,
             dataContrato: '',
-            tipoFinanciamento: 'SFH', // NOVO: Default SFH
+            tipoFinanciamento: 'IMOBILIARIO_SFH', // Default (corresponde à série 20773)
             sistemaAmortizacao: 'SAC',
             indexador: 'TR',
             seguroMIP: null,
@@ -279,7 +78,7 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
 
     const watchDataContrato = form.watch('dataContrato');
     const watchTaxaAnual = form.watch('taxaAnualContrato');
-    const watchTipoFinanciamento = form.watch('tipoFinanciamento'); // NOVO: Observar tipo
+    const watchTipoFinanciamento = form.watch('tipoFinanciamento');
 
     // Calcular taxa mensal automaticamente a partir da anual
     const taxaMensalCalculada = watchTaxaAnual ? taxaAnualParaMensal(watchTaxaAnual) : null;
@@ -290,20 +89,26 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
 
         const buscarTaxa = async () => {
             setLoadingTaxa(true);
-            // Usar série correta baseada no tipo (SFH ou SFI)
-            const modulo = watchTipoFinanciamento === 'SFI' ? 'IMOBILIARIO_SFI' : 'IMOBILIARIO_SFH';
-            console.log(`[Imobiliário] Buscando taxa BACEN (${modulo}) para data:`, watchDataContrato);
+
+            // Usar série dinâmica baseada no hook
+            const serieBacen = getSeriePorCodigo(watchTipoFinanciamento);
+            console.log(`[Imobiliário] Buscando taxa BACEN (${serieBacen}) para data:`, watchDataContrato);
 
             try {
-                const taxa = await fetchMarketRate(modulo, watchDataContrato);
-                if (taxa) {
-                    console.log(`[Imobiliário] Taxa BACEN ${watchTipoFinanciamento} encontrada:`, taxa, '%');
-                    setTaxaMercado(taxa);
-                } else {
-                    const taxaFallback = getEstimatedMarketRate('IMOBILIARIO', watchDataContrato);
-                    console.log('[Imobiliário] Usando taxa fallback:', taxaFallback, '%');
-                    setTaxaMercado(taxaFallback);
+                if (serieBacen) {
+                    const taxa = await fetchMarketRate(serieBacen, watchDataContrato);
+                    if (taxa) {
+                        console.log(`[Imobiliário] Taxa BACEN ${watchTipoFinanciamento} encontrada:`, taxa, '%');
+                        setTaxaMercado(taxa);
+                        setLoadingTaxa(false);
+                        return;
+                    }
                 }
+
+                // Fallback
+                console.warn('[Imobiliário] Série não encontrada ou taxa indisponível. Usando fallback.');
+                const taxaFallback = getEstimatedMarketRate('IMOBILIARIO', watchDataContrato);
+                setTaxaMercado(taxaFallback);
             } catch (error) {
                 console.error('[Imobiliário] Erro ao buscar taxa:', error);
                 const taxaFallback = getEstimatedMarketRate('IMOBILIARIO', watchDataContrato);
@@ -314,7 +119,7 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
         };
 
         buscarTaxa();
-    }, [watchDataContrato, watchTipoFinanciamento]); // ATUALIZADO: Observar tipo também
+    }, [watchDataContrato, watchTipoFinanciamento, tiposOperacao]);
 
     // Handler OCR
     const handleOcrData = (data: any) => {
@@ -749,12 +554,24 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="SFH">SFH (Taxas Reguladas)</SelectItem>
-                                                    <SelectItem value="SFI">SFI (Taxas de Mercado)</SelectItem>
+                                                    {loadingTipos ? (
+                                                        <div className="flex items-center justify-center p-2 text-sm text-slate-500">
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Carregando...
+                                                        </div>
+                                                    ) : (
+                                                        tiposOperacao.map((tipo) => (
+                                                            <SelectItem key={tipo.codigo} value={tipo.codigo}>
+                                                                {tipo.nome}
+                                                            </SelectItem>
+                                                        ))
+                                                    )}
                                                 </SelectContent>
                                             </Select>
                                             <p className="text-xs text-slate-400">
-                                                {field.value === 'SFH' ? 'Série BACEN: 20773' : 'Série BACEN: 25497'}
+                                                {field.value && !loadingTipos
+                                                    ? `Série BACEN: ${getSeriePorCodigo(field.value) || '—'}`
+                                                    : 'Selecione o tipo'}
                                             </p>
                                             <FormMessage />
                                         </FormItem>

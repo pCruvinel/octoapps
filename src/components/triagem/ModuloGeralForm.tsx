@@ -24,19 +24,11 @@ import { toast } from 'sonner';
 // SCHEMA
 // ============================================================================
 
-// Tipos de operação disponíveis (define série temporal Bacen) - Mesmo formato do Cálculo Revisional
-const TIPOS_CONTRATO = [
-    { value: 'EMPRESTIMO_PESSOAL', label: '25464 - Empréstimo Pessoal PF (% a.a.)' },
-    { value: 'CONSIGNADO_PRIVADO', label: '25463 - Consignado Privado (% a.a.)' },
-    { value: 'CONSIGNADO_PUBLICO', label: '25462 - Consignado Público (% a.a.)' },
-    { value: 'CONSIGNADO_INSS', label: '25470 - Consignado INSS (% a.a.)' },
-    { value: 'CAPITAL_GIRO', label: '20739 - Capital de Giro até 365 dias PJ (% a.a.)' },
-    { value: 'FINANCIAMENTO_VEICULO', label: '20749 - Aquisição de Veículos PF (% a.a.)' },
-    { value: 'FINANCIAMENTO_VEICULO_PJ', label: '20728 - Aquisição de Veículos PJ (% a.a.)' },
-    { value: 'CHEQUE_ESPECIAL', label: '20712 - Cheque Especial PF (% a.a.)' },
-] as const;
+import { useTiposOperacao } from '@/hooks/useTiposOperacao';
 
-type TipoContrato = typeof TIPOS_CONTRATO[number]['value'];
+// ============================================================================
+// SCHEMA
+// ============================================================================
 
 const moduloGeralSchema = z.object({
     // Dados básicos
@@ -45,17 +37,8 @@ const moduloGeralSchema = z.object({
     prazoMeses: z.number().min(1, 'Prazo inválido').nullable(),
     taxaAnualContrato: z.number().min(0, 'Taxa anual inválida').nullable(),
 
-    // Tipo de Operação (para API Bacen)
-    tipoContrato: z.enum([
-        'EMPRESTIMO_PESSOAL',
-        'CONSIGNADO_PRIVADO',
-        'CONSIGNADO_PUBLICO',
-        'CONSIGNADO_INSS',
-        'CAPITAL_GIRO',
-        'FINANCIAMENTO_VEICULO',
-        'FINANCIAMENTO_VEICULO_PJ',
-        'CHEQUE_ESPECIAL'
-    ]).default('FINANCIAMENTO_VEICULO'),
+    // Tipo de Operação (agora dinâmico)
+    tipoContrato: z.string({ required_error: 'Selecione o tipo de operação' }).min(1, 'Selecione o tipo de operação'),
 
     // Datas importantes
     dataContrato: z.string().min(1, 'Data do contrato obrigatória'),
@@ -117,6 +100,11 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
     const [tarifasExpanded, setTarifasExpanded] = useState(false);
     const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
 
+    // Hook dinâmico para tipos de operação (Categorias mistas para o formulário geral)
+    const { tiposOperacao, loading: loadingTipos, getSeriePorCodigo } = useTiposOperacao({
+        categoria: ['EMPRESTIMO', 'VEICULO', 'EMPRESARIAL', 'CARTAO']
+    });
+
     const form = useForm<ModuloGeralFormData>({
         resolver: zodResolver(moduloGeralSchema),
         defaultValues: {
@@ -124,7 +112,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             valorPrestacao: null,
             prazoMeses: null,
             taxaAnualContrato: null,
-            tipoContrato: 'FINANCIAMENTO_VEICULO' as const,
+            tipoContrato: 'VEICULOS_PF', // Default (corresponde ao antigo FINANCIAMENTO_VEICULO)
             dataContrato: '',
             dataLiberacao: '',
             dataPrimeiroVencimento: '',
@@ -148,31 +136,38 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
     // Calcular taxa mensal automaticamente a partir da anual
     const taxaMensalCalculada = watchTaxaAnual ? taxaAnualParaMensal(watchTaxaAnual) : null;
 
-    // Mapear tipo de contrato do formulário para módulo da API
-    const getModuloParaBacen = (tipoContrato: string): 'GERAL' | 'VEICULOS' => {
-        if (tipoContrato === 'FINANCIAMENTO_VEICULO' || tipoContrato === 'FINANCIAMENTO_VEICULO_PJ') return 'VEICULOS';
-        return 'GERAL'; // Default para outras modalidades
-    };
-
     // Buscar taxa BACEN quando a data ou modalidade mudar
     useEffect(() => {
         if (!watchDataContrato || watchDataContrato.length < 8) return;
 
         const buscarTaxa = async () => {
             setLoadingTaxa(true);
-            const modulo = getModuloParaBacen(watchTipoContrato);
-            console.log('[ModuloGeral] Buscando taxa BACEN para:', { data: watchDataContrato, tipoContrato: watchTipoContrato, modulo });
+
+            // Busca série dinâmica baseada na seleção
+            const serieBacen = getSeriePorCodigo(watchTipoContrato);
+
+            console.log('[ModuloGeral] Buscando taxa BACEN para:', {
+                data: watchDataContrato,
+                tipoContrato: watchTipoContrato,
+                serieBacen
+            });
 
             try {
-                const taxa = await fetchMarketRate(modulo, watchDataContrato);
-                if (taxa) {
-                    console.log('[ModuloGeral] Taxa BACEN encontrada:', taxa.toFixed(4), '% a.m.');
-                    setTaxaMercado(taxa);
-                } else {
-                    const taxaFallback = getEstimatedMarketRate('GERAL', watchDataContrato);
-                    console.log('[ModuloGeral] Usando taxa fallback:', taxaFallback, '%');
-                    setTaxaMercado(taxaFallback);
+                // Se tivermos a série exata do banco, usamos ela priorizando
+                if (serieBacen) {
+                    const taxa = await fetchMarketRate(serieBacen, watchDataContrato);
+                    if (taxa) {
+                        console.log('[ModuloGeral] Taxa BACEN encontrada (Série ' + serieBacen + '):', taxa.toFixed(4), '% a.m.');
+                        setTaxaMercado(taxa);
+                        setLoadingTaxa(false);
+                        return;
+                    }
                 }
+
+                // Fallback legado se não encontrar
+                console.warn('[ModuloGeral] Série não encontrada ou taxa indisponível. Usando fallback.');
+                const taxaFallback = getEstimatedMarketRate('GERAL', watchDataContrato);
+                setTaxaMercado(taxaFallback);
             } catch (error) {
                 console.error('[ModuloGeral] Erro ao buscar taxa:', error);
                 const taxaFallback = getEstimatedMarketRate('GERAL', watchDataContrato);
@@ -183,7 +178,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
         };
 
         buscarTaxa();
-    }, [watchDataContrato, watchTipoContrato]);
+    }, [watchDataContrato, watchTipoContrato, tiposOperacao]);
 
     // Handler OCR
     const handleOcrData = (data: any) => {
@@ -194,7 +189,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             form.setValue('valorFinanciado', Number(data.valor_financiado), { shouldValidate: true });
             filledFields.add('valorFinanciado');
         }
-        // Ajuste: ocr.types define como 'valor_parcela', mas aqui usamos 'valorPrestacao'
+
         if (data.valor_parcela || data.valor_prestacao) {
             const valor = Number(data.valor_parcela || data.valor_prestacao);
             form.setValue('valorPrestacao', valor, { shouldValidate: true });
@@ -205,21 +200,25 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
             filledFields.add('prazoMeses');
         }
 
-        // Mapeamento de Modalidade
+        // Mapeamento Inteligente de Modalidade para Novos Códigos
         if (data.modalidade) {
             const modalidadeLower = String(data.modalidade).toLowerCase();
-            let tipoDetectado: TipoContrato | null = null;
+            let tipoDetectado: string | null = null;
 
             if (modalidadeLower.includes('veículo') || modalidadeLower.includes('cdc') || modalidadeLower.includes('auto')) {
-                tipoDetectado = 'FINANCIAMENTO_VEICULO';
+                // Tenta detectar PJ se houver indício, senão PF (padrão)
+                tipoDetectado = modalidadeLower.includes('pj') || modalidadeLower.includes('jurídica') ? 'VEICULOS_PJ' : 'VEICULOS_PF';
             } else if (modalidadeLower.includes('consignado')) {
-                tipoDetectado = 'CONSIGNADO_PRIVADO'; // Default seguro
                 if (modalidadeLower.includes('inss')) tipoDetectado = 'CONSIGNADO_INSS';
-                if (modalidadeLower.includes('público') || modalidadeLower.includes('publico')) tipoDetectado = 'CONSIGNADO_PUBLICO';
-            } else if (modalidadeLower.includes('pessoal') || modalidadeLower.includes('pessoal')) {
-                tipoDetectado = 'EMPRESTIMO_PESSOAL';
+                else if (modalidadeLower.includes('público') || modalidadeLower.includes('publico')) tipoDetectado = 'CONSIGNADO_PUBLICO';
+                else tipoDetectado = 'CONSIGNADO_PRIVADO';
+            } else if (modalidadeLower.includes('pessoal')) {
+                tipoDetectado = 'CREDITO_PESSOAL'; // Novo código
             } else if (modalidadeLower.includes('giro')) {
-                tipoDetectado = 'CAPITAL_GIRO';
+                tipoDetectado = 'CAPITAL_GIRO_CURTO'; // Default curto
+            } else if (modalidadeLower.includes('cheque') || modalidadeLower.includes('especial')) {
+                // Falta mapear cheque especial na tabela, usar crédito pessoal como fallback por enquanto ou adicionar depois
+                tipoDetectado = 'CREDITO_PESSOAL';
             }
 
             if (tipoDetectado) {
@@ -638,11 +637,18 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    {TIPOS_CONTRATO.map((tipo) => (
-                                                        <SelectItem key={tipo.value} value={tipo.value}>
-                                                            {tipo.label}
-                                                        </SelectItem>
-                                                    ))}
+                                                    {loadingTipos ? (
+                                                        <div className="flex items-center justify-center p-2 text-sm text-slate-500">
+                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            Carregando...
+                                                        </div>
+                                                    ) : (
+                                                        tiposOperacao.map((tipo) => (
+                                                            <SelectItem key={tipo.codigo} value={tipo.codigo}>
+                                                                {tipo.serie_bacen} - {tipo.nome}
+                                                            </SelectItem>
+                                                        ))
+                                                    )}
                                                 </SelectContent>
                                             </Select>
                                             <p className="text-xs text-slate-500">
