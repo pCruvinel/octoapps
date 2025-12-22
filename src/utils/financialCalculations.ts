@@ -789,46 +789,60 @@ import { supabase } from '@/lib/supabase';
  * Séries BACEN para Imobiliário:
  * - SFH (taxas reguladas): 20773 - Financiamento imobiliário com taxas reguladas
  * - SFI (taxas de mercado): 25497 - Financiamento imobiliário com taxas de mercado
+ * 
+ * @param moduleOrSerieCode - Pode ser um módulo string (legado) ou código numérico da série BACEN
+ * @param date - Data de referência no formato YYYY-MM-DD
  */
 export async function fetchMarketRate(
-    module: 'GERAL' | 'VEICULOS' | 'IMOBILIARIO' | 'IMOBILIARIO_SFH' | 'IMOBILIARIO_SFI' | 'CARTAO',
+    moduleOrSerieCode: 'GERAL' | 'VEICULOS' | 'IMOBILIARIO' | 'IMOBILIARIO_SFH' | 'IMOBILIARIO_SFI' | 'CARTAO' | number,
     date: string
 ): Promise<number | null> {
-    let serieCode = 25471; // Default: Crédito Pessoal Total
+    let serieCode: number;
 
-    // Mapeamento de Séries Bacen (SGS) - TODAS para Pessoas Físicas (PF)
-    // 25471: PF - Crédito Total (Recursos Livres)
-    // 25478: Cartão de Crédito - Rotativo Total
-    // 20742: PF - Crédito Pessoal Não Consignado (CORRETO - ~22% a.a.)
-    // 20749: PF - Aquisição de Veículos (Taxa Média ANUAL % a.a.)
-    // 20773: PF - Financiamento Imobiliário SFH (Taxas Reguladas - até 12% a.a. + TR)
-    // 25497: PF - Financiamento Imobiliário SFI (Taxas de Mercado - livre negociação)
-    // NOTA: 20718 é para PJ (Pessoas Jurídicas), NÃO usar para PF!
-    switch (module) {
-        case 'VEICULOS':
-            serieCode = 20749; // Aquisição de Veículos - PF (% a.a.)
-            break;
-        case 'IMOBILIARIO_SFH':
-            serieCode = 20773; // SFH: Taxas reguladas
-            break;
-        case 'IMOBILIARIO_SFI':
-            serieCode = 25497; // SFI: Taxas de mercado
-            break;
-        case 'IMOBILIARIO':
-            serieCode = 20773; // Default para Imobiliário: SFH (mais conservador)
-            break;
-        case 'CARTAO':
-            serieCode = 20739; // Cartão de Crédito Rotativo Total - Anual
-            break;
-        case 'GERAL':
-        default:
-            serieCode = 20742; // CORRETO: Crédito Pessoal Não Consignado - PF (~22% a.a.)
-            break;
+    // Se for número, usar diretamente como código de série
+    if (typeof moduleOrSerieCode === 'number') {
+        serieCode = moduleOrSerieCode;
+    } else {
+        // Mapeamento legado de módulos para séries BACEN (SGS)
+        // Mapeamento de Séries Bacen (SGS) - TODAS para Pessoas Físicas (PF)
+        // 25471: PF - Crédito Total (Recursos Livres)
+        // 25478: Cartão de Crédito - Rotativo Total
+        // 20742: PF - Crédito Pessoal Não Consignado (CORRETO - ~22% a.a.)
+        // 20749: PF - Aquisição de Veículos (Taxa Média ANUAL % a.a.)
+        // 20773: PF - Financiamento Imobiliário SFH (Taxas Reguladas - até 12% a.a. + TR)
+        // 25497: PF - Financiamento Imobiliário SFI (Taxas de Mercado - livre negociação)
+        // NOTA: 20718 é para PJ (Pessoas Jurídicas), NÃO usar para PF!
+        switch (moduleOrSerieCode) {
+            case 'VEICULOS':
+                serieCode = 20749; // Aquisição de Veículos - PF (% a.a.)
+                break;
+            case 'IMOBILIARIO_SFH':
+                serieCode = 20773; // SFH: Taxas reguladas
+                break;
+            case 'IMOBILIARIO_SFI':
+                serieCode = 25497; // SFI: Taxas de mercado
+                break;
+            case 'IMOBILIARIO':
+                serieCode = 20773; // Default para Imobiliário: SFH (mais conservador)
+                break;
+            case 'CARTAO':
+                serieCode = 20739; // Cartão de Crédito Rotativo Total - Anual
+                break;
+            case 'GERAL':
+            default:
+                serieCode = 20742; // CORRETO: Crédito Pessoal Não Consignado - PF (~22% a.a.)
+                break;
+        }
     }
+
+    // Identificador legível para log (módulo string ou série numérica)
+    const moduleLabel = typeof moduleOrSerieCode === 'number'
+        ? `Série ${moduleOrSerieCode}`
+        : moduleOrSerieCode;
 
 
     try {
-        console.log(`[Financial] Fetching rate for ${module} (series: ${serieCode}) at ${date}`);
+        console.log(`[Financial] Fetching rate for ${moduleLabel} (series: ${serieCode}) at ${date}`);
         const { data, error } = await (supabase as any).functions.invoke('buscar-taxa-bacen', {
             body: {
                 dataReferencia: date,  // Changed from dataContrato
@@ -842,7 +856,7 @@ export async function fetchMarketRate(
             const rpcResult = await fetchFromRPC(date);
             if (rpcResult !== null) return rpcResult;
             // Use static fallback
-            return getStaticFallbackRate(module);
+            return getStaticFallbackRate(moduleLabel);
         }
 
         if (data && data.success && data.taxaMediaMensalPercent) {
@@ -856,10 +870,10 @@ export async function fetchMarketRate(
         }
 
         console.warn('[Financial] BACEN data empty or invalid, using fallback');
-        return getStaticFallbackRate(module);
+        return getStaticFallbackRate(moduleLabel);
     } catch (err) {
         console.warn('[Financial] Error fetching market rate, using fallback:', err);
-        return getStaticFallbackRate(module);
+        return getStaticFallbackRate(moduleLabel);
     }
 }
 

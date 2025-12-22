@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { TriagemRapida } from '@/components/triagem/TriagemRapida';
+import { PreviaContainer } from '@/components/triagem/previa-container';
 
 export const Route = createFileRoute('/_authenticated/triagem')({
   component: TriagemPage,
@@ -9,7 +9,7 @@ function TriagemPage() {
   const navigate = useNavigate();
 
   return (
-    <TriagemRapida
+    <PreviaContainer
       onNavigateToWizard={() => navigate({ to: '/calc/wizard' })}
     />
   );

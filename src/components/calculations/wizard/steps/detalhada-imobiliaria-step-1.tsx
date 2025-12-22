@@ -12,7 +12,7 @@ import { PercentInput } from '@/components/ui/percent-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { toast } from 'sonner';
 import { imobiliarioStep1Schema, type ImobiliarioStep1Data } from '@/schemas/moduloImobiliario.schema';
-import { ContractImportCard } from '../ContractImportCard';
+import { DetalhadaImportCard } from '../detalhada-import-card';
 
 
 interface Step1_ImobiliarioProps {
@@ -34,7 +34,7 @@ const INDEXADORES = [
     { value: 'IGPM', label: 'IGPM' },
 ] as const;
 
-export function Step1_Imobiliario({
+export function DetalhadaImobiliariaStep1({
     defaultValues,
     onDataChange,
     onValidationChange,
@@ -133,7 +133,7 @@ export function Step1_Imobiliario({
 
     return (
         <div className="space-y-6">
-            <ContractImportCard
+            <DetalhadaImportCard
                 category="IMOBILIARIO"
                 onDataExtracted={handleOcrData}
             />

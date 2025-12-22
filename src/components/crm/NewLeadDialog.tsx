@@ -1,15 +1,22 @@
 
 import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { Button } from '../ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
+import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
+import { CurrencyInput } from '@/components/ui/currency-input';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
 interface NewLeadDialogProps {
     open: boolean;
@@ -19,14 +26,17 @@ interface NewLeadDialogProps {
     profiles: any[];
 }
 
-const CATEGORIA_OPTIONS = [
-    { value: 'Revisional', label: 'Revisional (Veículos)' },
-    { value: 'Empréstimo', label: 'Empréstimo' },
-    { value: 'Financiamento Imobiliário', label: 'Financiamento Imobiliário' },
-    { value: 'Cartão de Crédito', label: 'Cartão de Crédito' },
-    { value: 'Consultoria', label: 'Consultoria' },
-    { value: 'Outros', label: 'Outros' },
-];
+const formSchema = z.object({
+    contato_id: z.string().min(1, 'Selecione um contato'),
+    responsavel_id: z.string().min(1, 'Selecione um responsável'),
+    origem: z.string().optional(),
+    etapa_funil_id: z.string().min(1, 'Selecione uma etapa'),
+    tipo_operacao: z.string().min(1, 'Selecione o tipo de operação'),
+    valor_estimado: z.number().optional().default(0),
+    observacoes: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 const ORIGEM_OPTIONS = [
     { value: 'Indicação', label: 'Indicação' },
@@ -43,32 +53,40 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
     const [loading, setLoading] = useState(false);
     const [showNewContactForm, setShowNewContactForm] = useState(false);
 
-    const [formData, setFormData] = useState({
-        titulo: '',
-        contato_id: '',
-        responsavel_id: '',
-        origem: '',
-        etapa_funil_id: '',
-        tipo_acao: '',
-    });
-
-    // New contact form data
+    // New contact form data (kept generic state for simplicity as it's a sub-form)
     const [newContact, setNewContact] = useState({
         nome_completo: '',
         telefone_principal: '',
         email: '',
     });
 
+    const form = useForm<FormValues>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            contato_id: '',
+            responsavel_id: '',
+            origem: '',
+            etapa_funil_id: '',
+            tipo_operacao: '',
+            valor_estimado: 0,
+            observacoes: '',
+        },
+    });
+
     // Set default values when dialog opens
     useEffect(() => {
-        if (open && etapas.length > 0 && !formData.etapa_funil_id) {
-            setFormData(prev => ({
-                ...prev,
-                etapa_funil_id: etapas[0].id, // First stage as default
-                responsavel_id: user?.id || '',
-            }));
+        if (open && etapas.length > 0 && user) {
+            form.reset({
+                contato_id: '',
+                responsavel_id: user.id,
+                origem: '',
+                etapa_funil_id: etapas[0].id,
+                tipo_operacao: '',
+                valor_estimado: 0,
+                observacoes: '',
+            });
         }
-    }, [open, etapas, user]);
+    }, [open, etapas, user, form]);
 
     const handleCreateContact = async () => {
         if (!newContact.nome_completo.trim()) {
@@ -104,32 +122,42 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
         }
     };
 
-    const handleSubmit = async () => {
-        if (!formData.titulo.trim()) {
-            toast.error('Preencha o título da oportunidade');
-            return;
-        }
-
+    const onSubmit = async (values: FormValues) => {
         setLoading(true);
         try {
+            let contactId = values.contato_id;
+
             // If creating new contact, do it first
-            let contactId = formData.contato_id;
             if (showNewContactForm && newContact.nome_completo.trim()) {
                 const newContactId = await handleCreateContact();
                 if (newContactId) {
                     contactId = newContactId;
+                } else {
+                    return; // Error handled inside create
                 }
+            } else if (!contactId && !showNewContactForm) {
+                toast.error('Selecione ou crie um contato');
+                return;
             }
+
+            // Get contact name for title generation
+            const contactName = showNewContactForm
+                ? newContact.nome_completo
+                : contacts.find(c => c.id === contactId)?.nome_completo || 'Sem Nome';
+
+            const currentTitle = `${contactName}`;
 
             const { error } = await supabase
                 .from('oportunidades')
                 .insert([{
-                    titulo: formData.titulo.trim(),
+                    titulo: currentTitle,
                     contato_id: contactId || null,
-                    responsavel_id: formData.responsavel_id || user?.id || null,
-                    origem: formData.origem || null,
-                    tipo_acao: formData.tipo_acao || null,
-                    etapa_funil_id: formData.etapa_funil_id || etapas[0]?.id || null,
+                    responsavel_id: values.responsavel_id || user?.id || null,
+                    origem: values.origem || null,
+                    tipo_acao: values.tipo_operacao || null,
+                    etapa_funil_id: values.etapa_funil_id || etapas[0]?.id || null,
+                    valor_estimado: values.valor_estimado || 0,
+                    observacoes: values.observacoes || null,
                     criado_por: user?.id || null,
                 }]);
 
@@ -138,16 +166,6 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
             toast.success('Oportunidade criada com sucesso!');
             onSuccess();
             onOpenChange(false);
-
-            // Reset form
-            setFormData({
-                titulo: '',
-                contato_id: '',
-                responsavel_id: user?.id || '',
-                origem: '',
-                etapa_funil_id: etapas[0]?.id || '',
-            });
-            setShowNewContactForm(false);
 
         } catch (error: any) {
             console.error('Error creating opportunity:', error);
@@ -159,7 +177,7 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[480px]">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Nova Oportunidade</DialogTitle>
                     <DialogDescription>
@@ -167,135 +185,199 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
-                    {/* Título */}
-                    <div className="space-y-2">
-                        <Label htmlFor="titulo">Título *</Label>
-                        <Input
-                            id="titulo"
-                            value={formData.titulo}
-                            onChange={(e) => setFormData(prev => ({ ...prev, titulo: e.target.value }))}
-                            placeholder="Ex: Revisão de Financiamento - João"
-                        />
-                    </div>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
 
-                    {/* Contato */}
-                    <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                            <Label>Contato</Label>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 text-xs text-blue-600"
-                                onClick={() => setShowNewContactForm(!showNewContactForm)}
-                            >
-                                <Plus className="w-3 h-3 mr-1" />
-                                {showNewContactForm ? 'Selecionar existente' : 'Criar novo'}
-                            </Button>
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Contato (Col-Span-2 for header, then internal structure) */}
+                            <div className="col-span-2 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Label>Contato</Label>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-xs text-blue-600"
+                                        onClick={() => {
+                                            setShowNewContactForm(!showNewContactForm);
+                                            if (!showNewContactForm) form.setValue('contato_id', '');
+                                        }}
+                                    >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        {showNewContactForm ? 'Selecionar existente' : 'Criar novo'}
+                                    </Button>
+                                </div>
+
+                                {showNewContactForm ? (
+                                    <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border">
+                                        <div className="col-span-2">
+                                            <Input
+                                                placeholder="Nome completo"
+                                                value={newContact.nome_completo}
+                                                onChange={(e) => setNewContact(prev => ({ ...prev, nome_completo: e.target.value }))}
+                                                className="bg-white w-full"
+                                            />
+                                        </div>
+                                        <Input
+                                            placeholder="Telefone"
+                                            value={newContact.telefone_principal}
+                                            onChange={(e) => setNewContact(prev => ({ ...prev, telefone_principal: e.target.value }))}
+                                            className="bg-white w-full"
+                                        />
+                                        <Input
+                                            placeholder="E-mail"
+                                            value={newContact.email}
+                                            onChange={(e) => setNewContact(prev => ({ ...prev, email: e.target.value }))}
+                                            className="bg-white w-full"
+                                        />
+                                    </div>
+                                ) : (
+                                    <FormField
+                                        control={form.control}
+                                        name="contato_id"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder="Selecione um contato" />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {contacts.map(c => (
+                                                            <SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+                            </div>
+
+                            {/* Tipo de Operação */}
+                            <div className="col-span-1">
+                                <FormField
+                                    control={form.control}
+                                    name="tipo_operacao"
+                                    render={({ field }) => (
+                                        <TipoOperacaoSelect
+                                            field={field}
+                                            categorias={['EMPRESTIMO', 'VEICULO', 'IMOBILIARIO', 'CARTAO', 'OUTROS']}
+                                            placeholder="Selecione o produto"
+                                            label="Produto / Operação"
+                                        />
+                                    )}
+                                />
+                            </div>
+
+                            {/* Valor Estimado */}
+                            <div className="col-span-1">
+                                <FormField
+                                    control={form.control}
+                                    name="valor_estimado"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Valor Estimado</FormLabel>
+                                            <FormControl>
+                                                <CurrencyInput
+                                                    className="w-full"
+                                                    value={field.value}
+                                                    onChange={(val) => field.onChange(val || 0)}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {/* Responsável */}
+                            <div className="col-span-1">
+                                <FormField
+                                    control={form.control}
+                                    name="responsavel_id"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Responsável</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {profiles.map(p => (
+                                                        <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {/* Origem */}
+                            <div className="col-span-1">
+                                <FormField
+                                    control={form.control}
+                                    name="origem"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Origem</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Como chegou?" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {ORIGEM_OPTIONS.map(opt => (
+                                                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {/* Observações */}
+                            <div className="col-span-2">
+                                <FormField
+                                    control={form.control}
+                                    name="observacoes"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Observações</FormLabel>
+                                            <FormControl>
+                                                <Textarea
+                                                    placeholder="Detalhes adicionais sobre a oportunidade..."
+                                                    className="resize-none h-24 w-full"
+                                                    {...field}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
                         </div>
 
-                        {showNewContactForm ? (
-                            <div className="space-y-2 p-3 bg-slate-50 rounded-lg border">
-                                <Input
-                                    placeholder="Nome completo"
-                                    value={newContact.nome_completo}
-                                    onChange={(e) => setNewContact(prev => ({ ...prev, nome_completo: e.target.value }))}
-                                />
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                        placeholder="Telefone"
-                                        value={newContact.telefone_principal}
-                                        onChange={(e) => setNewContact(prev => ({ ...prev, telefone_principal: e.target.value }))}
-                                    />
-                                    <Input
-                                        placeholder="E-mail"
-                                        value={newContact.email}
-                                        onChange={(e) => setNewContact(prev => ({ ...prev, email: e.target.value }))}
-                                    />
-                                </div>
-                            </div>
-                        ) : (
-                            <Select
-                                value={formData.contato_id}
-                                onValueChange={(value) => setFormData(prev => ({ ...prev, contato_id: value }))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecione um contato" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {contacts.map(c => (
-                                        <SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    </div>
-
-                    {/* Responsável */}
-                    <div className="space-y-2">
-                        <Label>Responsável</Label>
-                        <Select
-                            value={formData.responsavel_id}
-                            onValueChange={(v) => setFormData(prev => ({ ...prev, responsavel_id: v }))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {profiles.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>{p.nome_completo}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Categoria */}
-                    <div className="space-y-2">
-                        <Label>Categoria</Label>
-                        <Select
-                            value={formData.tipo_acao}
-                            onValueChange={(v) => setFormData(prev => ({ ...prev, tipo_acao: v }))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Tipo de serviço" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {CATEGORIA_OPTIONS.map(opt => (
-                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    {/* Origem */}
-                    <div className="space-y-2">
-                        <Label>Origem</Label>
-                        <Select
-                            value={formData.origem}
-                            onValueChange={(v) => setFormData(prev => ({ ...prev, origem: v }))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Como chegou até você?" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {ORIGEM_OPTIONS.map(opt => (
-                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-                        Cancelar
-                    </Button>
-                    <Button onClick={handleSubmit} disabled={loading}>
-                        {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Criar Oportunidade
-                    </Button>
-                </DialogFooter>
+                        <DialogFooter className="mt-6">
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+                                Cancelar
+                            </Button>
+                            <Button type="submit" disabled={loading}>
+                                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                Criar Oportunidade
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
             </DialogContent>
         </Dialog>
     );

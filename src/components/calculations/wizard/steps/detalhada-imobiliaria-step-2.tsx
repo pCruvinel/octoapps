@@ -10,19 +10,19 @@ import { CurrencyInput } from '@/components/ui/currency-input';
 import { PercentInput } from '@/components/ui/percent-input';
 import { imobiliarioStep2Schema, type ImobiliarioStep2Data } from '@/schemas/moduloImobiliario.schema';
 
-interface Step2_ImobiliarioProps {
+interface DetalhadaImobiliariaStep2Props {
     defaultValues?: Partial<ImobiliarioStep2Data>;
     onDataChange?: (data: ImobiliarioStep2Data) => void;
     onValidationChange?: (isValid: boolean) => void;
     contractDate?: string;
 }
 
-export function Step2_Imobiliario({
+export function DetalhadaImobiliariaStep2({
     defaultValues,
     onDataChange,
     onValidationChange,
     contractDate,
-}: Step2_ImobiliarioProps) {
+}: DetalhadaImobiliariaStep2Props) {
     const {
         setValue,
         watch,

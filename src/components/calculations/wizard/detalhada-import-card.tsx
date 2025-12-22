@@ -8,17 +8,17 @@ import { supabase } from '@/lib/supabase';
 import type { OCRCategory } from '@/types/ocr.types';
 import { cn } from '@/lib/utils';
 
-interface ContractImportCardProps {
+interface DetalhadaImportCardProps {
     category: OCRCategory;
     onDataExtracted: (data: any) => void;
     className?: string;
 }
 
-export function ContractImportCard({
+export function DetalhadaImportCard({
     category,
     onDataExtracted,
     className,
-}: ContractImportCardProps) {
+}: DetalhadaImportCardProps) {
     const [isUploading, setIsUploading] = React.useState(false);
     const [isDragging, setIsDragging] = React.useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -58,7 +58,7 @@ export function ContractImportCard({
                 toast.error(result.error || 'Erro ao processar documento');
             }
         } catch (error) {
-            console.error('[ContractImportCard] Erro:', error);
+            console.error('[DetalhadaImportCard] Erro:', error);
             toast.error('Erro ao processar documento');
         } finally {
             setIsUploading(false);

@@ -50,7 +50,7 @@ function mapContractTypeToModalidade(contractType?: string): ModalidadeCredito {
     return map[contractType || ''] || 'EMPRESTIMO_PESSOAL';
 }
 
-export function Step2_Geral({
+export function DetalhadaEmprestimoVeiculoStep2({
     defaultValues,
     onDataChange,
     onValidationChange,

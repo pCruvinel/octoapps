@@ -35,7 +35,7 @@ export interface PaymentRow {
     encargosApurados?: number; // Juros + multa calculados pelo sistema
 }
 
-interface PaymentReconciliationGridProps {
+interface DetalhadaGradeConciliacaoProps {
     data: PaymentRow[];
     onDataChange: (data: PaymentRow[]) => void;
     onRecalculate?: () => void;
@@ -325,12 +325,12 @@ declare module '@tanstack/react-table' {
     }
 }
 
-export function PaymentReconciliationGrid({
+export function DetalhadaGradeConciliacao({
     data,
     onDataChange,
     onRecalculate,
     isLoading = false,
-}: PaymentReconciliationGridProps) {
+}: DetalhadaGradeConciliacaoProps) {
     const [rowSelection, setRowSelection] = React.useState({});
     const lastSelectedId = React.useRef<string | null>(null);
     const isDragging = React.useRef(false);

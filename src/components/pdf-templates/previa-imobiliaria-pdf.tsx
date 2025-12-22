@@ -2,7 +2,7 @@ import React from 'react';
 import { Page, Text, View, Document, Image } from '@react-pdf/renderer';
 import { UserDocumentSettings } from '../pdf-engine/DocumentTypes';
 import { PdfEngine } from '../pdf-engine/PdfEngine';
-import { ResultadoImobiliarioType } from '@/components/triagem/ResultadoImobiliario';
+import { PreviaImobiliariaResultadoType } from '@/components/triagem/previa-imobiliaria-resultado';
 
 // Helpers
 const formatCurrency = (value: number) =>
@@ -13,16 +13,16 @@ const formatPercent = (value: number) =>
     (value || 0).toFixed(2).replace('.', ',') + '%';
 
 interface TriagemImobiliarioTemplateProps {
-    data: ResultadoImobiliarioType;
+    data: PreviaImobiliariaResultadoType;
     settings: UserDocumentSettings;
 }
 
-export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliarioTemplateProps) => {
+export const PreviaImobiliariaPdf = ({ data, settings }: TriagemImobiliarioTemplateProps) => {
     const styles = PdfEngine.createStyles({
         ...PdfEngine.styles,
         card: {
             padding: 15,
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#ffffff',
             borderRadius: 5,
             marginBottom: 15,
             borderWidth: 1,
@@ -57,7 +57,7 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
             color: settings.text_color || '#0f172a',
         },
         tableHeader: {
-            backgroundColor: settings.table_header_bg || '#f1f5f9',
+            backgroundColor: '#f8fafc',
             fontWeight: 'bold',
         },
         watermarkImage: {
@@ -131,40 +131,69 @@ export const TriagemImobiliarioTemplate = ({ data, settings }: TriagemImobiliari
                 <Text style={[PdfEngine.styles.title, { color: settings.primary_color }]}>DOSSIÊ IMOBILIÁRIO</Text>
                 <Text style={PdfEngine.styles.subtitle}>Análise de Viabilidade Financeira</Text>
 
-                {/* Classification Banner */}
+                {/* Classification Banner - Minimalist */}
                 <View style={{
                     padding: 15,
-                    backgroundColor: data.classificacao === 'VIAVEL' ? '#f0fdf4' : data.classificacao === 'ATENCAO' ? '#fffbeb' : '#fef2f2',
-                    borderLeftWidth: 5,
-                    borderLeftColor: data.classificacao === 'VIAVEL' ? '#22c55e' : data.classificacao === 'ATENCAO' ? '#d97706' : '#dc2626',
-                    marginBottom: 20
+                    backgroundColor: '#ffffff',
+                    borderLeftWidth: 4,
+                    borderLeftColor: data.classificacao === 'VIAVEL' ? '#16a34a' : data.classificacao === 'ATENCAO' ? '#d97706' : '#dc2626',
+                    borderWidth: 1,
+                    borderColor: '#f1f5f9',
+                    borderRightWidth: 1,
+                    borderTopWidth: 1,
+                    borderBottomWidth: 1,
+                    marginBottom: 20,
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
                 }}>
                     <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0f172a' }}>
-                        {data.classificacao === 'VIAVEL' ? 'ALTA VIABILIDADE' : data.classificacao === 'ATENCAO' ? 'ANÁLISE RECOMENDADA' : 'BAIXA VIABILIDADE'}
+                        {data.classificacao === 'VIAVEL' ? 'ALTA VIABILIDADE DETECTADA' : data.classificacao === 'ATENCAO' ? 'ANÁLISE RECOMENDADA' : 'BAIXA VIABILIDADE'}
                     </Text>
-                    <Text style={{ fontSize: 10, color: '#475569', marginTop: 5 }}>
-                        {data.isAbusivo ? 'Indícios de abusividade detectados' : 'Dentro dos parâmetros de mercado'}
+                    <Text style={{ fontSize: 10, color: '#64748b', marginTop: 5 }}>
+                        {data.isAbusivo ? 'Indícios claros de abusividade contratual foram identificados na análise preliminar.' : 'Os parâmetros encontrados estão condizentes com a média de mercado para o período.'}
                     </Text>
                 </View>
 
                 {/* Economy and Sobretaxa Highlights */}
                 <View style={{ flexDirection: 'row', gap: 15, marginBottom: 20 }}>
                     {/* Economy */}
-                    <View style={{ flex: 1, padding: 15, backgroundColor: '#f0fdf4', borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#bbf7d0' }}>
-                        <Text style={{ fontSize: 10, color: '#15803d', fontWeight: 'bold', textTransform: 'uppercase' }}>Economia Potencial</Text>
-                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#15803d', marginTop: 5 }}>
+                    <View style={{
+                        flex: 1,
+                        padding: 15,
+                        backgroundColor: '#ffffff',
+                        borderRadius: 5,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: '#e2e8f0',
+                        borderTopWidth: 3,
+                        borderTopColor: '#16a34a'
+                    }}>
+                        <Text style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Economia Estimada</Text>
+                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#16a34a', marginTop: 5 }}>
                             {formatCurrency(data.cenarioJurosSimples.economia)}
                         </Text>
-                        <Text style={{ fontSize: 8, color: '#166534', marginTop: 3 }}>Projeção Juros Simples</Text>
+                        <Text style={{ fontSize: 8, color: '#94a3b8', marginTop: 3 }}>Projeção via Juros Simples</Text>
                     </View>
 
                     {/* Sobretaxa */}
-                    <View style={{ flex: 1, padding: 15, backgroundColor: '#f8fafc', borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
-                        <Text style={{ fontSize: 10, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' }}>Sobretaxa Encontrada</Text>
-                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0f172a', marginTop: 5 }}>
+                    <View style={{
+                        flex: 1,
+                        padding: 15,
+                        backgroundColor: '#ffffff',
+                        borderRadius: 5,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 1,
+                        borderColor: '#e2e8f0',
+                        borderTopWidth: 3,
+                        borderTopColor: '#dc2626'
+                    }}>
+                        <Text style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Sobretaxa Média</Text>
+                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#dc2626', marginTop: 5 }}>
                             +{data.sobretaxaPercent.toFixed(2)}%
                         </Text>
-                        <Text style={{ fontSize: 8, color: '#64748b', marginTop: 3 }}>acima da média de mercado</Text>
+                        <Text style={{ fontSize: 8, color: '#94a3b8', marginTop: 3 }}>acima da média BACEN</Text>
                     </View>
                 </View>
 

@@ -9,7 +9,7 @@ const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 const formatPercent = (value: number) =>
-    (value * 100).toFixed(2).replace('.', ',') + '%';
+    ((value || 0) * 100).toFixed(2).replace('.', ',') + '%';
 
 // For values already in percent format (e.g., 26.97 for 26.97%)
 const formatPercentDirect = (value: number) =>
@@ -20,12 +20,12 @@ interface TriagemTemplateProps {
     settings: UserDocumentSettings;
 }
 
-export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
+export const PreviaEmprestimoVeiculoPdf = ({ data, settings }: TriagemTemplateProps) => {
     const styles = PdfEngine.createStyles({
         ...PdfEngine.styles,
         card: {
             padding: 15,
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#ffffff',
             borderRadius: 5,
             marginBottom: 15,
             borderWidth: 1,
@@ -67,7 +67,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
             color: settings.text_color || '#0f172a',
         },
         tableHeader: {
-            backgroundColor: settings.table_header_bg || '#f1f5f9',
+            backgroundColor: '#f8fafc', // Very light gray for header
         },
         watermarkImage: {
             position: 'absolute',
@@ -148,6 +148,9 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
     const taxaMensal = data.taxaContratoAnual / 12;
     const taxaMercadoMensal = data.taxaMercadoAnual / 12;
 
+    // Classification Colors (for borders/text instead of backgrounds)
+    const classificationColor = data.classificacao === 'VIAVEL' ? '#16a34a' : data.classificacao === 'ATENCAO' ? '#d97706' : '#dc2626';
+
     return (
         <Document>
             <Page size="A4" style={PdfEngine.styles.page}>
@@ -157,48 +160,55 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
                 <Text style={[PdfEngine.styles.title, { color: settings.primary_color }]}>DOSSIÊ DE VIABILIDADE</Text>
                 <Text style={PdfEngine.styles.subtitle}>Análise Prévia de Contrato Revisional</Text>
 
-                {/* Classification Banner */}
+                {/* Classification Banner - MINIMALIST: White bg, colored left border */}
                 <View style={{
                     padding: 15,
-                    backgroundColor: data.classificacao === 'VIAVEL' ? '#f0fdf4' : data.classificacao === 'ATENCAO' ? '#fffbeb' : '#fef2f2',
-                    borderLeftWidth: 5,
-                    borderLeftColor: data.classificacao === 'VIAVEL' ? '#22c55e' : data.classificacao === 'ATENCAO' ? '#d97706' : '#dc2626',
-                    marginBottom: 15
+                    backgroundColor: '#ffffff',
+                    borderLeftWidth: 4,
+                    borderLeftColor: classificationColor,
+                    borderWidth: 1,
+                    borderColor: '#f1f5f9',
+                    borderRightWidth: 1,
+                    borderTopWidth: 1,
+                    borderBottomWidth: 1,
+                    marginBottom: 20,
+                    shadowOpacity: 0.1,
+                    shadowRadius: 2,
                 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
                             <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#0f172a' }}>
                                 {data.classificacao === 'VIAVEL' ? 'ALTA VIABILIDADE' : data.classificacao === 'ATENCAO' ? 'ANÁLISE RECOMENDADA' : 'BAIXA VIABILIDADE'}
                             </Text>
-                            <Text style={{ fontSize: 10, color: '#475569', marginTop: 3 }}>
+                            <Text style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
                                 {data.isAbusivo ? 'Indícios de abusividade detectados' : 'Dentro dos parâmetros de mercado'}
                             </Text>
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ fontSize: 10, color: '#64748b' }}>Score</Text>
-                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0f172a' }}>{data.score}/100</Text>
+                            <Text style={{ fontSize: 9, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 2 }}>Score de Risco</Text>
+                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0f172a' }}>{data.score}/100</Text>
                         </View>
                     </View>
                 </View>
 
                 {/* Economy and Sobretaxa Highlights */}
-                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 15 }}>
+                <View style={{ flexDirection: 'row', gap: 15, marginBottom: 20 }}>
                     {/* Economy */}
-                    <View style={{ flex: 1, padding: 12, backgroundColor: '#f0fdf4', borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#bbf7d0' }}>
-                        <Text style={{ fontSize: 9, color: '#15803d', fontWeight: 'bold', textTransform: 'uppercase' }}>Economia Potencial</Text>
-                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#15803d', marginTop: 4 }}>
+                    <View style={{ flex: 1, padding: 12, backgroundColor: '#ffffff', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                        <Text style={{ fontSize: 8, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Economia Potencial</Text>
+                        <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#15803d', marginTop: 6 }}>
                             {formatCurrency(data.economiaTotal)}
                         </Text>
-                        <Text style={{ fontSize: 8, color: '#166534', marginTop: 2 }}>Projeção Total</Text>
+                        <Text style={{ fontSize: 8, color: '#166534', marginTop: 4 }}>Projeção Total</Text>
                     </View>
 
                     {/* Sobretaxa */}
-                    <View style={{ flex: 1, padding: 12, backgroundColor: '#f8fafc', borderRadius: 5, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' }}>
-                        <Text style={{ fontSize: 9, color: '#475569', fontWeight: 'bold', textTransform: 'uppercase' }}>Sobretaxa Encontrada</Text>
-                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: data.isAbusivo ? '#dc2626' : '#0f172a', marginTop: 4 }}>
+                    <View style={{ flex: 1, padding: 12, backgroundColor: '#ffffff', borderRadius: 4, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                        <Text style={{ fontSize: 8, color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>Sobretaxa Encontrada</Text>
+                        <Text style={{ fontSize: 22, fontWeight: 'bold', color: data.isAbusivo ? '#dc2626' : '#0f172a', marginTop: 6 }}>
                             +{formatPercent(data.sobretaxaPercentual)}
                         </Text>
-                        <Text style={{ fontSize: 8, color: '#64748b', marginTop: 2 }}>acima da média de mercado</Text>
+                        <Text style={{ fontSize: 8, color: '#64748b', marginTop: 4 }}>acima da média de mercado</Text>
                     </View>
                 </View>
 
@@ -220,9 +230,9 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
                         <View style={styles.tableCol3}><Text style={{ ...styles.tableCell, fontWeight: 'bold' }}>{formatCurrency(data.economiaTarifas)}</Text></View>
                         <View style={styles.tableCol3}><Text style={{ ...styles.tableCell, fontSize: 8 }}>Venda casada (se aplicável)</Text></View>
                     </View>
-                    <View style={[styles.tableRow, { backgroundColor: '#f0fdf4' }]}>
+                    <View style={[styles.tableRow, { borderTopWidth: 1, borderTopColor: '#f1f5f9' }]}>
                         <View style={styles.tableCol3}><Text style={{ ...styles.tableCell, fontWeight: 'bold' }}>Total Economia</Text></View>
-                        <View style={styles.tableCol3}><Text style={{ ...styles.tableCell, fontWeight: 'bold', color: '#166534', fontSize: 11 }}>{formatCurrency(data.economiaTotal)}</Text></View>
+                        <View style={styles.tableCol3}><Text style={{ ...styles.tableCell, fontWeight: 'bold', color: '#166534', fontSize: 10 }}>{formatCurrency(data.economiaTotal)}</Text></View>
                         <View style={styles.tableCol3}><Text style={{ ...styles.tableCell, fontSize: 8 }}>Projeção</Text></View>
                     </View>
                 </View>
@@ -270,7 +280,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
                             <Text style={{ fontSize: 10 }}>Nova Prestação (estimada):</Text>
                             <Text style={{ fontSize: 10, fontWeight: 'bold' }}>{formatCurrency(data.prestacaoRevisada)}</Text>
                         </View>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 5 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 5, marginTop: 5 }}>
                             <Text style={{ fontSize: 10, fontWeight: 'bold' }}>Economia Mensal:</Text>
                             <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#166534' }}>{formatCurrency(data.diferencaPrestacao || 0)}</Text>
                         </View>
@@ -279,7 +289,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
 
                 {/* Alert: Capitalização Diária */}
                 {data.capitalizacaoDiariaDetectada && (
-                    <View style={[styles.alertBox, { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fca5a5' }]}>
+                    <View style={[styles.alertBox, { borderWidth: 1, borderColor: '#fca5a5' }]}>
                         <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#991b1b' }}>⚡ CAPITALIZAÇÃO DIÁRIA DETECTADA</Text>
                         <Text style={{ fontSize: 9, color: '#b91c1c', marginTop: 4 }}>{data.evidenciaCapitalizacao}</Text>
                     </View>
@@ -287,7 +297,7 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
 
                 {/* Alert: Carência */}
                 {data.carenciaDetectada && (
-                    <View style={[styles.alertBox, { backgroundColor: '#fffbeb', borderWidth: 1, borderColor: '#fcd34d' }]}>
+                    <View style={[styles.alertBox, { borderWidth: 1, borderColor: '#fcd34d' }]}>
                         <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#92400e' }}>⏱ PERÍODO DE CARÊNCIA IDENTIFICADO</Text>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
                             <Text style={{ fontSize: 9, color: '#a16207' }}>Dias: {data.diasCarencia}</Text>
@@ -296,10 +306,10 @@ export const TriagemTemplate = ({ data, settings }: TriagemTemplateProps) => {
                     </View>
                 )}
 
-                {/* Recomendação */}
-                <View style={[styles.card, { marginTop: 10 }]}>
-                    <Text style={styles.sectionTitle}>Recomendação</Text>
-                    <Text style={{ fontSize: 10, fontStyle: 'italic', color: '#475569', lineHeight: 1.4 }}>
+                {/* Recomendação with lighter style */}
+                <View style={{ marginTop: 10, padding: 15, borderRadius: 5, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                    <Text style={styles.sectionTitle}>Recomendação Técnica</Text>
+                    <Text style={{ fontSize: 10, fontStyle: 'italic', color: '#475569', lineHeight: 1.5 }}>
                         "{data.recomendacao}"
                     </Text>
                 </View>

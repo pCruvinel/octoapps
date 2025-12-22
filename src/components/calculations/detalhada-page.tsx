@@ -7,28 +7,30 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { ArrowLeft, Calculator, Save, Loader2, FileText, Table2, BarChart3, Files, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCalculation } from '@/hooks/useCalculation';
-import { wizardToDetalhadoRequest, detalhadoToResultsDashboard } from '@/lib/calculationAdapters';
+import { wizardToDetalhadoRequest, detalhadoToDetalhadaDashboard } from '@/lib/calculationAdapters';
 import { supabase } from '@/lib/supabase';
 import { contratoRevisionalService } from '@/services/contratoRevisionalService';
 import { pdf } from '@react-pdf/renderer';
 import { saveAs } from 'file-saver';
-import { LaudoRevisionalTemplate } from '@/components/pdf-templates/LaudoRevisionalTemplate';
+import { DetalhadaAnalisePdf } from '@/components/pdf-templates/detalhada-analise-pdf';
 import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 
 // Tab Components
-import { DataEntryTab } from './tabs/DataEntryTab';
-import { PaymentReconciliationGrid, type PaymentRow } from './reconciliation/PaymentReconciliationGrid';
-import { KPICards } from './results/KPICards';
-import { EvolutionChart } from './results/EvolutionChart';
-import { ComparisonSummaryTable } from './results/ComparisonSummaryTable';
-import { AppendicesTabs } from './results/AppendicesTabs';
+import { DetalhadaEntradaDadosTab } from './tabs/detalhada-entrada-dados-tab';
+import { DetalhadaGradeConciliacao, type PaymentRow } from './reconciliation/detalhada-grade-conciliacao';
+import {
+    DetalhadaKPICards,
+    DetalhadaGraficoEvolucao,
+    DetalhadaTabelaComparacao,
+    DetalhadaApendicesTabs
+} from './results';
 
 import type { CalculoDetalhadoResponse } from '@/types/calculation.types';
 
-export type CalculationModuleType = 'GERAL' | 'IMOBILIARIO' | 'CARTAO';
+export type DetalhadaModuleType = 'GERAL' | 'IMOBILIARIO' | 'CARTAO';
 
-export interface CalculationPageData {
-    module: CalculationModuleType;
+export interface DetalhadaPageData {
+    module: DetalhadaModuleType;
     // Unified data from all form sections
     credor: string;
     devedor: string;
@@ -61,11 +63,11 @@ export interface CalculationPageData {
     tarifas: Array<{ nome: string; valor: number }>;
 }
 
-interface CalculationPageProps {
-    module: CalculationModuleType;
+interface DetalhadaPageProps {
+    module: DetalhadaModuleType;
     onBack?: () => void;
     onComplete?: (result: any) => void;
-    initialData?: Partial<CalculationPageData>;
+    initialData?: Partial<DetalhadaPageData>;
     existingContratoId?: string;
     initialStep2?: { conciliacao?: PaymentRow[] } | null;
     initialStep3?: { resultado?: CalculoDetalhadoResponse; dashboard?: any } | null;
@@ -81,7 +83,7 @@ const TAB_CONFIG: { id: TabId; label: string; icon: React.ElementType }[] = [
     { id: 'apendices', label: 'Apêndices', icon: Files },
 ];
 
-export function CalculationPage({
+export function DetalhadaPage({
     module,
     onBack,
     onComplete,
@@ -90,7 +92,7 @@ export function CalculationPage({
     initialStep2,
     initialStep3,
     initialTab = 'dados',
-}: CalculationPageProps) {
+}: DetalhadaPageProps) {
     const { calculateDetalhado, isLoading } = useCalculation();
     const { settings } = useDocumentSettings();
 
@@ -109,7 +111,7 @@ export function CalculationPage({
     });
 
     // Data State
-    const [formData, setFormData] = React.useState<Partial<CalculationPageData>>({
+    const [formData, setFormData] = React.useState<Partial<DetalhadaPageData>>({
         module,
         sistemaAmortizacao: 'PRICE',
         capitalizacao: 'MENSAL',
@@ -152,7 +154,7 @@ export function CalculationPage({
     }, []);
 
     // ========== AUTO-SAVE DEBOUNCED ==========
-    const debouncedAutoSave = React.useCallback(async (data: Partial<CalculationPageData>) => {
+    const debouncedAutoSave = React.useCallback(async (data: Partial<DetalhadaPageData>) => {
         if (!userId || !data.valorFinanciado) return;
 
         // Clear existing timer
@@ -206,7 +208,7 @@ export function CalculationPage({
     }, []);
 
     // Handle form data changes
-    const handleFormChange = React.useCallback((data: Partial<CalculationPageData>) => {
+    const handleFormChange = React.useCallback((data: Partial<DetalhadaPageData>) => {
         setFormData(prev => ({ ...prev, ...data }));
         setIsDadosDirty(true); // Mark as dirty
         debouncedAutoSave(data); // Auto-save
@@ -285,24 +287,31 @@ export function CalculationPage({
 
         try {
             toast.loading('Gerando PDF...', { id: 'pdf-loading' });
+            console.log('Iniciando geração do Parecer Técnico...');
 
-            const blob = await pdf(
-                <LaudoRevisionalTemplate
+            if (!settings) {
+                console.warn('Configurações de documento não carregadas. Usando padrões.');
+            }
+
+            const doc = (
+                <DetalhadaAnalisePdf
                     formData={formData}
                     resultado={calculationResult}
                     dashboard={dashboardData}
-                    settings={settings}
+                    settings={settings || {}}
                 />
-            ).toBlob();
+            );
+            const blob = await pdf(doc).toBlob();
 
-            const nomeArquivo = `Laudo_${formData.devedor || 'Cliente'}_${new Date().getTime()}.pdf`;
+            const nomeArquivo = `Parecer_${formData.devedor || 'Cliente'}_${new Date().getTime()}.pdf`;
+            console.log(`PDF gerado: ${nomeArquivo}, iniciando download.`);
             saveAs(blob, nomeArquivo);
 
             toast.dismiss('pdf-loading');
             toast.success('PDF gerado com sucesso!');
         } catch (error) {
             toast.dismiss('pdf-loading');
-            toast.error('Erro ao gerar PDF');
+            toast.error('Erro ao gerar PDF details');
             console.error('[PDF Export] Erro:', error);
         }
     };
@@ -357,7 +366,7 @@ export function CalculationPage({
             // ============================================
 
             // Convert form data to calculation request
-            const request = formDataToRequest(formData as CalculationPageData);
+            const request = formDataToRequest(formData as DetalhadaPageData);
             const result = await calculateDetalhado(request);
 
             toast.dismiss('calc-loading');
@@ -370,7 +379,7 @@ export function CalculationPage({
             setCalculationResult(result);
 
             // Convert to dashboard data
-            const dashboard = detalhadoToResultsDashboard(result, request);
+            const dashboard = detalhadoToDetalhadaDashboard(result, request);
             setDashboardData(dashboard);
             setConciliacaoData(dashboard.conciliacao);
 
@@ -518,7 +527,7 @@ export function CalculationPage({
 
                     {/* Tab: Dados do Contrato */}
                     <TabsContent value="dados" className="space-y-6">
-                        <DataEntryTab
+                        <DetalhadaEntradaDadosTab
                             module={module}
                             data={formData}
                             onChange={handleFormChange}
@@ -564,7 +573,7 @@ export function CalculationPage({
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent>
-                                        <PaymentReconciliationGrid
+                                        <DetalhadaGradeConciliacao
                                             data={conciliacaoData}
                                             onDataChange={handleConciliacaoChange}
                                             onRecalculate={handleGenerateResults}
@@ -603,12 +612,12 @@ export function CalculationPage({
                     <TabsContent value="resumo" className="space-y-6">
                         {dashboardData ? (
                             <>
-                                <KPICards data={dashboardData.kpis} />
-                                <ComparisonSummaryTable
+                                <DetalhadaKPICards data={dashboardData.kpis} />
+                                <DetalhadaTabelaComparacao
                                     {...dashboardData.totais}
                                     isReconciled={true}
                                 />
-                                <EvolutionChart data={dashboardData.evolucao} />
+                                <DetalhadaGraficoEvolucao data={dashboardData.evolucao} />
                             </>
                         ) : (
                             <div className="text-center py-12 text-slate-500">
@@ -620,7 +629,7 @@ export function CalculationPage({
                     {/* Tab: Apêndices */}
                     <TabsContent value="apendices" className="space-y-6">
                         {calculationResult?.apendices ? (
-                            <AppendicesTabs
+                            <DetalhadaApendicesTabs
                                 ap01={calculationResult.apendices.ap01?.tabela}
                                 ap02={calculationResult.apendices.ap02?.tabela}
                                 ap03={calculationResult.apendices.ap03?.tabela}
@@ -643,7 +652,7 @@ export function CalculationPage({
 }
 
 // Helper function to convert form data to calculation request
-function formDataToRequest(data: CalculationPageData) {
+function formDataToRequest(data: DetalhadaPageData) {
     return {
         // Identificação
         modalidade: mapTipoContratoToModalidade(data.tipoContrato),

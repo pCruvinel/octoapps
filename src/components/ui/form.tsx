@@ -43,7 +43,18 @@ const FormField = <
 const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext)
   const itemContext = React.useContext(FormItemContext)
-  const { getFieldState } = useFormContext()
+  const formContext = useFormContext()
+
+  // Guard: Check if we're inside a Form provider
+  if (!formContext) {
+    throw new Error(
+      "useFormField must be used within a <Form> provider. " +
+      "Ensure that FormItem, FormLabel, FormControl, and FormMessage components " +
+      "are wrapped in a <Form> component from react-hook-form."
+    )
+  }
+
+  const { getFieldState } = formContext
   const formState = useFormState({ name: fieldContext.name })
   const fieldState = getFieldState(fieldContext.name, formState)
 

@@ -4,12 +4,12 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText, Car, Home, CreditCard, Clock, Loader2 } from 'lucide-react';
-import { ModuloGeralForm } from './ModuloGeralForm';
-import { ModuloImobiliarioForm } from './ModuloImobiliarioForm';
-import { ResultadoViabilidade } from './ResultadoViabilidade';
-import { ResultadoImobiliario } from './ResultadoImobiliario';
+import { PreviaEmprestimoVeiculoForm } from './previa-emprestimo-veiculo-form';
+import { PreviaImobiliariaForm } from './previa-imobiliaria-form';
+import { PreviaEmprestimoVeiculoResultado } from './previa-emprestimo-veiculo-resultado';
+import { PreviaImobiliariaResultado } from './previa-imobiliaria-resultado';
 import type { ResultadoTriagem } from '@/schemas/triagemRapida.schema';
-import type { ResultadoImobiliarioType } from './ResultadoImobiliario';
+import type { PreviaImobiliariaResultadoType } from './previa-imobiliaria-resultado';
 import type { TriagemFormData } from '@/schemas/triagemRapida.schema';
 import { contratoRevisionalService } from '@/services/contratoRevisionalService';
 import { createStep1Payload, type TriagemGeralFormData, type TriagemImobiliarioFormData } from '@/adapters/triagemToWizard.adapter';
@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 
 export type ModuloAtivo = 'GERAL' | 'IMOBILIARIO' | 'CARTAO';
 
-export interface TriagemRapidaProps {
+export interface PreviaContainerProps {
     onNavigateToWizard?: (prefillData: TriagemFormData) => void;
 }
 
@@ -30,7 +30,7 @@ export interface TriagemRapidaProps {
 // COMPONENTE PRINCIPAL
 // ============================================================================
 
-export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
+export function PreviaContainer({ onNavigateToWizard }: PreviaContainerProps) {
     const { user } = useAuth();
     const [moduloAtivo, setModuloAtivo] = useState<ModuloAtivo>('GERAL');
     const [step, setStep] = useState<'input' | 'result'>('input');
@@ -42,7 +42,7 @@ export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
     const [formDataGeral, setFormDataGeral] = useState<TriagemGeralFormData | null>(null);
 
     // Estado para resultado do módulo Imobiliário
-    const [resultadoImobiliario, setResultadoImobiliario] = useState<ResultadoImobiliarioType | null>(null);
+    const [resultadoImobiliario, setResultadoImobiliario] = useState<PreviaImobiliariaResultadoType | null>(null);
     // Estado para dados do formulário Imobiliário (para persistir)
     const [formDataImobiliario, setFormDataImobiliario] = useState<TriagemImobiliarioFormData | null>(null);
 
@@ -55,7 +55,7 @@ export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
     };
 
     // Handler para quando o cálculo do Imobiliário for concluído
-    const handleResultadoImobiliario = (resultado: ResultadoImobiliarioType, formData?: TriagemImobiliarioFormData) => {
+    const handleResultadoImobiliario = (resultado: PreviaImobiliariaResultadoType, formData?: TriagemImobiliarioFormData) => {
         console.log('[TriagemRapida] Resultado Imobiliário recebido:', resultado);
         setResultadoImobiliario(resultado);
         if (formData) setFormDataImobiliario(formData);
@@ -156,7 +156,7 @@ export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
         if (moduloAtivo === 'GERAL' && resultadoGeral) {
             return (
                 <div className="max-w-4xl mx-auto">
-                    <ResultadoViabilidade
+                    <PreviaEmprestimoVeiculoResultado
                         resultado={resultadoGeral}
                         onIniciarCompleto={handleIniciarCompleto}
                         onNovoCalculo={handleNovoCalculo}
@@ -168,7 +168,7 @@ export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
         if (moduloAtivo === 'IMOBILIARIO' && resultadoImobiliario) {
             return (
                 <div className="max-w-4xl mx-auto">
-                    <ResultadoImobiliario
+                    <PreviaImobiliariaResultado
                         resultado={resultadoImobiliario}
                         onIniciarCompleto={handleIniciarCompleto}
                         onNovoCalculo={handleNovoCalculo}
@@ -217,12 +217,12 @@ export function TriagemRapida({ onNavigateToWizard }: TriagemRapidaProps) {
 
                 {/* Tab: Módulo Geral */}
                 <TabsContent value="GERAL" className="mt-0">
-                    <ModuloGeralForm onResultado={handleResultadoGeral} />
+                    <PreviaEmprestimoVeiculoForm onResultado={handleResultadoGeral} />
                 </TabsContent>
 
                 {/* Tab: Módulo Imobiliário */}
                 <TabsContent value="IMOBILIARIO" className="mt-0">
-                    <ModuloImobiliarioForm onResultado={handleResultadoImobiliario} />
+                    <PreviaImobiliariaForm onResultado={handleResultadoImobiliario} />
                 </TabsContent>
 
                 {/* Tab: Módulo Cartão (Em breve) */}

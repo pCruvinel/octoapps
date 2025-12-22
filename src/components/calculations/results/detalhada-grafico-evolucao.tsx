@@ -23,7 +23,7 @@ export interface EvolutionDataPoint {
     diferenca: number;
 }
 
-interface EvolutionChartProps {
+interface DetalhadaGraficoEvolucaoProps {
     data: EvolutionDataPoint[];
     className?: string;
 }
@@ -80,7 +80,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
-export function EvolutionChart({ data, className }: EvolutionChartProps) {
+export function DetalhadaGraficoEvolucao({ data, className }: DetalhadaGraficoEvolucaoProps) {
     const totalIndebito = data.length > 0
         ? data.reduce((sum, d) => sum + d.diferenca, 0) / data.length // Média para visualização
         : 0;

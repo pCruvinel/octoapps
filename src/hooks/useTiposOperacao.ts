@@ -37,6 +37,9 @@ export function useTiposOperacao(options: UseTiposOperacaoOptions = {}) {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
+    // Serializa categoria para dependência estável (evita re-renders por referência de array)
+    const categoriaKey = JSON.stringify(categoria);
+
     useEffect(() => {
         const fetchTipos = async () => {
             setLoading(true);
@@ -71,7 +74,7 @@ export function useTiposOperacao(options: UseTiposOperacaoOptions = {}) {
         };
 
         fetchTipos();
-    }, [categoria, apenasAtivos]);
+    }, [categoriaKey, apenasAtivos]);
 
     /**
      * Busca a série BACEN para um código de operação específico.

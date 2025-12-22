@@ -3,15 +3,15 @@
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, FileDown, Printer, Share2 } from 'lucide-react';
-import { KPICards, type KPIData } from './KPICards';
-import { EvolutionChart, type EvolutionDataPoint } from './EvolutionChart';
-import { ComparisonSummaryTable } from './ComparisonSummaryTable';
-import { AppendicesTabs } from './AppendicesTabs';
-import { PaymentReconciliationGrid, type PaymentRow } from '../reconciliation/PaymentReconciliationGrid';
+import { DetalhadaKPICards, type DetalhadaKPICardsProps, type KPIData } from './detalhada-kpi-cards';
+import { DetalhadaGraficoEvolucao, type EvolutionDataPoint } from './detalhada-grafico-evolucao';
+import { DetalhadaTabelaComparacao } from './detalhada-tabela-comparacao';
+import { DetalhadaApendicesTabs } from './detalhada-apendices-tabs';
+import { DetalhadaGradeConciliacao, type PaymentRow } from '../reconciliation/detalhada-grade-conciliacao';
 import { toast } from 'sonner';
-import { HelpExplainerModal } from '@/components/shared/HelpExplainerModal';
+import { ModalAjudaCalculo } from '@/components/shared/ModalAjudaCalculo';
 
-export interface ResultsDashboardData {
+export interface DetalhadaDashboardData {
     kpis: KPIData;
     evolucao: EvolutionDataPoint[];
     conciliacao: PaymentRow[];
@@ -39,8 +39,8 @@ export interface ResultsDashboardData {
     };
 }
 
-interface ResultsDashboardProps {
-    data: ResultsDashboardData;
+interface DetalhadaDashboardProps {
+    data: DetalhadaDashboardData;
     onBack?: () => void;
     onExportPDF?: () => void;
     onReconciliationChange?: (data: PaymentRow[]) => void;
@@ -48,14 +48,14 @@ interface ResultsDashboardProps {
     isLoading?: boolean;
 }
 
-export function ResultsDashboard({
+export function DetalhadaDashboard({
     data,
     onBack,
     onExportPDF,
     onReconciliationChange,
     onRecalculate,
     isLoading = false,
-}: ResultsDashboardProps) {
+}: DetalhadaDashboardProps) {
     const [activeTab, setActiveTab] = React.useState('resumo');
     const [conciliacaoData, setConciliacaoData] = React.useState(data.conciliacao);
 
@@ -108,7 +108,7 @@ export function ResultsDashboard({
     // Conteúdo do Resumo (Dashboard)
     const resumoContent = (
         <div className="space-y-6">
-            <KPICards data={{
+            <DetalhadaKPICards data={{
                 ...data.kpis,
                 economiaTotal: dynamicEconomiaTotal, // Atualiza KPI card principal também? Sim, para consistência.
                 // Mas KPICards recebe data.kpis direto. Podemos fazer override ou deixar KPICards estático e só mudar a tabela.
@@ -116,8 +116,8 @@ export function ResultsDashboard({
                 // Então mudar o KPI Card também é bom.
                 // Vou passar o objeto atualizado.
             }} />
-            <EvolutionChart data={data.evolucao} />
-            <ComparisonSummaryTable
+            <DetalhadaGraficoEvolucao data={data.evolucao} />
+            <DetalhadaTabelaComparacao
                 totalPagoBanco={dynamicTotalPagoBanco}
                 totalJurosBanco={dynamicTotalJurosBanco}
                 parcelaBanco={hasReconciliation ? (rowsToConsider.length > 0 ? dynamicTotalPagoBanco / rowsToConsider.length : 0) : data.kpis.parcelaOriginalValor}
@@ -141,7 +141,7 @@ export function ResultsDashboard({
 
     // Conteúdo da Conciliação
     const conciliacaoContent = (
-        <PaymentReconciliationGrid
+        <DetalhadaGradeConciliacao
             data={conciliacaoData}
             onDataChange={handleConciliacaoChange}
             onRecalculate={onRecalculate}
@@ -166,7 +166,7 @@ export function ResultsDashboard({
                                     <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
                                         Resultado do Cálculo
                                     </h1>
-                                    <HelpExplainerModal moduleType="CALCULO_REVISIONAL_GERAL" />
+                                    <ModalAjudaCalculo moduleType="CALCULO_REVISIONAL_GERAL" />
                                 </div>
                                 <p className="text-sm text-slate-500">
                                     {data.cliente.nome} • Contrato: {data.cliente.contrato}

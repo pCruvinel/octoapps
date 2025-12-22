@@ -8,19 +8,19 @@ import { ocrService } from '@/services/ocr.service';
 import { supabase } from '@/lib/supabase';
 import type { OCRCategory } from '@/types/ocr.types';
 
-interface ContractUploadButtonProps {
+interface DetalhadaUploadButtonProps {
     category: OCRCategory;
     onDataExtracted: (data: any) => void;
     variant?: 'default' | 'outline' | 'ghost';
     className?: string;
 }
 
-export function ContractUploadButton({
+export function DetalhadaUploadButton({
     category,
     onDataExtracted,
     variant = 'default',
     className = '',
-}: ContractUploadButtonProps) {
+}: DetalhadaUploadButtonProps) {
     const [isUploading, setIsUploading] = React.useState(false);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -62,7 +62,7 @@ export function ContractUploadButton({
                 toast.error(result.error || 'Erro ao processar documento');
             }
         } catch (error) {
-            console.error('[ContractUploadButton] Erro:', error);
+            console.error('[DetalhadaUploadButton] Erro:', error);
             toast.error('Erro ao processar documento');
         } finally {
             setIsUploading(false);

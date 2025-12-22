@@ -9,20 +9,20 @@ import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cartaoStep1Schema, type CartaoStep1Data } from '@/schemas/moduloCartao.schema';
-import { ContractImportCard } from '../ContractImportCard';
+import { DetalhadaImportCard } from '../detalhada-import-card';
 
 
-interface Step1_CartaoProps {
+interface DetalhadaCartaoStep1Props {
     defaultValues?: Partial<CartaoStep1Data>;
     onDataChange?: (data: CartaoStep1Data) => void;
     onValidationChange?: (isValid: boolean) => void;
 }
 
-export function Step1_Cartao({
+export function DetalhadaCartaoStep1({
     defaultValues,
     onDataChange,
     onValidationChange,
-}: Step1_CartaoProps) {
+}: DetalhadaCartaoStep1Props) {
     const [ocrFilledFields, setOcrFilledFields] = React.useState<Set<string>>(new Set());
 
     const {
@@ -83,7 +83,7 @@ export function Step1_Cartao({
 
     return (
         <div className="space-y-6">
-            <ContractImportCard
+            <DetalhadaImportCard
                 category="CARTAO_CREDITO"
                 onDataExtracted={handleOcrData}
             />

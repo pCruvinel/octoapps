@@ -1,4 +1,4 @@
-import { TriagemRapida } from '@/components/triagem/TriagemRapida';
+import { PreviaContainer } from '@/components/triagem/previa-container';
 import type { TriagemFormData } from '@/schemas/triagemRapida.schema';
 
 export default function TriagemPage() {
@@ -18,7 +18,7 @@ export default function TriagemPage() {
 
     return (
         <div className="container mx-auto py-4 px-4 max-w-4xl">
-            <TriagemRapida onNavigateToWizard={handleNavigateToWizard} />
+            <PreviaContainer onNavigateToWizard={handleNavigateToWizard} />
         </div>
     );
 }

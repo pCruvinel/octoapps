@@ -18,31 +18,22 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         ref
     ) => {
         const [displayValue, setDisplayValue] = React.useState('');
-        const [isFocused, setIsFocused] = React.useState(false);
 
-        const formatCurrency = (num: number): string => {
+        // Helper to format a number as currency string
+        const formatCurrency = React.useCallback((val: number) => {
             return new Intl.NumberFormat(locale, {
                 style: 'currency',
                 currency: currency,
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
-            }).format(num);
-        };
+            }).format(val);
+        }, [currency, locale]);
 
-        const parseCurrency = (str: string): number | undefined => {
-            const cleanedValue = str.replace(/[^\d,.-]/g, '').replace(',', '.');
-            const parsed = parseFloat(cleanedValue);
-            return isNaN(parsed) ? undefined : parsed;
-        };
-
-        // Only update displayValue when not focused (to avoid overriding user input)
+        // Effect to sync external value changes to internal display state
         React.useEffect(() => {
-            if (isFocused) return; // Don't update while user is editing
-
             if (value !== undefined && value !== null) {
                 const numValue = typeof value === 'string' ? parseFloat(value) : value;
                 if (!isNaN(numValue)) {
-                    // Always format the value, including zero
                     setDisplayValue(formatCurrency(numValue));
                 } else {
                     setDisplayValue('');
@@ -50,38 +41,31 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
             } else {
                 setDisplayValue('');
             }
-        }, [value, isFocused]);
+        }, [value, formatCurrency]);
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            const inputValue = e.target.value;
-            setDisplayValue(inputValue);
-        };
+            // 1. Get only numbers from input
+            let numericValue = e.target.value.replace(/\D/g, '');
 
-        const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-            setIsFocused(false);
-            const parsed = parseCurrency(displayValue);
-            if (parsed !== undefined) {
-                setDisplayValue(formatCurrency(parsed));
-                onChange?.(parsed);
-            } else if (displayValue === '') {
+            // 2. Handle backspace on empty or small numbers
+            if (numericValue.length === 0) {
+                setDisplayValue('');
                 onChange?.(undefined);
+                return;
             }
-            props.onBlur?.(e);
+
+            // 3. Convert to float (treat as cents)
+            const floatValue = parseInt(numericValue, 10) / 100;
+
+            // 4. Update display and parent
+            setDisplayValue(formatCurrency(floatValue));
+            onChange?.(floatValue);
         };
 
         const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-            setIsFocused(true);
-            if (value !== undefined && value !== null) {
-                const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                if (!isNaN(numValue) && numValue !== 0) {
-                    // Show numeric value for editing (use comma as decimal separator)
-                    setDisplayValue(numValue.toFixed(2).replace('.', ','));
-                } else {
-                    // If value is 0 or invalid, show empty for better UX
-                    setDisplayValue('');
-                }
-            } else {
-                setDisplayValue('');
+            if (!displayValue) {
+                // Optional: set to 0,00 on focus if empty? 
+                // Currently leaving empty to match placeholder behavior
             }
             props.onFocus?.(e);
         };
@@ -89,12 +73,12 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         return (
             <Input
                 ref={ref}
-                className={cn('text-right', className)}
+                className={cn('text-right font-mono', className)} // font-mono helps alignment
                 value={displayValue}
                 onChange={handleChange}
-                onBlur={handleBlur}
                 onFocus={handleFocus}
-                inputMode="decimal"
+                inputMode="numeric"
+                placeholder={props.placeholder || formatCurrency(0)}
                 {...props}
             />
         );

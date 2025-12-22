@@ -11,7 +11,7 @@ import { RelatorioCompletoResponse } from '@/types/calculation.types';
 import { formatarMoeda } from '@/services/calculationEngine';
 
 // Tipo flexível para suportar dados adicionais de outros tipos de cálculo
-interface RelatorioCompletoProps {
+interface DetalhadaRelatorioCompletoProps {
   calcId: string | null;
   onNavigate: (route: string, id?: string, data?: any) => void;
   data?: RelatorioCompletoResponse & {
@@ -25,10 +25,10 @@ interface RelatorioCompletoProps {
 
 import { pdf } from '@react-pdf/renderer';
 import { saveAs } from 'file-saver';
-import { FinancialReportTemplate } from '@/components/pdf-templates/FinancialReportTemplate';
+import { DetalhadaRelatorioFinanceiroPdf } from '@/components/pdf-templates/detalhada-relatorio-financeiro-pdf';
 import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 
-export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioCompletoProps) {
+export function DetalhadaRelatorioCompleto({ calcId, onNavigate, data }: DetalhadaRelatorioCompletoProps) {
   const { settings } = useDocumentSettings();
 
   const handleExport = async () => {
@@ -39,23 +39,31 @@ export function RelatorioCompleto({ calcId, onNavigate, data }: RelatorioComplet
       }
 
       toast.loading("Gerando PDF...");
+      console.log('Iniciando exportação de relatório detalhado...');
+
+      if (!settings) {
+        console.warn('Configurações de documento não carregadas. Usando padrões.');
+      }
 
       // Ensure data structure is compatible or fallback if needed
       const exportData = relatorioToLaudoData(data);
 
-      const blob = await pdf(
-        <FinancialReportTemplate data={exportData} settings={settings} />
-      ).toBlob();
+      const doc = <DetalhadaRelatorioFinanceiroPdf data={exportData} settings={settings || {}} />;
+      const asPdf = pdf(doc);
+      const blob = await asPdf.toBlob();
 
       const timestamp = new Date().getTime();
-      saveAs(blob, `Relatorio_OctoApps_${data.contratoNum || 'Calculo'}_${timestamp}.pdf`);
+      const filename = `Relatorio_OctoApps_${data.contratoNum || 'Calculo'}_${timestamp}.pdf`;
+
+      console.log(`PDF gerado: ${filename}, iniciando download.`);
+      saveAs(blob, filename);
 
       toast.dismiss();
       toast.success("Relatório exportado em PDF com sucesso!");
     } catch (error) {
-      console.error("Erro na exportação:", error);
+      console.error("Erro detalhado na exportação:", error);
       toast.dismiss();
-      toast.error("Erro ao gerar o PDF. Tente novamente.");
+      toast.error("Erro ao gerar o PDF. Consulte o console para detalhes.");
     }
   };
 

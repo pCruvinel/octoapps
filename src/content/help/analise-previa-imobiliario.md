@@ -28,7 +28,32 @@ Nos contratos habitacionais, os seguros são obrigatórios, mas a "Venda Casada"
 
 ---
 
-## 3. Economia Projetada
+## 3. Pontuação (Score) de Viabilidade
+
+O **Score** é uma nota de 0 a 100 que resume a viabilidade da ação revisional. Ele é calculado com base em múltiplos fatores:
+
+| Fator                     | Peso   | Descrição                                                                 |
+|---------------------------|--------|---------------------------------------------------------------------------|
+| Sobretaxa                 | 40%    | Quanto maior a sobretaxa sobre a taxa de mercado, maior a pontuação.      |
+| Economia Estimada         | 30%    | Economia total projetada em relação ao valor financiado.                  |
+| Tarifas Abusivas          | 20%    | Presença de tarifas de venda casada (seguro, avaliação, etc.).            |
+| Indexador Prejudicial     | 10%    | Uso de IPCA/IGPM em vez de TR pode indicar maior risco ao consumidor.     |
+
+**Fórmula Simplificada:**
+$$
+\text{Score} = (0.4 \times P_{\text{sobretaxa}}) + (0.3 \times P_{\text{economia}}) + (0.2 \times P_{\text{tarifas}}) + (0.1 \times P_{\text{indexador}})
+$$
+
+Onde cada $P$ é uma pontuação parcial normalizada de 0 a 100.
+
+**Interpretação:**
+- **80-100**: Viabilidade Alta (Ação fortemente recomendada).
+- **50-79**: Atenção (Avaliar caso a caso).
+- **0-49**: Viabilidade Baixa (Pode não compensar os custos).
+
+---
+
+## 4. Economia Projetada
 
 A economia nesta análise vem de três frentes:
 

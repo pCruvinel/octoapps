@@ -1,4 +1,26 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DatePicker } from '@/components/ui/date-picker';
+import { CurrencyInput } from '@/components/ui/currency-input';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Calculator, Loader2, ChevronDown, Home, Info, Shield } from 'lucide-react';
+import { DetalhadaUploadButton } from '@/components/calculations/wizard/detalhada-upload-button';
+import { fetchMarketRate, getEstimatedMarketRate, calculateEconomia, calculatePMT } from '@/utils/financialCalculations';
+import type { PreviaImobiliariaResultadoType as PreviaImobiliariaResultadoTypeALIAS } from '@/schemas/triagemRapida.schema'; // Note: This might be from schema or componente, verifying grep showed schema? No, wait. Grep showed import type { ResultadoImobiliario as ... } from '@/schemas/triagemRapida.schema'.. WAIT.
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+
 import { useTiposOperacao } from '@/hooks/useTiposOperacao';
+import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
 
 // ============================================================================
 // SCHEMA
@@ -37,7 +59,18 @@ function taxaAnualParaMensal(taxaAnual: number): number {
     return taxaMensalDecimal * 100;
 }
 
-// ... (helpers)
+// ============================================================================
+// HELPER: Estilo para campos preenchidos por OCR
+// ============================================================================
+
+function getOcrFieldClass(fieldName: string, ocrFilledFields: Set<string>): string {
+    return cn(
+        'transition-all duration-200',
+        ocrFilledFields.has(fieldName) && 'ring-2 ring-green-300 ring-offset-1'
+    );
+}
+
+// ...
 
 // ============================================================================
 // COMPONENTE
@@ -47,7 +80,7 @@ interface ModuloImobiliarioFormProps {
     onResultado: (resultado: ResultadoImobiliarioType, formData?: ModuloImobiliarioFormData) => void;
 }
 
-export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProps) {
+export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProps) {
     const [calculating, setCalculating] = useState(false);
     const [taxaMercado, setTaxaMercado] = useState<number | null>(null);
     const [loadingTaxa, setLoadingTaxa] = useState(false);
@@ -381,7 +414,7 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
                         <p className="text-xs text-slate-500 mb-3">
                             Arraste o CCB/Contrato para preencher automaticamente
                         </p>
-                        <ContractUploadButton
+                        <DetalhadaUploadButton
                             category="IMOBILIARIO"
                             onDataExtracted={handleOcrData}
                             variant="outline"
@@ -545,36 +578,11 @@ export function ModuloImobiliarioForm({ onResultado }: ModuloImobiliarioFormProp
                                     control={form.control}
                                     name="tipoFinanciamento"
                                     render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Tipo de Financiamento *</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger>
-                                                        <SelectValue placeholder="Selecione..." />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {loadingTipos ? (
-                                                        <div className="flex items-center justify-center p-2 text-sm text-slate-500">
-                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                            Carregando...
-                                                        </div>
-                                                    ) : (
-                                                        tiposOperacao.map((tipo) => (
-                                                            <SelectItem key={tipo.codigo} value={tipo.codigo}>
-                                                                {tipo.nome}
-                                                            </SelectItem>
-                                                        ))
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-xs text-slate-400">
-                                                {field.value && !loadingTipos
-                                                    ? `Série BACEN: ${getSeriePorCodigo(field.value) || '—'}`
-                                                    : 'Selecione o tipo'}
-                                            </p>
-                                            <FormMessage />
-                                        </FormItem>
+                                        <TipoOperacaoSelect
+                                            categorias="IMOBILIARIO"
+                                            field={field}
+                                            showSerieInHelper={true}
+                                        />
                                     )}
                                 />
 

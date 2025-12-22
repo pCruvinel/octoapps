@@ -20,12 +20,12 @@ const formatDate = (dateStr: string) => {
     }
 };
 
-interface FinancialReportTemplateProps {
+interface DetalhadaRelatorioFinanceiroPdfProps {
     data: LaudoExportData;
     settings: UserDocumentSettings;
 }
 
-export const FinancialReportTemplate = ({ data, settings }: FinancialReportTemplateProps) => {
+export const DetalhadaRelatorioFinanceiroPdf = ({ data, settings }: DetalhadaRelatorioFinanceiroPdfProps) => {
     const styles = PdfEngine.createStyles({
         ...PdfEngine.styles,
         brandColor: {
@@ -159,7 +159,7 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
                     <Text style={[styles.coverTitle, styles.brandColor]}>PARECER TÉCNICO PERICIAL</Text>
                     <Text style={styles.coverSubtitle}>Revisional de Contrato Bancário</Text>
 
-                    <View style={{ marginTop: 40, padding: 20, backgroundColor: '#f8fafc', borderRadius: 5 }}>
+                    <View style={{ marginTop: 40, padding: 20, backgroundColor: '#ffffff', borderRadius: 5, borderWidth: 1, borderColor: '#e2e8f0' }}>
                         <Text style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 5 }}>PARTES:</Text>
                         <Text style={{ fontSize: 10, marginBottom: 5 }}>Autor: {data.devedor}</Text>
                         <Text style={{ fontSize: 10, marginBottom: 20 }}>Réu: {data.credor}</Text>
@@ -168,11 +168,25 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
                         <Text style={{ fontSize: 10 }}>Contrato nº: {data.contratoNum || 'Não informado'}</Text>
                     </View>
 
-                    <View style={{ marginTop: 40, padding: 20, backgroundColor: '#f0fdf4', borderColor: '#22c55e', borderWidth: 1, borderRadius: 5 }}>
-                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#166534', textAlign: 'center', marginBottom: 10 }}>
-                            VALOR A RESTITUIR
+                    <View style={{
+                        marginTop: 40,
+                        padding: 20,
+                        backgroundColor: '#ffffff',
+                        borderLeftWidth: 5,
+                        borderColor: '#15803d',
+                        borderWidth: 1,
+                        borderRightWidth: 1,
+                        borderTopWidth: 1,
+                        borderBottomWidth: 1,
+                        borderRightColor: '#f0fdf4', // slightly visible
+                        borderTopColor: '#f0fdf4',
+                        borderBottomColor: '#f0fdf4',
+                        shadowOpacity: 0.1,
+                    }}>
+                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#15803d', textAlign: 'center', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
+                            VALOR A RESTITUIR APURADO
                         </Text>
-                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#166534', textAlign: 'center' }}>
+                        <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#15803d', textAlign: 'center' }}>
                             {formatCurrency(data.kpis.economiaTotal)}
                         </Text>
                     </View>
@@ -232,7 +246,7 @@ export const FinancialReportTemplate = ({ data, settings }: FinancialReportTempl
 
                 <View style={styles.table}>
                     {/* Header */}
-                    <View style={[styles.tableRow, { backgroundColor: '#f1f5f9' }]}>
+                    <View style={[styles.tableRow, { backgroundColor: '#f8fafc' }]}>
                         {['Mês', 'Vencimento', 'Saldo Ant.', 'Juros', 'Amort.', 'Parcela', 'Saldo Dev.'].map((h) => (
                             <View style={styles.tableCol} key={h}>
                                 <Text style={[styles.tableCell, { fontWeight: 'bold' }]}>{h}</Text>

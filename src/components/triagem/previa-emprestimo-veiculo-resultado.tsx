@@ -12,10 +12,10 @@ import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { ResultadoTriagem } from '@/schemas/triagemRapida.schema';
 import { pdf } from '@react-pdf/renderer';
 import { saveAs } from 'file-saver';
-import { TriagemTemplate } from '@/components/pdf-templates/TriagemTemplate';
+import { PreviaEmprestimoVeiculoPdf } from '@/components/pdf-templates/previa-emprestimo-veiculo-pdf';
 import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 import { toast } from 'sonner';
-import { HelpExplainerModal, type HelpModuleType } from '@/components/shared/HelpExplainerModal';
+import { ModalAjudaCalculo, type HelpModuleType } from '@/components/shared/ModalAjudaCalculo';
 
 interface ResultadoViabilidadeProps {
     resultado: ResultadoTriagem;
@@ -23,7 +23,7 @@ interface ResultadoViabilidadeProps {
     onNovoCalculo: () => void;
 }
 
-export function ResultadoViabilidade({
+export function PreviaEmprestimoVeiculoResultado({
     resultado,
     onIniciarCompleto,
     onNovoCalculo
@@ -33,17 +33,23 @@ export function ResultadoViabilidade({
     const handleExportPDF = async () => {
         try {
             toast.loading('Gerando dossiê...');
-            const blob = await pdf(
-                <TriagemTemplate data={resultado} settings={settings} />
-            ).toBlob();
+            console.log('Iniciando geração de PDF para viabilidade...');
+
+            if (!settings) {
+                console.warn('Configurações de documento não carregadas, usando fallback.');
+            }
+
+            const doc = <PreviaEmprestimoVeiculoPdf data={resultado} settings={settings || {}} />;
+            const asPdf = pdf(doc);
+            const blob = await asPdf.toBlob();
 
             saveAs(blob, `Dossie_Analise_${new Date().getTime()}.pdf`);
             toast.dismiss();
             toast.success('Dossiê baixado com sucesso!');
         } catch (error) {
-            console.error('Erro ao gerar PDF:', error);
+            console.error('Erro detalhado ao gerar PDF:', error);
             toast.dismiss();
-            toast.error('Erro na geração do PDF');
+            toast.error('Erro ao gerar o arquivo PDF. Verifique o console.');
         }
     };
 
@@ -85,7 +91,7 @@ export function ResultadoViabilidade({
                             <Badge variant={resultado.isAbusivo ? "destructive" : "secondary"} className="ml-1">
                                 Score: {resultado.score}/100
                             </Badge>
-                            <HelpExplainerModal moduleType="ANALISE_PREVIA_VEICULOS" />
+                            <ModalAjudaCalculo moduleType="ANALISE_PREVIA_VEICULOS" />
                         </div>
                         <p className="text-slate-500 max-w-xl text-lg leading-relaxed mt-2">{config.description}</p>
                     </div>
@@ -247,25 +253,21 @@ export function ResultadoViabilidade({
 
                     {/* Alerta de Capitalização Diária */}
                     {resultado.capitalizacaoDiariaDetectada && (
-                        <Card className="shadow-none border-2 border-red-300 bg-red-50">
-                            <CardContent className="p-4">
-                                <div className="flex items-start gap-3">
-                                    <div className="p-2 bg-red-100 rounded-full">
-                                        <Zap className="w-5 h-5 text-red-600" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <h4 className="font-semibold text-red-800 text-sm">
-                                            Capitalização Diária Detectada
-                                        </h4>
-                                        <p className="text-xs text-red-700 mt-1 leading-relaxed">
-                                            {resultado.evidenciaCapitalizacao}
-                                        </p>
-                                        <Badge variant="destructive" className="mt-2 text-xs">
-                                            Irregularidade Confirmada
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </CardContent>
+                        <Card className="shadow-none border border-slate-200 text-center p-6 bg-slate-50/30">
+                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">
+                                Anomalia Detectada
+                            </p>
+                            <div className="text-xl font-bold text-slate-900 tracking-tight">
+                                Capitalização Diária
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2 px-2 leading-relaxed">
+                                {resultado.evidenciaCapitalizacao}
+                            </p>
+                            <div className="mt-4 pt-4 border-t border-slate-100 w-full">
+                                <Badge variant="destructive" className="w-full justify-center py-1 font-medium">
+                                    Irregularidade Confirmada
+                                </Badge>
+                            </div>
                         </Card>
                     )}
 

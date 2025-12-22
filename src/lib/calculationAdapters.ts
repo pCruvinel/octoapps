@@ -6,8 +6,8 @@
 
 import type { WizardData, WizardCompleteResult } from '@/components/calculations/wizard';
 import type { CreateCalculationRequest } from '@/services/calculationAPI.service';
-import type { ResultsDashboardData, KPIData, EvolutionDataPoint } from '@/components/calculations/results';
-import type { PaymentRow } from '@/components/calculations/reconciliation/PaymentReconciliationGrid';
+import type { DetalhadaDashboardData, KPIData, EvolutionDataPoint } from '@/components/calculations/results';
+import type { PaymentRow } from '@/components/calculations/reconciliation/detalhada-grade-conciliacao';
 import type { LaudoExportData } from '@/services/laudoExport.service';
 import type {
     CalculationInputV3,
@@ -383,9 +383,9 @@ export function resultToDashboard(result: CalculationFullResult): DashboardData 
 /**
  * Convert WizardCompleteResult to ResultsDashboardData for the dashboard component
  */
-export function wizardResultToResultsDashboard(
+export function wizardResultToDetalhadaDashboard(
     wizardResult: WizardCompleteResult
-): ResultsDashboardData {
+): DetalhadaDashboardData {
     const { wizardData, result } = wizardResult;
     const { step1 } = wizardData;
 
@@ -558,20 +558,20 @@ export function relatorioToLaudoData(
 }
 
 // ============================================================================
-// Detailed Calculation → ResultsDashboard Adapter
+// Detailed Calculation → DetalhadaDashboard Adapter
 // ============================================================================
 
 /**
- * Convert CalculoDetalhadoResponse to ResultsDashboardData
+ * Convert CalculoDetalhadoResponse to DetalhadaDashboardData
  * 
- * This adapter allows reusing the existing ResultsDashboard, KPICards,
- * EvolutionChart, and AppendicesTabs components with the new detailed
+ * This adapter allows reusing the existing DetalhadaDashboard, DetalhadaKPICards,
+ * DetalhadaGraficoEvolucao, and AppendicesTabs components with the new detailed
  * calculation engine output.
  */
-export function detalhadoToResultsDashboard(
+export function detalhadoToDetalhadaDashboard(
     result: import('@/types/calculation.types').CalculoDetalhadoResponse,
     request?: import('@/types/calculation.types').CalculoDetalhadoRequest
-): ResultsDashboardData {
+): DetalhadaDashboardData {
     const { resumo, apendices, taxaSnapshot } = result;
 
     // Map KPI data

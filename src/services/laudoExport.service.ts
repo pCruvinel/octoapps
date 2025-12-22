@@ -2,7 +2,7 @@
 
 import jsPDF from 'jspdf';
 import { saveAs } from 'file-saver';
-import type { ResultsDashboardData, KPIData, EvolutionDataPoint } from '@/components/calculations/results';
+import type { DetalhadaDashboardData, KPIData, EvolutionDataPoint } from '@/components/calculations/results';
 
 /**
  * Interface para dados do laudo pericial

@@ -11,12 +11,12 @@ import {
 import { formatCurrency, formatPercent } from '@/lib/formatters';
 import { pdf } from '@react-pdf/renderer';
 import { saveAs } from 'file-saver';
-import { TriagemImobiliarioTemplate } from '@/components/pdf-templates/TriagemImobiliarioTemplate';
+import { PreviaImobiliariaPdf } from '@/components/pdf-templates/previa-imobiliaria-pdf';
 import { useDocumentSettings } from '../pdf-engine/DocumentContext';
 import { toast } from 'sonner';
-import { HelpExplainerModal } from '@/components/shared/HelpExplainerModal';
+import { ModalAjudaCalculo } from '@/components/shared/ModalAjudaCalculo';
 
-export interface ResultadoImobiliarioType {
+export interface PreviaImobiliariaResultadoType {
     classificacao: 'VIAVEL' | 'ATENCAO' | 'INVIAVEL';
     isAbusivo: boolean;
 
@@ -65,12 +65,12 @@ export interface ResultadoImobiliarioType {
 }
 
 interface ResultadoImobiliarioProps {
-    resultado: ResultadoImobiliarioType;
+    resultado: PreviaImobiliariaResultadoType;
     onIniciarCompleto: () => void;
     onNovoCalculo: () => void;
 }
 
-export function ResultadoImobiliario({
+export function PreviaImobiliariaResultado({
     resultado,
     onIniciarCompleto,
     onNovoCalculo
@@ -79,18 +79,26 @@ export function ResultadoImobiliario({
 
     const handleExportPDF = async () => {
         try {
-            toast.loading('Gerando dossiê atualizado...');
-            const blob = await pdf(
-                <TriagemImobiliarioTemplate data={resultado} settings={settings} />
-            ).toBlob();
+            toast.loading('Gerando dossiê...');
+            console.log('Iniciando geração de PDF para viabilidade imobiliária...');
 
+            if (!settings) {
+                console.warn('Configurações de documento não carregadas, usando fallback.');
+            }
+
+            const doc = <PreviaImobiliariaPdf data={resultado} settings={settings || {}} />;
+            const asPdf = pdf(doc);
+            const blob = await asPdf.toBlob();
+
+            console.log('PDF gerado com sucesso, iniciando download...');
             saveAs(blob, `Dossie_Imobiliario_${new Date().getTime()}.pdf`);
+
             toast.dismiss();
             toast.success('Dossiê baixado com sucesso!');
         } catch (error) {
-            console.error('Erro ao gerar PDF:', error);
+            console.error('Erro detalhado ao gerar PDF:', error);
             toast.dismiss();
-            toast.error('Erro na geração do PDF');
+            toast.error('Erro ao gerar o arquivo PDF. Verifique o console.');
         }
     };
 
@@ -133,7 +141,7 @@ export function ResultadoImobiliario({
                         <div className="flex items-center gap-3">
                             <h2 className="text-2xl font-bold text-slate-900 tracking-tight">{config.title}</h2>
                             {resultado.isAbusivo && <Badge variant="destructive">Abusivo</Badge>}
-                            <HelpExplainerModal moduleType="ANALISE_PREVIA_IMOBILIARIO" />
+                            <ModalAjudaCalculo moduleType="ANALISE_PREVIA_IMOBILIARIO" />
                         </div>
                         <p className="text-slate-500 max-w-xl text-lg leading-relaxed mt-2">{config.description}</p>
                     </div>

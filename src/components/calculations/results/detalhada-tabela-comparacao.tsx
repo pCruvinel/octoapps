@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Info, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export interface ComparisonSummaryTableProps {
+export interface DetalhadaTabelaComparacaoProps {
     /**
      * Valores do cenário banco (AP01)
      */
@@ -71,7 +71,7 @@ interface RowData {
     tooltip?: string;
 }
 
-export function ComparisonSummaryTable({
+export function DetalhadaTabelaComparacao({
     totalPagoBanco,
     totalJurosBanco,
     parcelaBanco,
@@ -90,7 +90,7 @@ export function ComparisonSummaryTable({
     isReconciled,
     jurosRecalculadosMaior,
     className,
-}: ComparisonSummaryTableProps) {
+}: DetalhadaTabelaComparacaoProps) {
     // Build row data according to new structure
     const rows: RowData[] = [
         // 1. Valor Financiado

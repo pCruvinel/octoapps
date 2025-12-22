@@ -1,5 +1,5 @@
-import { createFileRoute, useNavigate, useRouter } from '@tanstack/react-router';
-import { ResultsDashboard, type ResultsDashboardData } from '@/components/calculations/results/ResultsDashboard';
+import { fileRoute, useNavigate, useRouter, createFileRoute } from '@tanstack/react-router';
+import { DetalhadaDashboard, type DetalhadaDashboardData } from '@/components/calculations/results';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Calculator } from 'lucide-react';
 import { toast } from 'sonner';
@@ -15,7 +15,7 @@ function ResultsPage() {
   // Get data from router state (passed from wizard)
   const state = router.state as any;
   const resultData = state?.location?.state?.resultData;
-  const dashboardData = resultData?.dashboardData as ResultsDashboardData | undefined;
+  const dashboardData = resultData?.dashboardData as DetalhadaDashboardData | undefined;
 
   // Handle export PDF
   const handleExportPDF = () => {
@@ -63,7 +63,7 @@ function ResultsPage() {
   }
 
   return (
-    <ResultsDashboard
+    <DetalhadaDashboard
       data={dashboardData}
       onBack={() => navigate({ to: '/calc/lista' })}
       onExportPDF={handleExportPDF}

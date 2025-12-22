@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { FileText, GitCompare, DollarSign, Settings2, Scale, Calculator, CheckCircle2, Clock, CalendarClock, AlertTriangle } from 'lucide-react';
 import type { LinhaAmortizacaoDetalhada, ApendiceResult, SituacaoParcela } from '@/types/calculation.types';
 
-interface AppendicesTabsProps {
+interface DetalhadaApendicesTabsProps {
     ap01?: LinhaAmortizacaoDetalhada[];
     ap02?: LinhaAmortizacaoDetalhada[];
     ap03?: LinhaAmortizacaoDetalhada[];
@@ -330,7 +330,7 @@ function CompensacaoTable({ data, isDobro }: { data: LinhaAmortizacaoDetalhada[]
     );
 }
 
-export function AppendicesTabs({
+export function DetalhadaApendicesTabs({
     ap01,
     ap02,
     ap03,
@@ -339,7 +339,7 @@ export function AppendicesTabs({
     ap04Descricao,
     ap05Descricao,
     parametros,
-}: AppendicesTabsProps) {
+}: DetalhadaApendicesTabsProps) {
     return (
         <Accordion type="multiple" defaultValue={['ap01']} className="w-full space-y-3">
             {/* AP01 - Evolução Original */}

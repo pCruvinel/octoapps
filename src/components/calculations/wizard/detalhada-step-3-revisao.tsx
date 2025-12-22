@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Receipt, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface Step3_RevisaoProps {
+interface DetalhadaStep3RevisaoProps {
     defaultValues?: any;
     onDataChange?: (data: any) => void;
     onValidationChange?: (isValid: boolean) => void;
@@ -39,11 +39,11 @@ interface TarifaSelecionada {
     expurgar: boolean;
 }
 
-export function Step3_Revisao({
+export function DetalhadaStep3Revisao({
     defaultValues,
     onDataChange,
     onValidationChange,
-}: Step3_RevisaoProps) {
+}: DetalhadaStep3RevisaoProps) {
     const [tarifasSelecionadas, setTarifasSelecionadas] = React.useState<TarifaSelecionada[]>(() => {
         if (defaultValues?.tarifas) {
             const tarifas: TarifaSelecionada[] = [];

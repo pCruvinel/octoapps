@@ -14,7 +14,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Calculator, Loader2, ChevronDown, Info, Car } from 'lucide-react';
-import { ContractUploadButton } from '@/components/calculations/wizard/ContractUploadButton';
+import { DetalhadaUploadButton } from '@/components/calculations/wizard/detalhada-upload-button';
 import { fetchMarketRate, getEstimatedMarketRate, calculateEconomia, calculatePMT, daysBetween, calculateGracePeriodInterest, detectDailyCapitalization, roundToDisplayPrecision } from '@/utils/financialCalculations';
 import type { ResultadoTriagem } from '@/schemas/triagemRapida.schema';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 // ============================================================================
 
 import { useTiposOperacao } from '@/hooks/useTiposOperacao';
+import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
 
 // ============================================================================
 // SCHEMA
@@ -93,15 +94,15 @@ interface ModuloGeralFormProps {
     onResultado: (resultado: ResultadoTriagem, formData?: ModuloGeralFormData) => void;
 }
 
-export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
+export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProps) {
     const [calculating, setCalculating] = useState(false);
     const [taxaMercado, setTaxaMercado] = useState<number | null>(null);
     const [loadingTaxa, setLoadingTaxa] = useState(false);
     const [tarifasExpanded, setTarifasExpanded] = useState(false);
     const [ocrFilledFields, setOcrFilledFields] = useState<Set<string>>(new Set());
 
-    // Hook dinâmico para tipos de operação (Categorias mistas para o formulário geral)
-    const { tiposOperacao, loading: loadingTipos, getSeriePorCodigo } = useTiposOperacao({
+    // Hook dinâmico para tipos de operação - usado para buscar a série BACEN no useEffect
+    const { tiposOperacao, getSeriePorCodigo } = useTiposOperacao({
         categoria: ['EMPRESTIMO', 'VEICULO', 'EMPRESARIAL', 'CARTAO']
     });
 
@@ -533,7 +534,7 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
                         <p className="text-xs text-slate-500 mb-3">
                             Arraste o PDF ou clique para preencher automaticamente
                         </p>
-                        <ContractUploadButton
+                        <DetalhadaUploadButton
                             category="EMPRESTIMOS_VEICULOS"
                             onDataExtracted={handleOcrData}
                             variant="outline"
@@ -628,34 +629,13 @@ export function ModuloGeralForm({ onResultado }: ModuloGeralFormProps) {
                                     control={form.control}
                                     name="tipoContrato"
                                     render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Tipo de Operação</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className={getOcrFieldClass('tipoContrato', ocrFilledFields)}>
-                                                        <SelectValue placeholder="Selecione..." />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {loadingTipos ? (
-                                                        <div className="flex items-center justify-center p-2 text-sm text-slate-500">
-                                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                            Carregando...
-                                                        </div>
-                                                    ) : (
-                                                        tiposOperacao.map((tipo) => (
-                                                            <SelectItem key={tipo.codigo} value={tipo.codigo}>
-                                                                {tipo.serie_bacen} - {tipo.nome}
-                                                            </SelectItem>
-                                                        ))
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                            <p className="text-xs text-slate-500">
-                                                Define a série temporal do Bacen
-                                            </p>
-                                            <FormMessage />
-                                        </FormItem>
+                                        <TipoOperacaoSelect
+                                            categorias={['EMPRESTIMO', 'VEICULO', 'EMPRESARIAL', 'CARTAO']}
+                                            field={field}
+                                            showSerieInLabel={true}
+                                            helperText="Define a série temporal do Bacen"
+                                            triggerClassName={getOcrFieldClass('tipoContrato', ocrFilledFields)}
+                                        />
                                     )}
                                 />
                             </div>

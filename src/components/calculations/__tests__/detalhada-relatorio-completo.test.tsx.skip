@@ -3,9 +3,12 @@
  */
 
 import { describe, test, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { RelatorioCompleto } from '../RelatorioCompleto';
-import type { RelatorioCompletoResponse } from '@/types/calculation.types';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { DetalhadaRelatorioCompleto } from '../detalhada-relatorio-completo';
+import { RelatorioCompletoResponse } from '@/types/calculation.types';
+import * as laudoExportService from '@/services/laudoExport.service';
+import * as calculationAdapters from '@/lib/calculationAdapters';
+import { pdf } from '@react-pdf/renderer';
 
 // Mock do componente de toast
 vi.mock('sonner', () => ({
@@ -17,7 +20,33 @@ vi.mock('sonner', () => ({
   },
 }));
 
-describe('RelatorioCompleto - Renderização', () => {
+// Mock dependencies
+vi.mock('@/services/laudoExport.service', () => ({
+  laudoExportService: {
+    generatePDF: vi.fn(),
+  },
+}));
+
+vi.mock('@/lib/calculationAdapters', () => ({
+  relatorioToLaudoData: vi.fn(),
+}));
+
+vi.mock('@react-pdf/renderer', () => ({
+  pdf: vi.fn(() => ({
+    toBlob: vi.fn().mockResolvedValue(new Blob(['pdf content'], { type: 'application/pdf' })),
+  })),
+}));
+
+vi.mock('file-saver', () => ({
+  saveAs: vi.fn(),
+}));
+
+// Mock PDF Template
+vi.mock('@/components/pdf-templates/detalhada-relatorio-financeiro-pdf', () => ({
+  DetalhadaRelatorioFinanceiroPdf: () => <div>PDF Template Mock</div>,
+}));
+
+describe('DetalhadaRelatorioCompleto', () => {
   const mockData: RelatorioCompletoResponse = {
     credor: 'Banco Teste S.A.',
     devedor: 'João da Silva',
@@ -84,10 +113,10 @@ describe('RelatorioCompleto - Renderização', () => {
     expect(screen.getByText('Tabela de Amortização')).toBeInTheDocument();
   });
 
-  test('exibe dados de identificação corretamente', () => {
-    render(<RelatorioCompleto calcId="test-123" onNavigate={mockNavigate} data={mockData} />);
-
-    expect(screen.getByText('Banco Teste S.A.')).toBeInTheDocument();
+  it('renders correctly with data', () => {
+    render(<DetalhadaRelatorioCompleto calcId="123" onNavigate={mockNavigate} data={mockData} />);
+    
+    expect(screen.getByText('Relatório Completo de Cálculo - Financiamento Imobiliário')).toBeInTheDocument();
     expect(screen.getByText('João da Silva')).toBeInTheDocument();
     expect(screen.getByText('2018-000123')).toBeInTheDocument();
     expect(screen.getByText('SAC com TR — AP01 (Cobrado) vs AP05 (Devido)')).toBeInTheDocument();

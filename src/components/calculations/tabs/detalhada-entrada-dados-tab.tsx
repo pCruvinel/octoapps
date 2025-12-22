@@ -14,8 +14,9 @@ import { PercentInput } from '@/components/ui/percent-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
 import { Trash2, Plus, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
-import { ContractImportCard } from '../wizard/ContractImportCard';
-import type { CalculationModuleType, CalculationPageData } from '../CalculationPage';
+import { DetalhadaImportCard } from '../wizard/detalhada-import-card';
+import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
+import type { DetalhadaModuleType, DetalhadaPageData } from '../detalhada-page';
 
 // Generic Validation Schema (will be adjusted per module)
 const baseSchema = z.object({
@@ -51,24 +52,14 @@ const baseSchema = z.object({
 
 type DataEntryFormData = z.infer<typeof baseSchema>;
 
-interface DataEntryTabProps {
-    module: CalculationModuleType;
-    data: Partial<CalculationPageData>;
-    onChange: (data: Partial<CalculationPageData>) => void;
+interface DetalhadaEntradaDadosTabProps {
+    module: DetalhadaModuleType;
+    data: Partial<DetalhadaPageData>;
+    onChange: (data: Partial<DetalhadaPageData>) => void;
     onValidationChange: (isValid: boolean) => void;
 }
 
-// Options for each module
-const TIPOS_CONTRATO_GERAL = [
-    { value: 'EMPRESTIMO_PESSOAL', label: '20742 - Empréstimo Pessoal PF (% a.a.)' },
-    { value: 'CONSIGNADO_PRIVADO', label: '20744 - Consignado Privado (% a.a.)' },
-    { value: 'CONSIGNADO_PUBLICO', label: '20745 - Consignado Público (% a.a.)' },
-    { value: 'CONSIGNADO_INSS', label: '20746 - Consignado INSS (% a.a.)' },
-    { value: 'CAPITAL_GIRO', label: '20755 - Capital de Giro até 365 dias PJ (% a.a.)' },
-    { value: 'FINANCIAMENTO_VEICULO', label: '20749 - Aquisição de Veículos PF (% a.a.)' },
-    { value: 'FINANCIAMENTO_VEICULO_PJ', label: '20728 - Aquisição de Veículos PJ (% a.a.)' },
-    { value: 'CHEQUE_ESPECIAL', label: '20737 - Cheque Especial PF (% a.a.)' },
-] as const;
+// Options for imobiliario module only - Geral uses TipoOperacaoSelect now
 
 const INDEXADORES = [
     { value: 'TR', label: 'TR (Taxa Referencial)' },
@@ -84,12 +75,12 @@ const SISTEMAS_AMORTIZACAO = [
     { value: 'SACRE', label: 'SACRE' },
 ];
 
-export function DataEntryTab({
+export function DetalhadaEntradaDadosTab({
     module,
     data,
     onChange,
     onValidationChange,
-}: DataEntryTabProps) {
+}: DetalhadaEntradaDadosTabProps) {
     const [tarifas, setTarifas] = React.useState<Array<{ nome: string; valor: number }>>(data.tarifas || []);
 
     // BACEN Rate State
@@ -248,7 +239,7 @@ export function DataEntryTab({
     return (
         <div className="space-y-6">
             {/* OCR Import */}
-            <ContractImportCard
+            <DetalhadaImportCard
                 category={module === 'IMOBILIARIO' ? 'IMOBILIARIO' : module === 'CARTAO' ? 'CARTAO_CREDITO' : 'EMPRESTIMOS_VEICULOS'}
                 onDataExtracted={handleOcrData}
             />
@@ -282,41 +273,25 @@ export function DataEntryTab({
 
                         {/* Tipo de Contrato - only for GERAL */}
                         {module === 'GERAL' && (
-                            <div className="space-y-2">
-                                <Label htmlFor="tipoContrato">Tipo de Operação</Label>
-                                <Select
-                                    value={watchedValues.tipoContrato}
-                                    onValueChange={(val) => setValue('tipoContrato', val, { shouldValidate: true })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecione..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {TIPOS_CONTRATO_GERAL.map((t) => (
-                                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            <TipoOperacaoSelect
+                                categorias={['emprestimos', 'veiculos']}
+                                value={watchedValues.tipoContrato || ''}
+                                onValueChange={(val) => setValue('tipoContrato', val, { shouldValidate: true })}
+                                showSerieInLabel={true}
+                                name="tipoContrato"
+                            />
                         )}
 
                         {/* Tipo de Financiamento - only for IMOBILIARIO */}
                         {module === 'IMOBILIARIO' && (
-                            <div className="space-y-2">
-                                <Label>Tipo de Financiamento</Label>
-                                <Select
-                                    value={watchedValues.tipoFinanciamento}
-                                    onValueChange={(val) => setValue('tipoFinanciamento', val as 'SFH' | 'SFI')}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="SFH">SFH (Sistema Financeiro de Habitação)</SelectItem>
-                                        <SelectItem value="SFI">SFI (Sistema Financeiro Imobiliário)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            <TipoOperacaoSelect
+                                categorias="imobiliario"
+                                value={watchedValues.tipoFinanciamento || ''}
+                                onValueChange={(val) => setValue('tipoFinanciamento', val as 'SFH' | 'SFI')}
+                                showSerieInHelper={true}
+                                label="Tipo de Financiamento"
+                                name="tipoFinanciamento"
+                            />
                         )}
 
                         <div className="space-y-2">

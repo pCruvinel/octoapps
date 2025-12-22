@@ -38,7 +38,7 @@ export interface KPIData {
     percentualJurosCapital?: number; // Interest as % of principal
 }
 
-interface KPICardsProps {
+interface DetalhadaKPICardsProps {
     data: KPIData;
     className?: string;
 }
@@ -101,7 +101,7 @@ function getSobretaxaConfig(sobretaxa: number) {
     };
 }
 
-export function KPICards({ data, className }: KPICardsProps) {
+export function DetalhadaKPICards({ data, className }: DetalhadaKPICardsProps) {
     const sobretaxa = data.taxaMercado > 0
         ? ((data.taxaPraticada - data.taxaMercado) / data.taxaMercado) * 100
         : 0;

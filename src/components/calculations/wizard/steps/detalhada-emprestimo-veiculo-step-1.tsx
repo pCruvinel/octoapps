@@ -16,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertTriangle, TrendingUp, Loader2, ChevronDown, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { geralStep1Schema, type GeralStep1Data } from '@/schemas/moduloGeral.schema';
-import { ContractImportCard } from '../ContractImportCard';
+import { DetalhadaImportCard } from '../detalhada-import-card';
 import { fetchMarketRate, getEstimatedMarketRate } from '@/utils/financialCalculations';
 
 
@@ -37,7 +37,7 @@ const TIPOS_CONTRATO = [
     { value: 'CHEQUE_ESPECIAL', label: '20712 - Cheque Especial PF (% a.a.)' },
 ] as const;
 
-export function Step1_Geral({
+export function DetalhadaEmprestimoVeiculoStep1({
     defaultValues,
     onDataChange,
     onValidationChange,
@@ -207,7 +207,7 @@ export function Step1_Geral({
 
     return (
         <div className="space-y-6">
-            <ContractImportCard
+            <DetalhadaImportCard
                 category="EMPRESTIMOS_VEICULOS"
                 onDataExtracted={handleOcrData}
             />

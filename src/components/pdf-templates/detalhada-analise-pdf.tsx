@@ -2,7 +2,7 @@ import React from 'react';
 import { Page, Text, View, Document, Image, StyleSheet } from '@react-pdf/renderer';
 import { UserDocumentSettings } from '../pdf-engine/DocumentTypes';
 import { PdfEngine } from '../pdf-engine/PdfEngine';
-import type { CalculationPageData } from '../calculations/CalculationPage';
+import type { DetalhadaPageData } from '../calculations/detalhada-page';
 import type { CalculoDetalhadoResponse } from '@/types/calculation.types';
 
 // ===== HELPER FORMATTERS =====
@@ -26,7 +26,7 @@ const formatDate = (dateStr: string | undefined) => {
 
 // ===== TYPES =====
 interface LaudoRevisionalTemplateProps {
-    formData: Partial<CalculationPageData>;
+    formData: Partial<DetalhadaPageData>;
     resultado: CalculoDetalhadoResponse;
     dashboard: {
         kpis: {
@@ -58,7 +58,7 @@ interface LaudoRevisionalTemplateProps {
 }
 
 // ===== MAIN TEMPLATE =====
-export const LaudoRevisionalTemplate = ({
+export const DetalhadaAnalisePdf = ({
     formData,
     resultado,
     dashboard,
@@ -80,7 +80,7 @@ export const LaudoRevisionalTemplate = ({
         },
         card: {
             padding: 12,
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#ffffff', // White instead of gray
             borderRadius: 5,
             marginBottom: 10,
             borderWidth: 1,
@@ -93,6 +93,7 @@ export const LaudoRevisionalTemplate = ({
             justifyContent: 'center',
             alignItems: 'center',
             borderWidth: 1,
+            backgroundColor: '#ffffff', // White background default
         },
         table: {
             display: 'flex',
@@ -221,7 +222,7 @@ export const LaudoRevisionalTemplate = ({
 
                 {/* Right: Document Type & Date */}
                 <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                    <Text style={{ fontSize: 9, color: '#64748b' }}>Laudo Revisional</Text>
+                    <Text style={{ fontSize: 9, color: '#64748b' }}>Parecer Técnico</Text>
                     <Text style={{ fontSize: 8, color: '#94a3b8' }}>{new Date().toLocaleDateString('pt-BR')}</Text>
                 </View>
             </View>
@@ -254,25 +255,31 @@ export const LaudoRevisionalTemplate = ({
 
                 {/* Title */}
                 <Text style={[PdfEngine.styles.title, { color: settings.primary_color, marginTop: 20 }]}>
-                    LAUDO TÉCNICO REVISIONAL
+                    PARECER TÉCNICO
                 </Text>
                 <Text style={PdfEngine.styles.subtitle}>Análise de Contrato de Crédito</Text>
 
-                {/* Classification Banner */}
+                {/* Classification Banner - Minimalist */}
                 <View style={{
                     padding: 15,
-                    backgroundColor: classificacaoConfig.bg,
+                    backgroundColor: '#ffffff',
                     borderLeftWidth: 5,
                     borderLeftColor: classificacaoConfig.color,
+                    borderWidth: 1,
+                    borderColor: '#f1f5f9',
+                    borderTopWidth: 1,
+                    borderRightWidth: 1,
+                    borderBottomWidth: 1,
                     marginBottom: 15,
                     marginTop: 10,
+                    shadowOpacity: 0.1,
                 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
                             <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#0f172a' }}>
                                 {classificacaoConfig.label}
                             </Text>
-                            <Text style={{ fontSize: 9, color: '#475569', marginTop: 3 }}>
+                            <Text style={{ fontSize: 9, color: '#64748b', marginTop: 3 }}>
                                 {resultado.resumo?.isAbusivo ? 'Indícios de prática abusiva identificados' : 'Taxa dentro dos parâmetros esperados'}
                             </Text>
                         </View>
@@ -285,22 +292,22 @@ export const LaudoRevisionalTemplate = ({
                     </View>
                 </View>
 
-                {/* KPI Boxes */}
+                {/* KPI Boxes - Minimalist */}
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
-                    <View style={[styles.kpiBox, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
-                        <Text style={{ fontSize: 8, color: '#15803d', textTransform: 'uppercase' }}>Economia Total</Text>
+                    <View style={[styles.kpiBox, { borderTopWidth: 3, borderTopColor: '#15803d', borderColor: '#e2e8f0' }]}>
+                        <Text style={{ fontSize: 8, color: '#64748b', textTransform: 'uppercase' }}>Economia Total</Text>
                         <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#15803d', marginTop: 3 }}>
                             {formatCurrency(dashboard.kpis.economiaTotal)}
                         </Text>
                     </View>
-                    <View style={[styles.kpiBox, { backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }]}>
-                        <Text style={{ fontSize: 8, color: '#1d4ed8', textTransform: 'uppercase' }}>Restituição Simples</Text>
+                    <View style={[styles.kpiBox, { borderTopWidth: 3, borderTopColor: '#1d4ed8', borderColor: '#e2e8f0' }]}>
+                        <Text style={{ fontSize: 8, color: '#64748b', textTransform: 'uppercase' }}>Restituição Simples</Text>
                         <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#1d4ed8', marginTop: 3 }}>
                             {formatCurrency(dashboard.kpis.restituicaoSimples)}
                         </Text>
                     </View>
-                    <View style={[styles.kpiBox, { backgroundColor: '#fef3c7', borderColor: '#fcd34d' }]}>
-                        <Text style={{ fontSize: 8, color: '#b45309', textTransform: 'uppercase' }}>Restituição Dobro</Text>
+                    <View style={[styles.kpiBox, { borderTopWidth: 3, borderTopColor: '#b45309', borderColor: '#e2e8f0' }]}>
+                        <Text style={{ fontSize: 8, color: '#64748b', textTransform: 'uppercase' }}>Restituição Dobro</Text>
                         <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#b45309', marginTop: 3 }}>
                             {formatCurrency(dashboard.kpis.restituicaoEmDobro)}
                         </Text>
@@ -555,7 +562,7 @@ export const LaudoRevisionalTemplate = ({
 
                     {/* Disclaimer */}
                     <Text style={{ fontSize: 7, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>
-                        Este laudo foi elaborado com base em metodologia técnica reconhecida e jurisprudência consolidada (Tema 234 STJ).
+                        Este parecer técnico foi elaborado com base em metodologia técnica reconhecida e jurisprudência consolidada (Tema 234 STJ).
                         Os valores apresentados são estimativas e podem variar conforme análise pericial detalhada.
                     </Text>
 

@@ -7,24 +7,24 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Calculator, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCalculation } from '@/hooks/useCalculation';
-import { wizardToRequest, wizardToDetalhadoRequest, detalhadoToResultsDashboard } from '@/lib/calculationAdapters';
+import { wizardToRequest, wizardToDetalhadoRequest, detalhadoToDetalhadaDashboard } from '@/lib/calculationAdapters';
 import { calculationAPI } from '@/services/calculationAPI.service';
 import { contratoRevisionalService } from '@/services/contratoRevisionalService';
 // AnalisePreviaPanel removed - viability check is now in Triagem Rápida
 import { supabase } from '@/lib/supabase';
 
 // Step 1 Modules
-import { Step1_Geral } from './steps/Step1_Geral';
-import { Step1_Imobiliario } from './steps/Step1_Imobiliario';
-import { Step1_Cartao } from './steps/Step1_Cartao';
+import { DetalhadaEmprestimoVeiculoStep1 } from './steps/detalhada-emprestimo-veiculo-step-1';
+import { DetalhadaImobiliariaStep1 } from './steps/detalhada-imobiliaria-step-1';
+import { DetalhadaCartaoStep1 } from './steps/detalhada-cartao-step-1';
 
 // Step 2 Modules
-import { Step2_Geral } from './steps/Step2_Geral';
-import { Step2_Imobiliario } from './steps/Step2_Imobiliario';
+import { DetalhadaEmprestimoVeiculoStep2 } from './steps/detalhada-emprestimo-veiculo-step-2';
+import { DetalhadaImobiliariaStep2 } from './steps/detalhada-imobiliaria-step-2';
 // Note: Cartao uses a different Step 2 (Grid), handled via separate component later or Placeholder for now
 
 // Step 3 Modules (Shared for now)
-import { Step3_Revisao } from './Step3_Revisao';
+import { DetalhadaStep3Revisao } from './detalhada-step-3-revisao';
 
 import type { GeralStep1Data, GeralStep2Data } from '@/schemas/moduloGeral.schema';
 import type { ImobiliarioStep1Data, ImobiliarioStep2Data } from '@/schemas/moduloImobiliario.schema';
@@ -394,21 +394,21 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
                 {/* STEP 1 */}
                 <StepperContent step={0}>
                     {module === 'GERAL' && (
-                        <Step1_Geral
+                        <DetalhadaEmprestimoVeiculoStep1
                             defaultValues={wizardData.step1 as GeralStep1Data}
                             onDataChange={(data) => handleStepChange(0, data)}
                             onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 0: valid }))}
                         />
                     )}
                     {module === 'IMOBILIARIO' && (
-                        <Step1_Imobiliario
+                        <DetalhadaImobiliariaStep1
                             defaultValues={wizardData.step1 as ImobiliarioStep1Data}
                             onDataChange={(data) => handleStepChange(0, data)}
                             onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 0: valid }))}
                         />
                     )}
                     {module === 'CARTAO' && (
-                        <Step1_Cartao
+                        <DetalhadaCartaoStep1
                             defaultValues={wizardData.step1 as CartaoStep1Data}
                             onDataChange={(data) => handleStepChange(0, data)}
                             onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 0: valid }))}
@@ -419,7 +419,7 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
                 {/* STEP 2 */}
                 <StepperContent step={1}>
                     {module === 'GERAL' && (
-                        <Step2_Geral
+                        <DetalhadaEmprestimoVeiculoStep2
                             defaultValues={wizardData.step2 as GeralStep2Data}
                             onDataChange={(data) => handleStepChange(1, data)}
                             onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 1: valid }))}
@@ -428,7 +428,7 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
                         />
                     )}
                     {module === 'IMOBILIARIO' && (
-                        <Step2_Imobiliario
+                        <DetalhadaImobiliariaStep2
                             defaultValues={wizardData.step2 as ImobiliarioStep2Data}
                             onDataChange={(data) => handleStepChange(1, data)}
                             onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 1: valid }))}
@@ -448,7 +448,7 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
 
                 {/* STEP 3 */}
                 <StepperContent step={2}>
-                    <Step3_Revisao
+                    <DetalhadaStep3Revisao
                         defaultValues={wizardData.step3}
                         onDataChange={(data) => handleStepChange(2, data)}
                         onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 2: valid }))}

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { CalculationWizard } from '@/components/calculations/wizard/CalculationWizard';
-import { CalculationPage, type CalculationPageData } from '@/components/calculations/CalculationPage';
+import { DetalhadaPage, type DetalhadaPageData } from '@/components/calculations/detalhada-page';
 import { contratoRevisionalService } from '@/services/contratoRevisionalService';
 import * as React from 'react';
 
@@ -22,7 +22,7 @@ function WizardPage() {
   const { module, contratoId, useTabs } = Route.useSearch();
 
   // State for loaded contract data
-  const [initialData, setInitialData] = React.useState<Partial<CalculationPageData> | undefined>(undefined);
+  const [initialData, setInitialData] = React.useState<Partial<DetalhadaPageData> | undefined>(undefined);
   const [isLoading, setIsLoading] = React.useState(!!contratoId);
   const [loadedContratoId, setLoadedContratoId] = React.useState<string | undefined>(contratoId);
   const [initialStep2, setInitialStep2] = React.useState<any>(null);
@@ -46,11 +46,11 @@ function WizardPage() {
           return;
         }
 
-        // Convert stored step1 data to CalculationPageData format
+        // Convert stored step1 data to DetalhadaPageData format
         const step1 = contrato.dados_step1 as Record<string, unknown> | null;
 
         if (step1) {
-          const loadedData: Partial<CalculationPageData> = {
+          const loadedData: Partial<DetalhadaPageData> = {
             module: contrato.modulo as 'GERAL' | 'IMOBILIARIO' | 'CARTAO',
             credor: step1.credor as string || '',
             devedor: step1.devedor as string || '',
@@ -127,7 +127,7 @@ function WizardPage() {
   // Use new Tabs UI by default
   if (useTabs) {
     return (
-      <CalculationPage
+      <DetalhadaPage
         module={module}
         initialData={initialData}
         existingContratoId={loadedContratoId}

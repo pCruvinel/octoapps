@@ -15,7 +15,7 @@ Utilizamos a API oficial do Sistema Gerenciador de Séries Temporais (SGS) do Ba
 
 ## 2. Indicadores de Viabilidade
 
-### 📉 Sobretaxa (Excesso de Juros)
+### Sobretaxa (Excesso de Juros)
 Calculamos o percentual de taxa cobrado acima da média:
 
 $$
@@ -26,7 +26,7 @@ $$
 - **Atenção**: Sobretaxa entre 20% e 50%.
 - **Baixa**: Sobretaxa inferior a 20%.
 
-### 💰 Composição da Economia
+### Composição da Economia
 
 1. **Redução de Juros**: Recálculo da parcela utilizando a taxa média de mercado (Série 20749).
 2. **Restituição de Tarifas**:
@@ -36,7 +36,32 @@ $$
 
 ---
 
-## 3. Detecção de Anomalias
+## 3. Pontuação (Score) de Viabilidade
+
+O **Score** é uma nota de 0 a 100 que resume a viabilidade da ação revisional. Ele é calculado com base em múltiplos fatores:
+
+| Fator                     | Peso   | Descrição                                                                 |
+|---------------------------|--------|---------------------------------------------------------------------------|
+| Sobretaxa                 | 50%    | Quanto maior a sobretaxa, maior a pontuação.                              |
+| Economia Estimada         | 25%    | Economia total projetada em relação ao valor financiado.                  |
+| Capitalização Diária      | 15%    | Se detectada, adiciona pontos por irregularidade.                         |
+| Tarifas Abusivas          | 10%    | Presença de tarifas de venda casada (seguro, avaliação, etc.).            |
+
+**Fórmula Simplificada:**
+$$
+\text{Score} = (0.5 \times P_{\text{sobretaxa}}) + (0.25 \times P_{\text{economia}}) + (0.15 \times P_{\text{capitalização}}) + (0.1 \times P_{\text{tarifas}})
+$$
+
+Onde cada $P$ é uma pontuação parcial normalizada de 0 a 100.
+
+**Interpretação:**
+- **80-100**: Viabilidade Alta (Ação fortemente recomendada).
+- **50-79**: Atenção (Avaliar caso a caso).
+- **0-49**: Viabilidade Baixa (Pode não compensar os custos).
+
+---
+
+## 4. Detecção de Anomalias
 
 O sistema verifica automaticamente:
 - **Capitalização Diária**: Se o banco usou juros exponenciais diários (mais caros) em vez de mensais.
