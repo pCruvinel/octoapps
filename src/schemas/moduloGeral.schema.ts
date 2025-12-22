@@ -10,6 +10,7 @@ import {
 
 /**
  * Tipos específicos do Módulo Geral
+ * IMPORTANTE: Estes valores são usados pela Triagem Rápida e Step1_Geral
  */
 export const tipoContratoGeralEnum = z.enum([
     'EMPRESTIMO_PESSOAL',
@@ -18,6 +19,7 @@ export const tipoContratoGeralEnum = z.enum([
     'CONSIGNADO_INSS',
     'CAPITAL_GIRO',
     'FINANCIAMENTO_VEICULO',
+    'FINANCIAMENTO_VEICULO_PJ',
     'CHEQUE_ESPECIAL'
 ]);
 
@@ -30,7 +32,7 @@ export const geralStep1Schema = z.object({
     credor: z.string().min(2, 'Nome do credor deve ter pelo menos 2 caracteres'),
     devedor: z.string().min(2, 'Nome do devedor deve ter pelo menos 2 caracteres'),
     numeroContrato: z.string().optional(),
-    tipoContrato: tipoContratoGeralEnum,
+    tipoContrato: tipoContratoGeralEnum.default('EMPRESTIMO_PESSOAL'),
 
     // === VALORES DO FINANCIAMENTO ===
     valorBem: z.number().min(0).optional(), // Apenas para veículos
@@ -41,8 +43,9 @@ export const geralStep1Schema = z.object({
     dataContrato: z.string().min(1, 'Data do contrato é obrigatória')
         .refine((val) => !isNaN(Date.parse(val)), 'Data inválida'),
 
-    dataLiberacao: z.string().min(1, 'Data de liberação é obrigatória') // FUNDAMENTAL para juros de carência
-        .refine((val) => !isNaN(Date.parse(val)), 'Data inválida'),
+    // Data de liberação é opcional (usada para cálculo de carência quando informada)
+    dataLiberacao: z.string().optional()
+        .refine((val) => !val || !isNaN(Date.parse(val)), 'Data inválida'),
 
     dataPrimeiroVencimento: z.string().min(1, 'Data do primeiro vencimento é obrigatória')
         .refine((val) => !isNaN(Date.parse(val)), 'Data inválida'),
@@ -52,15 +55,15 @@ export const geralStep1Schema = z.object({
         .min(1, 'Prazo deve ser de pelo menos 1 mês')
         .max(600, 'Prazo máximo é 600 meses'),
 
-    taxaMensalContrato: z.number().min(0, 'Taxa não pode ser negativa'),
-    taxaAnualContrato: z.number().min(0, 'Taxa não pode ser negativa'),
+    // Taxas são opcionais no Step1 (podem ser preenchidas via OCR ou calculadas)
+    taxaMensalContrato: z.number().min(0).optional(),
+    taxaAnualContrato: z.number().min(0).optional(),
 
     // Valor da prestação (se informado pelo cliente)
     valorPrestacao: z.number().min(0).optional(),
 
     // === TARIFAS E SEGUROS (VENDA CASADA) ===
-    // Estrutura com checkbox para expurgo
-    tarifas: tarifasGeralSchema,
+    tarifas: tarifasGeralSchema.optional(),
 
 }).refine(
     (data) => new Date(data.dataPrimeiroVencimento) >= new Date(data.dataContrato),
@@ -69,7 +72,7 @@ export const geralStep1Schema = z.object({
         path: ['dataPrimeiroVencimento'],
     }
 ).refine(
-    (data) => new Date(data.dataLiberacao) <= new Date(data.dataPrimeiroVencimento),
+    (data) => !data.dataLiberacao || new Date(data.dataLiberacao) <= new Date(data.dataPrimeiroVencimento),
     {
         message: 'Data de liberação não pode ser posterior ao primeiro vencimento',
         path: ['dataLiberacao'],

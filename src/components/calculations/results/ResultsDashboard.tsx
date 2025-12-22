@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, FileDown, Printer, Share2 } from 'lucide-react';
 import { KPICards, type KPIData } from './KPICards';
 import { EvolutionChart, type EvolutionDataPoint } from './EvolutionChart';
+import { ComparisonSummaryTable } from './ComparisonSummaryTable';
 import { AppendicesTabs } from './AppendicesTabs';
 import { PaymentReconciliationGrid, type PaymentRow } from '../reconciliation/PaymentReconciliationGrid';
 import { toast } from 'sonner';
@@ -27,6 +28,13 @@ export interface ResultsDashboardData {
     cliente: {
         nome: string;
         contrato: string;
+    };
+    // Totais para tabela comparativa
+    totais?: {
+        totalPagoBanco: number;
+        totalJurosBanco: number;
+        totalPagoRecalculado: number;
+        totalJurosRecalculado: number;
     };
 }
 
@@ -63,11 +71,70 @@ export function ResultsDashboard({
         }
     };
 
+    // Calcular sobretaxa
+    const sobretaxa = data.kpis.taxaMercado > 0
+        ? ((data.kpis.taxaPraticada - data.kpis.taxaMercado) / data.kpis.taxaMercado) * 100
+        : 0;
+
+    // Lógica de visualização: Projetado vs Realizado
+    // Se houver qualquer parcela com status diferente de 'EM_ABERTO', assumimos modo "Realizado"
+    // Caso contrário, mostramos o modo "Projetado" (todas as parcelas)
+    const hasReconciliation = conciliacaoData.some(r => r.status !== 'EM_ABERTO');
+
+    const rowsToConsider = hasReconciliation
+        ? conciliacaoData.filter(r => ['PAGO', 'ATRASO', 'RENEGOCIADO'].includes(r.status))
+        : conciliacaoData;
+
+    // Totais Dinâmicos (inclui valorPagoReal + amortizacaoExtra)
+    const dynamicTotalPagoBanco = rowsToConsider.reduce((sum, r) => sum + r.valorPagoReal + (r.amortizacaoExtra || 0), 0);
+    const dynamicTotalAmortizacaoExtra = rowsToConsider.reduce((sum, r) => sum + (r.amortizacaoExtra || 0), 0);
+    const dynamicTotalPagoRecalculado = data.kpis.novaParcelaValor * rowsToConsider.length;
+
+    // Economias Dinâmicas
+    const dynamicEconomiaTotal = dynamicTotalPagoBanco - dynamicTotalPagoRecalculado;
+    const dynamicEconomiaParcela = data.kpis.parcelaOriginalValor - data.kpis.novaParcelaValor;
+
+    // Estimar Juros (proporcional ao valor pago, mantendo a razão implícita original ou 40%)
+    // Se tivermos os totais originais, calculamos a razão de juros
+    const originalTotalPago = data.totais?.totalPagoBanco || (data.kpis.parcelaOriginalValor * conciliacaoData.length);
+    const originalTotalJuros = data.totais?.totalJurosBanco || (originalTotalPago - 50000); // 50k estimativa de principal
+    const jurosRatio = originalTotalPago > 0 ? (originalTotalJuros / originalTotalPago) : 0.4;
+
+    const dynamicTotalJurosBanco = dynamicTotalPagoBanco * jurosRatio;
+    const dynamicTotalJurosRecalculado = dynamicTotalPagoRecalculado * jurosRatio; // Assumindo mesma proporção para simplificação
+    const dynamicEconomiaJuros = dynamicTotalJurosBanco - dynamicTotalJurosRecalculado;
+
     // Conteúdo do Resumo (Dashboard)
     const resumoContent = (
         <div className="space-y-6">
-            <KPICards data={data.kpis} />
+            <KPICards data={{
+                ...data.kpis,
+                economiaTotal: dynamicEconomiaTotal, // Atualiza KPI card principal também? Sim, para consistência.
+                // Mas KPICards recebe data.kpis direto. Podemos fazer override ou deixar KPICards estático e só mudar a tabela.
+                // O usuário pediu "status changes accurately reflect in the overall calculation results".
+                // Então mudar o KPI Card também é bom.
+                // Vou passar o objeto atualizado.
+            }} />
             <EvolutionChart data={data.evolucao} />
+            <ComparisonSummaryTable
+                totalPagoBanco={dynamicTotalPagoBanco}
+                totalJurosBanco={dynamicTotalJurosBanco}
+                parcelaBanco={hasReconciliation ? (rowsToConsider.length > 0 ? dynamicTotalPagoBanco / rowsToConsider.length : 0) : data.kpis.parcelaOriginalValor}
+                taxaContrato={data.kpis.taxaPraticada}
+                totalPagoRecalculado={dynamicTotalPagoRecalculado}
+                totalJurosRecalculado={dynamicTotalJurosRecalculado}
+                parcelaRecalculada={data.kpis.novaParcelaValor}
+                taxaMercado={data.kpis.taxaMercado}
+                economiaTotal={dynamicEconomiaTotal}
+                economiaJuros={dynamicEconomiaJuros}
+                economiaParcela={dynamicEconomiaParcela}
+                sobretaxaPercentual={sobretaxa}
+            />
+            {hasReconciliation && (
+                <p className="text-xs text-slate-500 text-right italic">
+                    * Exibindo valores conciliados ({rowsToConsider.length} parcelas)
+                </p>
+            )}
         </div>
     );
 

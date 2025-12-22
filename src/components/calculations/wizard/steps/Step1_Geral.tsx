@@ -1,3 +1,4 @@
+/** @deprecated Componente depreciado. Utilizar a nova estrutura em tabs (CalculationPage/DataEntryTab) */
 'use client';
 
 import * as React from 'react';
@@ -15,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertTriangle, TrendingUp, Loader2, ChevronDown, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { geralStep1Schema, type GeralStep1Data } from '@/schemas/moduloGeral.schema';
-import { ContractUploadButton } from '../ContractUploadButton';
+import { ContractImportCard } from '../ContractImportCard';
 import { fetchMarketRate, getEstimatedMarketRate } from '@/utils/financialCalculations';
 
 
@@ -26,13 +27,14 @@ interface Step1_GeralProps {
 }
 
 const TIPOS_CONTRATO = [
-    { value: 'PESSOAL', label: 'Empréstimo Pessoal' },
-    { value: 'CONSIGNADO_PRIVADO', label: 'Consignado Privado' },
-    { value: 'CONSIGNADO_PUBLICO', label: 'Consignado Público' },
-    { value: 'CONSIGNADO_INSS', label: 'Consignado INSS' },
-    { value: 'CAPITAL_GIRO', label: 'Capital de Giro' },
-    { value: 'VEICULO', label: 'Financiamento de Veículo' },
-    { value: 'CHEQUE_ESPECIAL', label: 'Cheque Especial' },
+    { value: 'EMPRESTIMO_PESSOAL', label: '25464 - Empréstimo Pessoal PF (% a.a.)' },
+    { value: 'CONSIGNADO_PRIVADO', label: '25463 - Consignado Privado (% a.a.)' },
+    { value: 'CONSIGNADO_PUBLICO', label: '25462 - Consignado Público (% a.a.)' },
+    { value: 'CONSIGNADO_INSS', label: '25470 - Consignado INSS (% a.a.)' },
+    { value: 'CAPITAL_GIRO', label: '20739 - Capital de Giro até 365 dias PJ (% a.a.)' },
+    { value: 'FINANCIAMENTO_VEICULO', label: '20749 - Aquisição de Veículos PF (% a.a.)' },
+    { value: 'FINANCIAMENTO_VEICULO_PJ', label: '20728 - Aquisição de Veículos PJ (% a.a.)' },
+    { value: 'CHEQUE_ESPECIAL', label: '20712 - Cheque Especial PF (% a.a.)' },
 ] as const;
 
 export function Step1_Geral({
@@ -57,8 +59,8 @@ export function Step1_Geral({
         defaultValues: {
             credor: '',
             devedor: '',
-            contratoNum: '',
-            tipoContrato: 'PESSOAL',
+            numeroContrato: '',
+            tipoContrato: 'EMPRESTIMO_PESSOAL',
             valorFinanciado: 0,
             dataContrato: '',
             dataPrimeiroVencimento: '',
@@ -149,8 +151,8 @@ export function Step1_Geral({
             filledFields.add('devedor');
         }
         if (data.numero_contrato) {
-            setValue('contratoNum', data.numero_contrato);
-            filledFields.add('contratoNum');
+            setValue('numeroContrato', data.numero_contrato);
+            filledFields.add('numeroContrato');
         }
         if (data.valor_financiado) {
             setValue('valorFinanciado', Number(data.valor_financiado), { shouldValidate: true });
@@ -205,22 +207,10 @@ export function Step1_Geral({
 
     return (
         <div className="space-y-6">
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-blue-900">Importar Contrato</CardTitle>
-                            <CardDescription className="text-blue-700">Preencher automaticamente com IA</CardDescription>
-                        </div>
-                        <ContractUploadButton
-                            category="EMPRESTIMOS_VEICULOS"
-                            onDataExtracted={handleOcrData}
-                            variant="default"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                        />
-                    </div>
-                </CardHeader>
-            </Card>
+            <ContractImportCard
+                category="EMPRESTIMOS_VEICULOS"
+                onDataExtracted={handleOcrData}
+            />
 
             <Card>
                 <CardHeader>
@@ -258,8 +248,8 @@ export function Step1_Geral({
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="contratoNum">Nº do Contrato (Opcional)</Label>
-                        <Input id="contratoNum" className={getHighlightClass('contratoNum')} {...register('contratoNum')} />
+                        <Label htmlFor="numeroContrato">Nº do Contrato (Opcional)</Label>
+                        <Input id="numeroContrato" className={getHighlightClass('numeroContrato')} {...register('numeroContrato')} />
                     </div>
                 </CardContent>
             </Card>
@@ -269,8 +259,8 @@ export function Step1_Geral({
                     <CardTitle>Valores e Prazos</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-3">
-                    {/* Campos condicionais para veículos */}
-                    {watchedValues.tipoContrato === 'VEICULO' && (
+                    {/* Campos condicionais para veículos (PF e PJ) */}
+                    {(watchedValues.tipoContrato === 'FINANCIAMENTO_VEICULO' || watchedValues.tipoContrato === 'FINANCIAMENTO_VEICULO_PJ') && (
                         <>
                             <div className="space-y-2">
                                 <Label>Valor do Bem</Label>
@@ -341,6 +331,17 @@ export function Step1_Geral({
                         />
                         {errors.prazoMeses && <p className="text-sm text-red-500">{errors.prazoMeses.message}</p>}
                     </div>
+
+                    <div className="space-y-2">
+                        <Label>Valor da Parcela</Label>
+                        <CurrencyInput
+                            value={watchedValues.valorPrestacao}
+                            onChange={(val) => setValue('valorPrestacao', val || 0, { shouldValidate: true })}
+                            className={getHighlightClass('valorPrestacao')}
+                        />
+                        <p className="text-xs text-slate-500">Valor cobrado mensalmente pelo banco</p>
+                        {errors.valorPrestacao && <p className="text-sm text-red-500">{errors.valorPrestacao.message}</p>}
+                    </div>
                 </CardContent>
             </Card>
 
@@ -355,22 +356,6 @@ export function Step1_Geral({
                 </Alert>
             )}
 
-            {/* Display Taxa Mercado */}
-            <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="pt-6 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5 text-blue-600" />
-                        <span className="font-semibold text-blue-800">Taxa Média de Mercado</span>
-                    </div>
-                    {loadingTaxa ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                    ) : (
-                        <span className="text-2xl font-bold text-blue-700">
-                            {taxaMercado?.toFixed(2)}% <span className="text-sm font-normal">a.m.</span>
-                        </span>
-                    )}
-                </CardContent>
-            </Card>
         </div>
     );
 }

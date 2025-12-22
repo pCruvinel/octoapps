@@ -12,7 +12,7 @@ import { PercentInput } from '@/components/ui/percent-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { toast } from 'sonner';
 import { imobiliarioStep1Schema, type ImobiliarioStep1Data } from '@/schemas/moduloImobiliario.schema';
-import { ContractUploadButton } from '../ContractUploadButton';
+import { ContractImportCard } from '../ContractImportCard';
 
 
 interface Step1_ImobiliarioProps {
@@ -133,22 +133,10 @@ export function Step1_Imobiliario({
 
     return (
         <div className="space-y-6">
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-blue-900">Importar Contrato Imobiliário</CardTitle>
-                            <CardDescription className="text-blue-700">Preencher via IA (Foto ou PDF)</CardDescription>
-                        </div>
-                        <ContractUploadButton
-                            category="IMOBILIARIO"
-                            onDataExtracted={handleOcrData}
-                            variant="default"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                        />
-                    </div>
-                </CardHeader>
-            </Card>
+            <ContractImportCard
+                category="IMOBILIARIO"
+                onDataExtracted={handleOcrData}
+            />
 
             <Card>
                 <CardHeader>

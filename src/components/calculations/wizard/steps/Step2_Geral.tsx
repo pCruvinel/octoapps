@@ -1,3 +1,4 @@
+/** @deprecated Componente depreciado. Utilizar a nova estrutura em tabs (CalculationPage/DataEntryTab) */
 'use client';
 
 import * as React from 'react';
@@ -10,12 +11,12 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PercentInput } from '@/components/ui/percent-input';
-import { AlertTriangle, Info, Calculator, TrendingDown } from 'lucide-react';
+import { AlertTriangle, Info, Calculator, TrendingDown, TrendingUp, RefreshCw, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { geralStep2Schema, type GeralStep2Data } from '@/schemas/moduloGeral.schema';
-import { calculationAPI } from '@/services/calculationAPI.service';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { geralStep2Schema, type GeralStep2Data } from '@/schemas/moduloGeral.schema';
+import { buscarTaxaSGS, SERIES_SGS_BACEN } from '@/services/taxasMercadoBacen';
+import type { ModalidadeCredito } from '@/types/calculation.types';
 import { toast } from 'sonner';
 
 interface Step2_GeralProps {
@@ -23,6 +24,7 @@ interface Step2_GeralProps {
     onDataChange?: (data: GeralStep2Data) => void;
     onValidationChange?: (isValid: boolean) => void;
     contractDate?: string;
+    contractType?: string; // Tipo de contrato do Step1 (ex: FINANCIAMENTO_VEICULO)
 }
 
 const SISTEMAS_GERAL = [
@@ -31,15 +33,33 @@ const SISTEMAS_GERAL = [
     { value: 'SAC', label: 'SAC (Menos Comum em Pessoais)' },
 ] as const;
 
+/**
+ * Maps frontend contract type to ModalidadeCredito for BACEN series lookup
+ */
+function mapContractTypeToModalidade(contractType?: string): ModalidadeCredito {
+    const map: Record<string, ModalidadeCredito> = {
+        'FINANCIAMENTO_VEICULO': 'AQUISICAO_VEICULOS_PF',
+        'FINANCIAMENTO_VEICULO_PJ': 'AQUISICAO_VEICULOS_PJ',
+        'EMPRESTIMO_PESSOAL': 'EMPRESTIMO_PESSOAL',
+        'CONSIGNADO_PRIVADO': 'CONSIGNADO_PRIVADO',
+        'CONSIGNADO_PUBLICO': 'CONSIGNADO_PUBLICO',
+        'CONSIGNADO_INSS': 'CONSIGNADO_INSS',
+        'CAPITAL_GIRO': 'CAPITAL_GIRO_ATE_365',
+        'CHEQUE_ESPECIAL': 'CHEQUE_ESPECIAL',
+    };
+    return map[contractType || ''] || 'EMPRESTIMO_PESSOAL';
+}
+
 export function Step2_Geral({
     defaultValues,
     onDataChange,
     onValidationChange,
     contractDate,
+    contractType,
 }: Step2_GeralProps) {
     const [capitalizacaoDiariaDetectada, setCapitalizacaoDiariaDetectada] = React.useState(false);
     const [isFetchingRate, setIsFetchingRate] = React.useState(false);
-    const [fetchedRate, setFetchedRate] = React.useState<{ mensal: number, anual: number } | null>(null);
+    const [fetchedRate, setFetchedRate] = React.useState<{ mensal: number, anual: number, serie: string } | null>(null);
 
     const {
         setValue,
@@ -71,6 +91,13 @@ export function Step2_Geral({
         }
     }, [isValid, watchedValues, onValidationChange, onDataChange]);
 
+    // Auto-fetch rate when contract date or type changes
+    React.useEffect(() => {
+        if (contractDate && contractType) {
+            handleFetchBacen();
+        }
+    }, [contractDate, contractType]);
+
     // Detecção Automática de Capitalização Diária
     React.useEffect(() => {
         const { taxaMensalContrato, taxaAnualContrato } = watchedValues;
@@ -83,12 +110,6 @@ export function Step2_Geral({
             // Se a taxa anual real é > 2% da esperada, detecta diária
             if (anualDecimal > taxaAnualEsperada * 1.02) {
                 setCapitalizacaoDiariaDetectada(true);
-                // Sugere mudança (mas não força sem aviso se já estiver setado? 
-                // A lógica antiga forçava, vamos manter o UX de avisar e mudar se for diferente)
-                if (watchedValues.capitalizacao !== 'DIARIA') {
-                    // Opcional: toast ou auto-change. Vamos fazer auto-change com o Alert visual
-                    // setValue('capitalizacao', 'DIARIA'); // Comentado para deixar decisão do usuário, ou manter lógica antiga
-                }
             } else {
                 setCapitalizacaoDiariaDetectada(false);
             }
@@ -101,20 +122,25 @@ export function Step2_Geral({
             return;
         }
 
+        const modalidade = mapContractTypeToModalidade(contractType);
+        const serieInfo = SERIES_SGS_BACEN[modalidade];
+
         setIsFetchingRate(true);
         try {
-            const rateDecimal = await calculationAPI.getBacenRate('EMPRESTIMO', contractDate);
+            const snapshot = await buscarTaxaSGS(modalidade, contractDate);
 
-            if (rateDecimal) {
-                const mensalPercent = rateDecimal.times(100).toNumber();
-                const anualPercent = (Math.pow(1 + rateDecimal.toNumber(), 12) - 1) * 100;
+            // snapshot.valor is monthly rate in percent (e.g., 1.71 for 1.71%)
+            const taxaMensalPercent = snapshot.valor;
+            const taxaAnualPercent = (Math.pow(1 + taxaMensalPercent / 100, 12) - 1) * 100;
 
-                setFetchedRate({ mensal: mensalPercent, anual: anualPercent });
-                setValue('taxaMediaBacen', mensalPercent); // Store internal for logic
-                toast.success('Taxa média do Bacen encontrada!');
-            } else {
-                toast.warning('Não foi possível encontrar a taxa média para esta data/série.');
-            }
+            setFetchedRate({
+                mensal: taxaMensalPercent,
+                anual: taxaAnualPercent,
+                serie: `${snapshot.serieCodigo} - ${snapshot.serieId}`
+            });
+            setValue('taxaMediaBacen', taxaMensalPercent);
+
+            console.log(`[Step2] BACEN Rate: ${taxaMensalPercent.toFixed(4)}% a.m. | ${taxaAnualPercent.toFixed(2)}% a.a. (Série: ${snapshot.serieCodigo})`);
         } catch (error) {
             console.error(error);
             toast.error('Erro ao buscar taxa do Bacen');
@@ -151,46 +177,93 @@ export function Step2_Geral({
                         Taxas Contratuais
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-6 md:grid-cols-2">
-                    <div className="space-y-2">
-                        <Label>Taxa Mensal (%)</Label>
-                        <PercentInput
-                            value={watchedValues.taxaMensalContrato}
-                            onChange={(val) => {
-                                const mensal = val || 0;
-                                const anual = (Math.pow(1 + mensal / 100, 12) - 1) * 100;
-                                setValue('taxaMensalContrato', mensal, { shouldValidate: true });
-                                setValue('taxaAnualContrato', anual, { shouldValidate: true });
-                            }}
-                            decimalPlaces={4}
-                        />
-                        {errors.taxaMensalContrato && <p className="text-sm text-red-500">{errors.taxaMensalContrato.message}</p>}
-                        {watchedValues.taxaMensalContrato > 10 && (
-                            <p className="text-sm text-amber-600 flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Taxa mensal muito alta - verifique se está correto
-                            </p>
-                        )}
+                <CardContent className="space-y-6">
+                    <div className="grid gap-6 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label>Taxa Mensal (%)</Label>
+                            <PercentInput
+                                value={watchedValues.taxaMensalContrato}
+                                onChange={(val) => {
+                                    const mensal = val || 0;
+                                    const anual = (Math.pow(1 + mensal / 100, 12) - 1) * 100;
+                                    setValue('taxaMensalContrato', mensal, { shouldValidate: true });
+                                    setValue('taxaAnualContrato', anual, { shouldValidate: true });
+                                }}
+                                decimalPlaces={4}
+                            />
+                            {errors.taxaMensalContrato && <p className="text-sm text-red-500">{errors.taxaMensalContrato.message}</p>}
+                            {watchedValues.taxaMensalContrato > 10 && (
+                                <p className="text-sm text-amber-600 flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Taxa mensal muito alta - verifique se está correto
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>Taxa Anual (%)</Label>
+                            <PercentInput
+                                value={watchedValues.taxaAnualContrato}
+                                onChange={(val) => {
+                                    const anual = val || 0;
+                                    const mensal = (Math.pow(1 + anual / 100, 1 / 12) - 1) * 100;
+                                    setValue('taxaAnualContrato', anual, { shouldValidate: true });
+                                    setValue('taxaMensalContrato', mensal, { shouldValidate: true });
+                                }}
+                                decimalPlaces={2}
+                            />
+                            {errors.taxaAnualContrato && <p className="text-sm text-red-500">{errors.taxaAnualContrato.message}</p>}
+                            {watchedValues.taxaAnualContrato > 200 && (
+                                <p className="text-sm text-amber-600 flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Taxa anual muito alta - verifique se está correto
+                                </p>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>Taxa Anual (%)</Label>
-                        <PercentInput
-                            value={watchedValues.taxaAnualContrato}
-                            onChange={(val) => {
-                                const anual = val || 0;
-                                const mensal = (Math.pow(1 + anual / 100, 1 / 12) - 1) * 100;
-                                setValue('taxaAnualContrato', anual, { shouldValidate: true });
-                                setValue('taxaMensalContrato', mensal, { shouldValidate: true });
-                            }}
-                            decimalPlaces={2}
-                        />
-                        {errors.taxaAnualContrato && <p className="text-sm text-red-500">{errors.taxaAnualContrato.message}</p>}
-                        {watchedValues.taxaAnualContrato > 200 && (
-                            <p className="text-sm text-amber-600 flex items-center gap-1">
-                                <AlertTriangle className="h-3 w-3" />
-                                Taxa anual muito alta - verifique se está correto
-                            </p>
+                    {/* BACEN Market Rate Display - Inside Taxas Contratuais Card */}
+                    <div className="pt-4 border-t">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4 text-slate-500" />
+                                <span className="text-sm font-medium text-slate-700">Taxa Média de Mercado (BACEN)</span>
+                            </div>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs"
+                                onClick={handleFetchBacen}
+                                disabled={isFetchingRate || !contractDate}
+                                type="button"
+                            >
+                                {isFetchingRate ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                            </Button>
+                        </div>
+
+                        {isFetchingRate ? (
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <span>Buscando taxa de mercado...</span>
+                            </div>
+                        ) : fetchedRate ? (
+                            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-xs text-slate-500 mb-1">Taxa Mensal</p>
+                                        <p className="text-lg font-semibold text-slate-900">{fetchedRate.mensal.toFixed(4)}% <span className="text-xs font-normal text-slate-500">a.m.</span></p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 mb-1">Taxa Anual</p>
+                                        <p className="text-lg font-semibold text-slate-900">{fetchedRate.anual.toFixed(2)}% <span className="text-xs font-normal text-slate-500">a.a.</span></p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-400 mt-2">Série: {fetchedRate.serie}</p>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-slate-400 italic">
+                                {contractDate ? 'Clique para buscar a taxa de mercado' : 'Informe a data do contrato no Passo 1'}
+                            </div>
                         )}
                     </div>
                 </CardContent>
@@ -255,31 +328,6 @@ export function Step2_Geral({
                             <div className="space-y-1">
                                 <Label>Usar Taxa Média Bacen</Label>
                                 <p className="text-xs text-muted-foreground">Se detectado abuso, recalcular pela média de mercado.</p>
-                                {contractDate && (
-                                    <div className="mt-2 text-sm bg-slate-50 p-2 rounded border border-slate-100">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <span className="font-semibold text-slate-700">Média em {contractDate.substring(0, 7)}:</span>
-                                            {fetchedRate ? (
-                                                <Badge variant="outline" className="text-green-600 bg-green-50">
-                                                    {fetchedRate.mensal.toFixed(4)}% a.m.
-                                                </Badge>
-                                            ) : (
-                                                <span className="text-slate-400 italic">Não consultado</span>
-                                            )}
-                                        </div>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="h-7 text-xs w-full"
-                                            onClick={handleFetchBacen}
-                                            disabled={isFetchingRate}
-                                            type="button"
-                                        >
-                                            {isFetchingRate ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                                            {fetchedRate ? 'Consultar Novamente' : 'Buscar no Bacen'}
-                                        </Button>
-                                    </div>
-                                )}
                             </div>
                             <Switch
                                 checked={watchedValues.usarTaxaBacen}

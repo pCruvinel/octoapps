@@ -18,6 +18,7 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         ref
     ) => {
         const [displayValue, setDisplayValue] = React.useState('');
+        const [isFocused, setIsFocused] = React.useState(false);
 
         const formatCurrency = (num: number): string => {
             return new Intl.NumberFormat(locale, {
@@ -34,11 +35,14 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
             return isNaN(parsed) ? undefined : parsed;
         };
 
+        // Only update displayValue when not focused (to avoid overriding user input)
         React.useEffect(() => {
+            if (isFocused) return; // Don't update while user is editing
+
             if (value !== undefined && value !== null) {
                 const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                // Treat 0 as empty for display (shows placeholder)
-                if (!isNaN(numValue) && numValue !== 0) {
+                if (!isNaN(numValue)) {
+                    // Always format the value, including zero
                     setDisplayValue(formatCurrency(numValue));
                 } else {
                     setDisplayValue('');
@@ -46,7 +50,7 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
             } else {
                 setDisplayValue('');
             }
-        }, [value]);
+        }, [value, isFocused]);
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const inputValue = e.target.value;
@@ -54,6 +58,7 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         };
 
         const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+            setIsFocused(false);
             const parsed = parseCurrency(displayValue);
             if (parsed !== undefined) {
                 setDisplayValue(formatCurrency(parsed));
@@ -65,14 +70,18 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         };
 
         const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+            setIsFocused(true);
             if (value !== undefined && value !== null) {
                 const numValue = typeof value === 'string' ? parseFloat(value) : value;
-                // Show empty on focus when value is 0, so user can type freely
                 if (!isNaN(numValue) && numValue !== 0) {
-                    setDisplayValue(numValue.toString().replace('.', ','));
+                    // Show numeric value for editing (use comma as decimal separator)
+                    setDisplayValue(numValue.toFixed(2).replace('.', ','));
                 } else {
+                    // If value is 0 or invalid, show empty for better UX
                     setDisplayValue('');
                 }
+            } else {
+                setDisplayValue('');
             }
             props.onFocus?.(e);
         };

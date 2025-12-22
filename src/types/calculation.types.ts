@@ -1254,3 +1254,283 @@ export interface AnaliseEmprestimoResponse {
     cetAnual: string;
   };
 }
+
+// ============================================================================
+// CÁLCULO DETALHADO (PERÍCIA CONTÁBIL)
+// ============================================================================
+
+/**
+ * Modalidades de Crédito com mapeamento para séries SGS BACEN
+ */
+export type ModalidadeCredito =
+  | 'AQUISICAO_VEICULOS_PF'
+  | 'AQUISICAO_VEICULOS_PJ'
+  | 'EMPRESTIMO_PESSOAL'
+  | 'CONSIGNADO_PRIVADO'
+  | 'CONSIGNADO_PUBLICO'
+  | 'CONSIGNADO_INSS'
+  | 'CAPITAL_GIRO_ATE_365'
+  | 'CAPITAL_GIRO_ACIMA_365'
+  | 'CHEQUE_ESPECIAL'
+  | 'CARTAO_ROTATIVO'
+  | 'IMOBILIARIO_SFH'
+  | 'IMOBILIARIO_SFI';
+
+/**
+ * Indexadores de correção monetária
+ */
+export type IndexadorCorrecao = 'TR' | 'IPCA' | 'INPC' | 'IGPM' | 'NENHUM';
+
+/**
+ * Regra de defasagem para índices de correção
+ * - MES_CHEIO_ANTERIOR: Usa o índice do mês anterior completo (padrão)
+ * - DEFASAGEM_2_MESES: Usa o índice de 2 meses atrás
+ * - ACUMULADO_12_MESES: Usa o índice acumulado dos últimos 12 meses
+ */
+export type RegraDefasagemIndice =
+  | 'MES_CHEIO_ANTERIOR'
+  | 'DEFASAGEM_2_MESES'
+  | 'ACUMULADO_12_MESES';
+
+/**
+ * Override para edição manual do perito
+ * Permite ajustar parcelas específicas (amortização extra, pagamento parcial, renegociação)
+ */
+export interface OverrideParcela {
+  numeroParcela: number;
+  tipo: 'AMORTIZACAO_EXTRA' | 'PAGAMENTO_PARCIAL' | 'RENEGOCIACAO' | 'SKIP_PARCELA';
+  novoValor?: number;          // Valor efetivamente pago (se diferente do esperado)
+  novaData?: string;           // YYYY-MM-DD (se antecipação/atraso)
+  amortizacaoExtra?: number;   // Valor de FGTS, 13º, etc.
+  observacao?: string;         // Justificativa do perito
+}
+
+/**
+ * Tarifa individual para expurgo
+ */
+export interface TarifaExpurgo {
+  nome: string;
+  valor: number;
+  expurgar: boolean;
+  justificativa?: string;
+}
+
+/**
+ * Request para cálculo detalhado (perícia)
+ */
+export interface CalculoDetalhadoRequest {
+  // Identificação do Contrato
+  credor: string;
+  devedor: string;
+  contratoNumero: string;
+
+  // Dados Financeiros (Herança da Triagem)
+  valorFinanciado: number;
+  prazoMeses: number;
+  taxaContratoMensal: number;
+  taxaContratoAnual: number;
+
+  /** Valor da parcela cobrada pelo banco (informado pelo cliente) */
+  valorParcelaCobrada?: number;
+
+  // Datas
+  dataContrato: string;           // YYYY-MM-DD
+  dataLiberacao?: string;         // YYYY-MM-DD (para carência)
+  dataPrimeiroVencimento: string; // YYYY-MM-DD
+
+  // Sistema e Capitalização
+  sistemaAmortizacao: 'SAC' | 'PRICE' | 'SACRE';
+  capitalizacao: 'MENSAL' | 'DIARIA';
+
+  // Exclusivos do Cálculo Detalhado
+  modalidade: ModalidadeCredito;
+  indexador: IndexadorCorrecao;
+  regraDefasagem?: RegraDefasagemIndice; // Default: MES_CHEIO_ANTERIOR
+
+  // Seguros (valores mensais ou totais)
+  seguroMIP?: number;
+  seguroMIPTipo?: 'FIXO' | 'PERCENTUAL_SALDO';
+  seguroDFI?: number;
+  seguroDFITipo?: 'FIXO' | 'PERCENTUAL_IMOVEL';
+  taxaAdministrativa?: number;
+
+  // Tarifas
+  tarifaTAC?: number;
+  tarifaAvaliacao?: number;
+  tarifaRegistro?: number;
+  outrasTarifas?: TarifaExpurgo[];
+
+  // Overrides (Edição Manual) - Persistidos em JSONB
+  overrides?: OverrideParcela[];
+
+  // Configuração do Cálculo
+  usarTaxaBacen: boolean;
+  usarJurosSimples: boolean;      // Método Gauss
+  expurgarTarifas: boolean;
+  restituicaoEmDobro: boolean;    // Art. 42 CDC
+
+  // Empréstimo Pessoal & Veículos
+  valorBem?: number;              // Valor do bem (Veículo)
+  valorEntrada?: number;          // Valor da entrada (Veículo)
+
+  // Valor do Imóvel (para DFI percentual - Mantido para compatibilidade SFH)
+  valorImovel?: number;
+}
+
+/**
+ * Linha da tabela de amortização detalhada (para apêndices)
+ */
+export interface LinhaAmortizacaoDetalhada {
+  mes: number;
+  data: string;                    // YYYY-MM-DD
+
+  // Evolução do Saldo
+  saldoAbertura: number;
+  indiceCorrecao?: number;         // Valor do índice (TR, IPCA, etc.)
+  correcaoMonetaria?: number;      // Valor monetário da correção
+  saldoCorrigido?: number;         // Saldo após correção
+
+  // Componentes da Parcela
+  juros: number;
+  amortizacao: number;
+  saldoDevedor: number;            // Saldo após amortização
+
+  // Encargos
+  seguroMIP?: number;
+  seguroDFI?: number;
+  taxaAdm?: number;
+  multa?: number;
+  mora?: number;
+
+  // Totais
+  parcelaBase: number;             // Amortização + Juros
+  parcelaTotal: number;            // + Seguros + Taxas
+
+  // Comparativo (para AP03)
+  jurosMercado?: number;
+  parcelaMercado?: number;
+  diferenca: number;
+  diferencaAcumulada: number;
+
+  // Status e Override
+  status: 'PAGO' | 'PENDENTE' | 'OVERRIDE' | 'PROJETADO';
+  override?: OverrideParcela;
+}
+
+/**
+ * Totais de um apêndice
+ */
+export interface ApendiceTotal {
+  principal: number;
+  totalCorrecao: number;
+  totalJuros: number;
+  totalSeguros: number;
+  totalTarifas: number;
+  totalPago: number;
+  totalDevido: number;
+  totalDiferenca: number;
+  totalRestituir: number;
+}
+
+/**
+ * Resultado de um apêndice individual
+ */
+export interface ApendiceResult {
+  tipo: 'AP01' | 'AP02' | 'AP03' | 'AP04' | 'AP05' | 'AP06' | 'AP07';
+  titulo: string;
+  descricao: string;
+  tabela: LinhaAmortizacaoDetalhada[];
+  totais: ApendiceTotal;
+}
+
+/**
+ * Snapshot da taxa BACEN para auditoria
+ */
+export interface TaxaSnapshot {
+  serieId: string;
+  serieCodigo: number;
+  valor: number;
+  dataReferencia: string;
+  fonte: string;
+  buscadoEm: string;
+}
+
+/**
+ * Mapa de índices históricos (bulk fetch)
+ * Chave: YYYY-MM (ex: "2024-01")
+ */
+export type MapaIndicesHistoricos = Map<string, number>;
+
+/**
+ * Response do cálculo detalhado (perícia)
+ */
+export interface CalculoDetalhadoResponse {
+  // Metadados
+  calculadoEm: string;
+  tempoExecucaoMs: number;
+  versaoMotor: string;
+
+  // Resumo Executivo
+  resumo: {
+    valorFinanciado: number;
+    valorTotalPago: number;
+    valorTotalDevido: number;
+    diferencaTotal: number;
+    restituicaoSimples: number;
+    restituicaoDobro: number;
+    economiaEstimada: number;
+    taxaContratoAnual: number;
+    taxaMercadoAnual: number;
+    sobretaxaPercent: number;
+    isAbusivo: boolean;
+  };
+
+  // Snapshot da Taxa BACEN (para auditoria)
+  taxaSnapshot: TaxaSnapshot;
+
+  // 7 Apêndices (AP01-AP07)
+  apendices: {
+    ap01: ApendiceResult;   // Evolução Original (Cenário Banco)
+    ap02: ApendiceResult;   // Recálculo (Cenário Justo)
+    ap03: ApendiceResult;   // Diferenças Nominais
+    ap04?: ApendiceResult;  // Restituição em Dobro
+    ap05?: ApendiceResult;  // Restituição Simples
+    ap06?: ApendiceResult;  // Atualização Monetária (INPC)
+    ap07?: ApendiceResult;  // Consolidação Final
+  };
+
+  // Flags de Análise
+  flags: {
+    capitalizacaoDiariaDetectada: boolean;
+    anatocismoDetectado: boolean;
+    tarifasIrregulares: boolean;
+    segurosAbusivos: boolean;
+    carenciaDetectada: boolean;
+    diasCarencia?: number;
+    jurosCarencia?: number;
+  };
+
+  // Análise XTIR (Capitalização Diária)
+  analiseXTIR?: {
+    detectada: boolean;
+    taxaXTIR_mensal: number;
+    taxaPactuada_mensal: number;
+    diferenca: number;
+    metodoDeteccao: 'XTIR' | 'REVERSO' | 'NENHUM';
+    evidencia: string;
+  };
+
+  // Formatados para exibição
+  formatted?: {
+    valorFinanciado: string;
+    valorTotalPago: string;
+    valorTotalDevido: string;
+    diferencaTotal: string;
+    restituicaoSimples: string;
+    restituicaoDobro: string;
+    taxaContratoAnual: string;
+    taxaMercadoAnual: string;
+    sobretaxaPercent: string;
+  };
+}
+

@@ -43,6 +43,7 @@ import { supabase } from '@/lib/supabase';
 
 interface ListaCasosProps {
     onNavigate: (route: string, id?: string, data?: any) => void;
+    initialData?: any[]; // Preloaded data from router loader
 }
 
 const STATUS_CONFIG: Record<StatusContrato, { label: string; color: string }> = {
@@ -53,14 +54,14 @@ const STATUS_CONFIG: Record<StatusContrato, { label: string; color: string }> = 
 };
 
 const MODULO_CONFIG: Record<ModuloCalculo, { label: string; icon: React.ReactNode }> = {
-    GERAL: { label: 'Empréstimos', icon: <Calculator className="h-4 w-4" /> },
+    GERAL: { label: 'Empréstimos & Veículos', icon: <Calculator className="h-4 w-4" /> },
     IMOBILIARIO: { label: 'Imobiliário', icon: <Building className="h-4 w-4" /> },
     CARTAO: { label: 'Cartão', icon: <CreditCard className="h-4 w-4" /> },
 };
 
-export function ListaCasos({ onNavigate }: ListaCasosProps) {
-    const [contratos, setContratos] = React.useState<ContratoWithResultado[]>([]);
-    const [loading, setLoading] = React.useState(true);
+export function ListaCasos({ onNavigate, initialData }: ListaCasosProps) {
+    const [contratos, setContratos] = React.useState<ContratoWithResultado[]>(initialData || []);
+    const [loading, setLoading] = React.useState(!initialData);
     const [userId, setUserId] = React.useState<string | null>(null);
 
     // Pagination
@@ -298,10 +299,16 @@ export function ListaCasos({ onNavigate }: ListaCasosProps) {
                                 </DropdownMenuItem>
                             )}
                             {contrato.status === 'ANALISE_DETALHADA' && (
-                                <DropdownMenuItem onClick={() => handleViewReport(contrato)}>
-                                    <FileText className="h-4 w-4 mr-2" />
-                                    Ver Relatório
-                                </DropdownMenuItem>
+                                <>
+                                    <DropdownMenuItem onClick={() => handleResume(contrato)}>
+                                        <Play className="h-4 w-4 mr-2" />
+                                        Abrir / Editar
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleViewReport(contrato)}>
+                                        <FileText className="h-4 w-4 mr-2" />
+                                        Ver Relatório
+                                    </DropdownMenuItem>
+                                </>
                             )}
                             <DropdownMenuSeparator />
                             {contrato.status !== 'ARQUIVADO' && (

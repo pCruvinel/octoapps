@@ -52,16 +52,18 @@ export const contratoRevisionalService = {
     },
 
     /**
-     * Salva dados do Step 1 e atualiza status para ANALISE_PREVIA
+     * Salva dados do Step 1 e atualiza status
+     * @param keepDraftStatus Se true, mantém status RASCUNHO em vez de ANALISE_PREVIA
      */
     async saveStep1(
         contratoId: string,
         step1Data: Record<string, unknown>,
-        nomeReferencia?: string
+        nomeReferencia?: string,
+        keepDraftStatus?: boolean
     ): Promise<{ data: ContratoRevisional | null; error: Error | null }> {
         const updateData: ContratoRevisionalUpdate = {
             dados_step1: step1Data as unknown as Json,
-            status: 'ANALISE_PREVIA',
+            status: keepDraftStatus ? 'RASCUNHO' : 'ANALISE_PREVIA',
         };
 
         if (nomeReferencia) {

@@ -1,24 +1,41 @@
 /**
  * Seed Bacen Rates - Popular cache de taxas do Banco Central
- * 
+ *
  * Este script busca as taxas históricas da API do Bacen e popula
  * a tabela taxas_bacen_historico no Supabase.
- * 
+ *
  * Uso: npx vite-node scripts/seed-bacen-rates.ts
+ *
+ * Período: Últimos 120 meses (10 anos) - adequado para contratos imobiliários
+ * Séries: Taxas de financiamento + Indexadores (TR, IPCA, INPC, IGPM)
  */
 
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load environment variables from .env.local
+config({ path: resolve(process.cwd(), '.env.local') });
+
 // Configuração do Supabase
-const SUPABASE_URL = 'https://uyeubtqxwrhpuafcpgtg.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5ZXVidHF4d3JocHVhZmNwZ3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMjYwOTIsImV4cCI6MjA3ODkwMjA5Mn0.Qz1xjbBqDOpkOslxbxH7gOApFQb7heR455M9Dk15bK8';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://uyeubtqxwrhpuafcpgtg.supabase.co';
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5ZXVidHF4d3JocHVhZmNwZ3RnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMzMjYwOTIsImV4cCI6MjA3ODkwMjA5Mn0.Qz1xjbBqDOpkOslxbxH7gOApFQb7heR455M9Dk15bK8';
 
 const BACEN_API_URL = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs';
 
 // Séries a sincronizar
 const SERIES = [
-    { id: '432', name: 'Aquisição de imóveis - Não referenciadas' },
-    { id: '25471', name: 'Empréstimo consignado - INSS' },
-    { id: '20714', name: 'Empréstimo pessoal não consignado' },
-    { id: '226', name: 'Taxa Referencial (TR)' },
+    // === TAXAS DE FINANCIAMENTO ===
+    { id: '432', name: 'Aquisição de imóveis - Não referenciadas', category: 'TAXA_FINANCIAMENTO' },
+    { id: '25471', name: 'Empréstimo consignado - INSS', category: 'TAXA_FINANCIAMENTO' },
+    { id: '20714', name: 'Empréstimo pessoal não consignado', category: 'TAXA_FINANCIAMENTO' },
+    { id: '20773', name: 'Financiamento imobiliário SFH', category: 'TAXA_FINANCIAMENTO' },
+    { id: '25497', name: 'Financiamento imobiliário SFI', category: 'TAXA_FINANCIAMENTO' },
+
+    // === INDEXADORES (Correção Monetária) ===
+    { id: '226', name: 'Taxa Referencial (TR)', category: 'INDEXADOR' },
+    { id: '433', name: 'IPCA - Índice de Preços ao Consumidor Amplo', category: 'INDEXADOR' },
+    { id: '188', name: 'INPC - Índice Nacional de Preços ao Consumidor', category: 'INDEXADOR' },
+    { id: '189', name: 'IGP-M - Índice Geral de Preços do Mercado', category: 'INDEXADOR' },
 ];
 
 // Helper para formatar data para Bacen API (DD/MM/YYYY)

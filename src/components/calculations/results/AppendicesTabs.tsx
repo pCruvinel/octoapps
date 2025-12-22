@@ -1,44 +1,60 @@
 'use client';
 
 import * as React from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
-import { LayoutDashboard, Table2, FileText, GitCompare, Settings2 } from 'lucide-react';
+import { FileText, GitCompare, DollarSign, Settings2 } from 'lucide-react';
 
-interface AppendixData {
-    ap01?: any[]; // Evolução Original
-    ap02?: any[]; // Evolução Recalculada
-    ap03?: any[]; // Diferenças
-    parametros?: {
-        serieBacen: string;
-        taxaUsada: number;
-        dataConsulta: string;
-        metodologia: string;
-    };
+interface ApendiceRow {
+    mes: number;
+    data: string;
+    saldoAbertura?: number;
+    saldoAnterior?: number;
+    juros?: number;
+    amortizacao?: number;
+    parcelaTotal?: number;
+    parcela?: number;
+    saldoDevedor?: number;
+    diferenca?: number;
+    diferencaAcumulada?: number;
+    override?: any;
 }
 
 interface AppendicesTabsProps {
-    data: AppendixData;
-    activeTab?: string;
-    onTabChange?: (tab: string) => void;
-    resumoContent?: React.ReactNode;
-    conciliacaoContent?: React.ReactNode;
+    ap01?: ApendiceRow[];
+    ap02?: ApendiceRow[];
+    ap03?: ApendiceRow[];
+    parametros?: {
+        serieBacen?: string;
+        taxaUsada?: number;
+        dataConsulta?: string;
+        metodologia?: string;
+    };
 }
 
-function formatCurrency(value: number): string {
+function formatCurrency(value: number | undefined): string {
+    if (value === undefined || value === null || isNaN(value)) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr?: string): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('pt-BR');
+    try {
+        return new Date(dateStr).toLocaleDateString('pt-BR');
+    } catch {
+        return dateStr;
+    }
 }
 
-function AmortizationTable({ data, title }: { data: any[]; title: string }) {
+function AmortizationTable({ data, title }: { data: ApendiceRow[]; title: string }) {
     if (!data || data.length === 0) {
         return (
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-6 text-slate-500">
                 Nenhum dado disponível
             </div>
         );
@@ -47,27 +63,62 @@ function AmortizationTable({ data, title }: { data: any[]; title: string }) {
     return (
         <div className="overflow-x-auto">
             <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800">
+                <thead className="bg-slate-100">
                     <tr>
-                        <th className="px-4 py-2 text-left font-medium text-slate-600">Nº</th>
-                        <th className="px-4 py-2 text-left font-medium text-slate-600">Vencimento</th>
-                        <th className="px-4 py-2 text-right font-medium text-slate-600">Saldo Anterior</th>
-                        <th className="px-4 py-2 text-right font-medium text-slate-600">Juros</th>
-                        <th className="px-4 py-2 text-right font-medium text-slate-600">Amortização</th>
-                        <th className="px-4 py-2 text-right font-medium text-slate-600">Parcela</th>
-                        <th className="px-4 py-2 text-right font-medium text-slate-600">Saldo Devedor</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600">Nº</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600">Vencimento</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Saldo Anterior</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Juros</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Amortização</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Parcela</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Saldo Devedor</th>
                     </tr>
                 </thead>
                 <tbody>
                     {data.map((row, index) => (
-                        <tr key={index} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <td className="px-4 py-2 font-mono text-slate-500">{row.n || row.mes}</td>
-                            <td className="px-4 py-2 text-slate-600">{formatDate(row.vencimento || row.data)}</td>
-                            <td className="px-4 py-2 text-right font-mono">{formatCurrency(row.saldoAnterior || row.saldo_anterior || 0)}</td>
-                            <td className="px-4 py-2 text-right font-mono text-orange-600">{formatCurrency(row.juros || 0)}</td>
-                            <td className="px-4 py-2 text-right font-mono text-blue-600">{formatCurrency(row.amortizacao || 0)}</td>
-                            <td className="px-4 py-2 text-right font-mono font-medium">{formatCurrency(row.parcela || row.pmt || 0)}</td>
-                            <td className="px-4 py-2 text-right font-mono font-medium">{formatCurrency(row.saldoDevedor || row.saldo_devedor || 0)}</td>
+                        <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-2 font-mono text-slate-500">{row.mes}</td>
+                            <td className="px-3 py-2 text-slate-600">{formatDate(row.data)}</td>
+                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(row.saldoAbertura || row.saldoAnterior)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-orange-600">{formatCurrency(row.juros)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-blue-600">{formatCurrency(row.amortizacao)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(row.parcelaTotal || row.parcela)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium">{formatCurrency(row.saldoDevedor)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
+function DiferencasTable({ data }: { data: ApendiceRow[] }) {
+    if (!data || data.length === 0) {
+        return (
+            <div className="text-center py-6 text-slate-500">
+                Nenhum dado disponível
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+                <thead className="bg-slate-100">
+                    <tr>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600">Nº</th>
+                        <th className="px-3 py-2 text-left font-medium text-slate-600">Vencimento</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Diferença Parcela</th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-600">Diferença Acumulada</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {data.map((row, index) => (
+                        <tr key={index} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-2 font-mono text-slate-500">{row.mes}</td>
+                            <td className="px-3 py-2 text-slate-600">{formatDate(row.data)}</td>
+                            <td className="px-3 py-2 text-right font-mono text-emerald-600">{formatCurrency(row.diferenca)}</td>
+                            <td className="px-3 py-2 text-right font-mono font-medium text-emerald-700">{formatCurrency(row.diferencaAcumulada)}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -77,128 +128,116 @@ function AmortizationTable({ data, title }: { data: any[]; title: string }) {
 }
 
 export function AppendicesTabs({
-    data,
-    activeTab = 'resumo',
-    onTabChange,
-    resumoContent,
-    conciliacaoContent,
+    ap01,
+    ap02,
+    ap03,
+    parametros,
 }: AppendicesTabsProps) {
     return (
-        <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
-            <TabsList className="grid w-full grid-cols-5 h-auto">
-                <TabsTrigger value="resumo" className="flex items-center gap-2 py-3">
-                    <LayoutDashboard className="h-4 w-4" />
-                    <span className="hidden sm:inline">Resumo</span>
-                </TabsTrigger>
-                <TabsTrigger value="conciliacao" className="flex items-center gap-2 py-3">
-                    <Table2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Conciliação</span>
-                </TabsTrigger>
-                <TabsTrigger value="ap01" className="flex items-center gap-2 py-3">
-                    <FileText className="h-4 w-4" />
-                    <span className="hidden sm:inline">AP01</span>
-                </TabsTrigger>
-                <TabsTrigger value="ap02" className="flex items-center gap-2 py-3">
-                    <GitCompare className="h-4 w-4" />
-                    <span className="hidden sm:inline">AP02/03</span>
-                </TabsTrigger>
-                <TabsTrigger value="parametros" className="flex items-center gap-2 py-3">
-                    <Settings2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Parâmetros</span>
-                </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="resumo" className="mt-6">
-                {resumoContent || (
-                    <div className="text-center py-8 text-slate-500">
-                        Dashboard de resultados será exibido aqui
+        <Accordion type="multiple" defaultValue={['ap01']} className="w-full space-y-3">
+            {/* AP01 - Evolução Original */}
+            <AccordionItem value="ap01" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-red-100 text-red-600">
+                            <FileText className="h-4 w-4" />
+                        </div>
+                        <div className="text-left">
+                            <div className="font-medium">AP01 - Evolução da Dívida (Cenário Banco)</div>
+                            <div className="text-sm text-slate-500">{ap01?.length || 0} parcelas</div>
+                        </div>
+                        <Badge variant="outline" className="ml-auto mr-2 bg-red-50 text-red-700 border-red-200">
+                            Cobrado
+                        </Badge>
                     </div>
-                )}
-            </TabsContent>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                    <AmortizationTable data={ap01 || []} title="Evolução Original" />
+                </AccordionContent>
+            </AccordionItem>
 
-            <TabsContent value="conciliacao" className="mt-6">
-                {conciliacaoContent || (
-                    <div className="text-center py-8 text-slate-500">
-                        Editor de conciliação será exibido aqui
+            {/* AP02 - Evolução Recalculada */}
+            <AccordionItem value="ap02" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-blue-100 text-blue-600">
+                            <GitCompare className="h-4 w-4" />
+                        </div>
+                        <div className="text-left">
+                            <div className="font-medium">AP02 - Evolução Recalculada</div>
+                            <div className="text-sm text-slate-500">{ap02?.length || 0} parcelas</div>
+                        </div>
+                        <Badge variant="outline" className="ml-auto mr-2 bg-blue-50 text-blue-700 border-blue-200">
+                            Devido
+                        </Badge>
                     </div>
-                )}
-            </TabsContent>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                    <AmortizationTable data={ap02 || []} title="Evolução Recalculada" />
+                </AccordionContent>
+            </AccordionItem>
 
-            <TabsContent value="ap01" className="mt-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                            <span>AP01 - Evolução da Dívida (Cenário Banco)</span>
-                            <Badge variant="secondary">Cobrado</Badge>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <AmortizationTable data={data.ap01 || []} title="Evolução Original" />
-                    </CardContent>
-                </Card>
-            </TabsContent>
+            {/* AP03 - Diferenças */}
+            <AccordionItem value="ap03" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-emerald-100 text-emerald-600">
+                            <DollarSign className="h-4 w-4" />
+                        </div>
+                        <div className="text-left">
+                            <div className="font-medium">AP03 - Diferenças Apuradas</div>
+                            <div className="text-sm text-slate-500">{ap03?.length || 0} parcelas</div>
+                        </div>
+                        <Badge variant="outline" className="ml-auto mr-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                            Indébito
+                        </Badge>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                    <DiferencasTable data={ap03 || []} />
+                </AccordionContent>
+            </AccordionItem>
 
-            <TabsContent value="ap02" className="mt-6">
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center justify-between">
-                                <span>AP02 - Evolução Recalculada</span>
-                                <Badge variant="secondary" className="bg-blue-100 text-blue-700">Devido</Badge>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <AmortizationTable data={data.ap02 || []} title="Evolução Recalculada" />
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center justify-between">
-                                <span>AP03 - Diferenças Apuradas</span>
-                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">Comparativo</Badge>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <AmortizationTable data={data.ap03 || []} title="Diferenças" />
-                        </CardContent>
-                    </Card>
-                </div>
-            </TabsContent>
-
-            <TabsContent value="parametros" className="mt-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Parâmetros do Cálculo</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {data.parametros ? (
-                            <div className="grid gap-4 md:grid-cols-2">
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <p className="text-sm text-slate-500 mb-1">Série Bacen</p>
-                                    <p className="font-mono font-medium">{data.parametros.serieBacen}</p>
-                                </div>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <p className="text-sm text-slate-500 mb-1">Taxa Utilizada</p>
-                                    <p className="font-mono font-medium">{data.parametros.taxaUsada.toFixed(4)}% a.m.</p>
-                                </div>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <p className="text-sm text-slate-500 mb-1">Data da Consulta</p>
-                                    <p className="font-mono font-medium">{formatDate(data.parametros.dataConsulta)}</p>
-                                </div>
-                                <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                                    <p className="text-sm text-slate-500 mb-1">Metodologia</p>
-                                    <p className="font-medium">{data.parametros.metodologia}</p>
-                                </div>
+            {/* Parâmetros */}
+            <AccordionItem value="parametros" className="border rounded-lg">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-slate-50">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-md bg-slate-100 text-slate-600">
+                            <Settings2 className="h-4 w-4" />
+                        </div>
+                        <div className="text-left">
+                            <div className="font-medium">Parâmetros do Cálculo</div>
+                            <div className="text-sm text-slate-500">Metodologia e fontes utilizadas</div>
+                        </div>
+                    </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-4 pb-4">
+                    {parametros ? (
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="p-4 bg-slate-50 rounded-lg">
+                                <p className="text-sm text-slate-500 mb-1">Série BACEN</p>
+                                <p className="font-mono font-medium">{parametros.serieBacen || 'N/A'}</p>
                             </div>
-                        ) : (
-                            <div className="text-center py-8 text-slate-500">
-                                Parâmetros não disponíveis
+                            <div className="p-4 bg-slate-50 rounded-lg">
+                                <p className="text-sm text-slate-500 mb-1">Taxa Utilizada</p>
+                                <p className="font-mono font-medium">{parametros.taxaUsada?.toFixed(4) || 0}% a.m.</p>
                             </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </TabsContent>
-        </Tabs>
+                            <div className="p-4 bg-slate-50 rounded-lg">
+                                <p className="text-sm text-slate-500 mb-1">Data da Consulta</p>
+                                <p className="font-mono font-medium">{formatDate(parametros.dataConsulta)}</p>
+                            </div>
+                            <div className="p-4 bg-slate-50 rounded-lg">
+                                <p className="text-sm text-slate-500 mb-1">Metodologia</p>
+                                <p className="font-medium">{parametros.metodologia || 'N/A'}</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-center py-6 text-slate-500">
+                            Parâmetros não disponíveis
+                        </div>
+                    )}
+                </AccordionContent>
+            </AccordionItem>
+        </Accordion>
     );
 }

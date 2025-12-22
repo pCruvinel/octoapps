@@ -12,12 +12,17 @@ import {
     calculationAPI,
     CreateCalculationRequest,
 } from '../services/calculationAPI.service';
+import { calcularEvolucaoDetalhada } from '../services/calculoDetalhado.service';
 import type {
     CalculationPreviewResult,
     CalculationFullResult,
     PaymentReconciliationEntry,
     CalculationModule,
 } from '../services/calculationEngine';
+import type {
+    CalculoDetalhadoRequest,
+    CalculoDetalhadoResponse,
+} from '@/types/calculation.types';
 
 // ============================================================================
 // Types
@@ -31,6 +36,7 @@ export interface UseCalculationState {
 
     preview: CalculationPreviewResult | null;
     result: CalculationFullResult | null;
+    resultDetalhado: CalculoDetalhadoResponse | null;
     calculationId: string | null;
 
     error: string | null;
@@ -39,6 +45,7 @@ export interface UseCalculationState {
 export interface UseCalculationActions {
     calculatePreview: (request: CreateCalculationRequest) => Promise<CalculationPreviewResult | null>;
     calculateFull: (request: CreateCalculationRequest) => Promise<CalculationFullResult | null>;
+    calculateDetalhado: (request: CalculoDetalhadoRequest) => Promise<CalculoDetalhadoResponse | null>;
     saveCalculation: (clientId?: string) => Promise<string | null>;
     updateReconciliation: (reconciliation: PaymentReconciliationEntry[]) => Promise<void>;
     reset: () => void;
@@ -57,6 +64,7 @@ export function useCalculation(): UseCalculationReturn {
     const [isSaving, setIsSaving] = useState(false);
     const [preview, setPreview] = useState<CalculationPreviewResult | null>(null);
     const [result, setResult] = useState<CalculationFullResult | null>(null);
+    const [resultDetalhado, setResultDetalhado] = useState<CalculoDetalhadoResponse | null>(null);
     const [calculationId, setCalculationId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [lastRequest, setLastRequest] = useState<CreateCalculationRequest | null>(null);
@@ -118,6 +126,38 @@ export function useCalculation(): UseCalculationReturn {
             const message = err instanceof Error ? err.message : 'Erro ao calcular';
             setError(message);
             toast.error('Erro no cálculo', { description: message });
+            return null;
+        } finally {
+            setIsCalculating(false);
+        }
+    }, []);
+
+    /**
+     * Calculate detailed forensic report with AP01-AP07 appendices
+     */
+    const calculateDetalhado = useCallback(async (
+        request: CalculoDetalhadoRequest
+    ): Promise<CalculoDetalhadoResponse | null> => {
+        setIsCalculating(true);
+        setError(null);
+
+        try {
+            toast.loading('Calculando análise detalhada...', { id: 'calc-detalhado' });
+
+            const detalhadoResult = await calcularEvolucaoDetalhada(request);
+            setResultDetalhado(detalhadoResult);
+
+            toast.dismiss('calc-detalhado');
+            toast.success('Cálculo detalhado finalizado', {
+                description: `${detalhadoResult.apendices.ap03?.tabela?.length || 0} parcelas • Diferença: ${detalhadoResult.formatted?.diferencaTotal}`,
+            });
+
+            return detalhadoResult;
+        } catch (err) {
+            toast.dismiss('calc-detalhado');
+            const message = err instanceof Error ? err.message : 'Erro no cálculo detalhado';
+            setError(message);
+            toast.error('Erro no cálculo detalhado', { description: message });
             return null;
         } finally {
             setIsCalculating(false);
@@ -190,6 +230,7 @@ export function useCalculation(): UseCalculationReturn {
     const reset = useCallback(() => {
         setPreview(null);
         setResult(null);
+        setResultDetalhado(null);
         setCalculationId(null);
         setError(null);
         setLastRequest(null);
@@ -203,12 +244,14 @@ export function useCalculation(): UseCalculationReturn {
         isSaving,
         preview,
         result,
+        resultDetalhado,
         calculationId,
         error,
 
         // Actions
         calculatePreview,
         calculateFull,
+        calculateDetalhado,
         saveCalculation,
         updateReconciliation,
         reset,

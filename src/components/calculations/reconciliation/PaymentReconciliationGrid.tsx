@@ -41,10 +41,18 @@ interface PaymentReconciliationGridProps {
 
 // Status com cores e ícones
 const STATUS_CONFIG = {
-    PAGO: { label: 'Pago', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300', icon: CheckCircle2 },
-    EM_ABERTO: { label: 'Em Aberto', color: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', icon: Clock },
-    RENEGOCIADO: { label: 'Renegociado', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300', icon: RotateCcw },
+    PAGO: { label: 'Pago', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300', icon: CheckCircle2 },
+    EM_ABERTO: { label: 'Em Aberto', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300', icon: Clock },
+    RENEGOCIADO: { label: 'Renegociado', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300', icon: RotateCcw },
     ATRASO: { label: 'Atraso', color: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300', icon: XCircle },
+};
+
+// Estilos dos inputs baseados no status (fundo suave, texto preto)
+const INPUT_STATUS_STYLES = {
+    PAGO: 'bg-blue-50 border-blue-200 text-slate-900 dark:bg-blue-950/50 dark:border-blue-800 dark:text-slate-100',
+    EM_ABERTO: 'bg-amber-50 border-amber-200 text-slate-900 dark:bg-amber-950/50 dark:border-amber-800 dark:text-slate-100',
+    RENEGOCIADO: 'bg-purple-50 border-purple-200 text-slate-900 dark:bg-purple-950/50 dark:border-purple-800 dark:text-slate-100',
+    ATRASO: 'bg-red-50 border-red-200 text-slate-900 dark:bg-red-950/50 dark:border-red-800 dark:text-slate-100',
 };
 
 // Formatar moeda
@@ -59,20 +67,30 @@ function formatDate(dateStr: string): string {
     return date.toLocaleDateString('pt-BR');
 }
 
-// Células editáveis
-function EditableDateCell({ getValue, row, column, table }: CellContext<PaymentRow, string>) {
+// Células editáveis - Memoized for performance
+const EditableDateCell = React.memo(function EditableDateCell({
+    getValue,
+    row,
+    column,
+    table
+}: CellContext<PaymentRow, string>) {
     const initialValue = getValue();
     const [value, setValue] = React.useState(initialValue);
+    const rowIndex = row.index;
+    const columnId = column.id;
+    const status = row.original.status;
 
-    const onBlur = () => {
+    const onBlur = React.useCallback(() => {
         if (value !== initialValue) {
-            table.options.meta?.updateData(row.index, column.id, value);
+            table.options.meta?.updateData(rowIndex, columnId, value);
         }
-    };
+    }, [value, initialValue, table.options.meta, rowIndex, columnId]);
 
     React.useEffect(() => {
         setValue(initialValue);
     }, [initialValue]);
+
+    const inputStyle = INPUT_STATUS_STYLES[status];
 
     return (
         <Input
@@ -80,52 +98,65 @@ function EditableDateCell({ getValue, row, column, table }: CellContext<PaymentR
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onBlur={onBlur}
-            className={cn(
-                'h-8 text-sm',
-                row.original.isEdited && column.id === 'dataPagamentoReal' && 'bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800'
-            )}
+            className={cn('h-8 text-sm', inputStyle)}
         />
     );
-}
+});
 
-function EditableCurrencyCell({ getValue, row, column, table }: CellContext<PaymentRow, number>) {
+const EditableCurrencyCell = React.memo(function EditableCurrencyCell({
+    getValue,
+    row,
+    column,
+    table
+}: CellContext<PaymentRow, number>) {
     const initialValue = getValue();
-    const [value, setValue] = React.useState(initialValue);
+    const lastCommittedValue = React.useRef(initialValue);
+    const rowIndex = row.index;
+    const columnId = column.id;
+    const status = row.original.status;
 
-    const onBlur = () => {
-        if (value !== initialValue) {
-            table.options.meta?.updateData(row.index, column.id, value);
-        }
-    };
-
+    // Sync ref when table data changes
     React.useEffect(() => {
-        setValue(initialValue);
+        lastCommittedValue.current = initialValue;
     }, [initialValue]);
+
+    const handleChange = React.useCallback((newValue: number | undefined) => {
+        const val = newValue ?? 0;
+        // Only update if value actually changed
+        if (val !== lastCommittedValue.current) {
+            lastCommittedValue.current = val;
+            table.options.meta?.updateData(rowIndex, columnId, val);
+        }
+    }, [table.options.meta, rowIndex, columnId]);
+
+    const inputStyle = INPUT_STATUS_STYLES[status];
 
     return (
         <CurrencyInput
-            value={value}
-            onChange={(v) => setValue(v || 0)}
-            onBlur={onBlur}
-            className={cn(
-                'h-8 text-sm',
-                row.original.isEdited && (column.id === 'valorPagoReal' || column.id === 'amortizacaoExtra') &&
-                'bg-amber-50 border-amber-200 dark:bg-amber-950 dark:border-amber-800'
-            )}
+            value={initialValue}
+            onChange={handleChange}
+            className={cn('h-8 text-sm', inputStyle)}
         />
     );
-}
+});
 
-function EditableStatusCell({ getValue, row, table }: CellContext<PaymentRow, PaymentRow['status']>) {
+const EditableStatusCell = React.memo(function EditableStatusCell({
+    getValue,
+    row,
+    table
+}: CellContext<PaymentRow, PaymentRow['status']>) {
     const value = getValue();
+    const rowIndex = row.index;
+    const status = row.original.status;
+    const inputStyle = INPUT_STATUS_STYLES[status];
 
-    const handleChange = (newValue: PaymentRow['status']) => {
-        table.options.meta?.updateData(row.index, 'status', newValue);
-    };
+    const handleChange = React.useCallback((newValue: PaymentRow['status']) => {
+        table.options.meta?.updateData(rowIndex, 'status', newValue);
+    }, [table.options.meta, rowIndex]);
 
     return (
         <Select value={value} onValueChange={handleChange}>
-            <SelectTrigger className="h-8 text-xs w-[120px]">
+            <SelectTrigger className={cn('h-8 text-xs w-[120px] text-slate-900', inputStyle)}>
                 <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -140,7 +171,7 @@ function EditableStatusCell({ getValue, row, table }: CellContext<PaymentRow, Pa
             </SelectContent>
         </Select>
     );
-}
+});
 
 // Column helper
 const columnHelper = createColumnHelper<PaymentRow>();
@@ -150,18 +181,38 @@ const columns = [
     columnHelper.display({
         id: 'select',
         header: ({ table }) => (
-            <Checkbox
-                checked={table.getIsAllRowsSelected()}
-                onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
-                aria-label="Selecionar tudo"
-            />
+            <div className="flex items-center justify-center">
+                <Checkbox
+                    checked={table.getIsAllRowsSelected()}
+                    onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
+                    aria-label="Selecionar tudo"
+                />
+            </div>
         ),
-        cell: ({ row }) => (
-            <Checkbox
-                checked={row.getIsSelected()}
-                onCheckedChange={(value) => row.toggleSelected(!!value)}
-                aria-label="Selecionar linha"
-            />
+        cell: ({ row, table }) => (
+            <div
+                className="flex items-center justify-center w-full h-full cursor-pointer py-1"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    table.options.meta?.handleRowClick(row, e);
+                }}
+                onPointerDown={(e) => {
+                    // Only start drag on primary button
+                    if (e.button === 0) {
+                        e.preventDefault();
+                        table.options.meta?.handleDragStart(row);
+                    }
+                }}
+                onPointerEnter={() => {
+                    table.options.meta?.handleDragEnter(row);
+                }}
+            >
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    className="pointer-events-none"
+                    aria-label="Selecionar linha"
+                />
+            </div>
         ),
         size: 40,
     }),
@@ -209,13 +260,15 @@ const columns = [
     columnHelper.display({
         id: 'edited',
         header: '',
-        cell: ({ row }) => (
-            row.original.isEdited ? (
-                <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
+        cell: ({ row }) => {
+            if (!row.original.isEdited) return null;
+            const statusConfig = STATUS_CONFIG[row.original.status];
+            return (
+                <Badge variant="outline" className="text-xs bg-slate-100 border-slate-300 text-slate-900">
                     Editado
                 </Badge>
-            ) : null
-        ),
+            );
+        },
         size: 70,
     }),
 ];
@@ -224,6 +277,9 @@ const columns = [
 declare module '@tanstack/react-table' {
     interface TableMeta<TData> {
         updateData: (rowIndex: number, columnId: string, value: unknown) => void;
+        handleRowClick: (row: Row<TData>, event: React.MouseEvent) => void;
+        handleDragStart: (row: Row<TData>) => void;
+        handleDragEnter: (row: Row<TData>) => void;
     }
 }
 
@@ -234,6 +290,17 @@ export function PaymentReconciliationGrid({
     isLoading = false,
 }: PaymentReconciliationGridProps) {
     const [rowSelection, setRowSelection] = React.useState({});
+    const lastSelectedId = React.useRef<string | null>(null);
+    const isDragging = React.useRef(false);
+    const dragTargetState = React.useRef(false);
+
+    React.useEffect(() => {
+        const handleMouseUp = () => {
+            isDragging.current = false;
+        };
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => window.removeEventListener('mouseup', handleMouseUp);
+    }, []);
 
     const table = useReactTable({
         data,
@@ -263,6 +330,41 @@ export function PaymentReconciliationGrid({
                     onRecalculate();
                 }
             },
+            handleRowClick: (row, event) => {
+                const isSelected = row.getIsSelected();
+                const targetState = !isSelected;
+
+                if (event.shiftKey && lastSelectedId.current !== null) {
+                    const start = Math.min(Number(lastSelectedId.current), row.index);
+                    const end = Math.max(Number(lastSelectedId.current), row.index);
+
+                    const newSelection = { ...rowSelection };
+                    for (let i = start; i <= end; i++) {
+                        // @ts-ignore
+                        newSelection[i] = targetState; // Use target state of the clicked row
+                    }
+                    setRowSelection(newSelection);
+                } else {
+                    row.toggleSelected(targetState);
+                    lastSelectedId.current = String(row.index);
+                }
+            },
+            handleDragStart: (row) => {
+                isDragging.current = true;
+                const targetState = !row.getIsSelected();
+                dragTargetState.current = targetState;
+                row.toggleSelected(targetState);
+                lastSelectedId.current = String(row.index);
+            },
+            handleDragEnter: (row) => {
+                if (isDragging.current) {
+                    const currentState = row.getIsSelected();
+                    if (currentState !== dragTargetState.current) {
+                        row.toggleSelected(dragTargetState.current);
+                        lastSelectedId.current = String(row.index);
+                    }
+                }
+            }
         },
     });
 
@@ -358,22 +460,26 @@ export function PaymentReconciliationGrid({
                             ))}
                         </thead>
                         <tbody>
-                            {table.getRowModel().rows.map((row, index) => (
-                                <tr
-                                    key={row.id}
-                                    className={cn(
-                                        'border-b hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
-                                        row.original.isEdited && 'bg-amber-50/50 dark:bg-amber-950/30',
-                                        row.getIsSelected() && 'bg-blue-50 dark:bg-blue-950/50'
-                                    )}
-                                >
-                                    {row.getVisibleCells().map((cell) => (
-                                        <td key={cell.id} className="px-3 py-2">
-                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))}
+                            {table.getRowModel().rows.map((row, index) => {
+                                const statusColor = STATUS_CONFIG[row.original.status]?.color;
+                                return (
+                                    <tr
+                                        key={row.id}
+                                        className={cn(
+                                            'border-b hover:opacity-80 transition-colors',
+                                            statusColor, // Applies strict status color (Background + Text)
+                                            row.original.isEdited && 'border-l-2 border-l-amber-500', // Edited indicator
+                                            row.getIsSelected() && 'ring-2 ring-inset ring-blue-500' // Selection indicator
+                                        )}
+                                    >
+                                        {row.getVisibleCells().map((cell) => (
+                                            <td key={cell.id} className="px-3 py-2">
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

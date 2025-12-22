@@ -47,6 +47,7 @@ import { toast } from 'sonner';
 import { useTasks } from '../../hooks/useTasks';
 import { useAgendamentos } from '../../hooks/useAgendamentos';
 import { useAuth } from '../../hooks/useAuth';
+import { useFeriados } from '../../hooks/useFeriados';
 import { supabase } from '../../lib/supabase';
 import type { Task } from '../../types/task';
 import type { Agendamento, AgendamentoInsert } from '../../types/agendamento';
@@ -77,9 +78,10 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
     const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
     // Data Fetching
-    const { loadTasksByOpportunity } = useTasks(); // Note: this hook is per opportunity, we might need a general fetch function or customize it
+    const { loadTasksByOpportunity } = useTasks();
     const { loadAgendamentosByRange, createAgendamento, deleteAgendamento } = useAgendamentos();
     const { user } = useAuth();
+    const { feriados, loadFeriadosPorAno, checkIsFeriado } = useFeriados();
 
     // Form State
     const [newEventOpen, setNewEventOpen] = useState(false);
@@ -110,6 +112,8 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
     // Load Events on Date/View Change
     useEffect(() => {
         fetchEvents();
+        // Load feriados for viewing year(s)
+        loadFeriadosPorAno(currentDate.getFullYear());
     }, [currentDate, viewMode]);
 
     const fetchEvents = async () => {
@@ -251,15 +255,22 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
         const dayEvents = events.filter(e => isSameDay(e.start, day));
         const isToday = isSameDay(day, new Date());
         const isCurrentMonth = isSameMonth(day, currentDate);
+        const feriado = checkIsFeriado(day);
+        const isSunday = day.getDay() === 0;
 
         return (
             <div
                 key={day.toISOString()}
-                className={`min-h-[100px] border-b border-r p-2 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800
-          ${!isCurrentMonth ? 'bg-gray-50/50 dark:bg-gray-900/50 text-gray-400' : ''}
-          ${isToday ? 'bg-blue-50/30' : ''}
-        `}
+                className={`min-h-[100px] border-b border-r p-2 transition-colors
+                  ${feriado || isSunday ? 'bg-red-50/60 dark:bg-red-950/30 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}
+                  ${!isCurrentMonth ? 'bg-gray-50/50 dark:bg-gray-900/50 text-gray-400' : ''}
+                  ${isToday ? 'ring-2 ring-inset ring-blue-500' : ''}
+                `}
                 onClick={() => {
+                    if (feriado || isSunday) {
+                        // Don't open create dialog on holidays/sundays
+                        return;
+                    }
                     setFormData(prev => ({
                         ...prev,
                         data_inicio: format(setHours(day, 9), "yyyy-MM-dd'T'HH:mm"),
@@ -270,10 +281,15 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
             >
                 <div className="flex justify-between items-center mb-1">
                     <span className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-full
-            ${isToday ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300'}
-          `}>
+                      ${isToday ? 'bg-blue-600 text-white' : feriado || isSunday ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}
+                    `}>
                         {format(day, 'd')}
                     </span>
+                    {feriado && (
+                        <span className="text-[10px] text-red-600 dark:text-red-400 truncate max-w-[80px]" title={feriado.nome}>
+                            {feriado.nome}
+                        </span>
+                    )}
                 </div>
                 <div className="space-y-1">
                     {dayEvents.slice(0, 3).map(event => (

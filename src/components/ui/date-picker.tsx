@@ -72,6 +72,14 @@ export function DatePicker({
     try {
       const date = parse(displayValue, 'dd/MM/yyyy', new Date());
       if (isValid(date)) {
+        const year = date.getFullYear();
+        // Validate year is reasonable (1900-2100)
+        if (year < 1900 || year > 2100) {
+          console.warn(`[DatePicker] Invalid year ${year}, resetting`);
+          setDisplayValue('');
+          onChange?.(undefined);
+          return;
+        }
         // Return ISO format for internal storage
         onChange?.(format(date, 'yyyy-MM-dd'));
         // Update display with formatted date

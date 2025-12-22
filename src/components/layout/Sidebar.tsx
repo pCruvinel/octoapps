@@ -5,11 +5,9 @@ import {
   Settings,
   Users,
   Shield,
-  Contact,
   Kanban,
   Calculator,
   FileText,
-  Upload,
   ChevronDown,
   X,
   Zap,
@@ -18,19 +16,36 @@ import {
   Calendar
 } from 'lucide-react';
 import { useState } from 'react';
+import { Link, useLocation } from '@tanstack/react-router';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermissions } from '../../hooks/usePermissions';
 
 interface SidebarProps {
-  currentRoute: string;
-  onNavigate: (route: string) => void;
   isMobileOpen: boolean;
   onMobileClose: () => void;
 }
 
-export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose }: SidebarProps) {
+// Route mapping from old routes to new TanStack Router paths
+const routeMap: Record<string, string> = {
+  'dashboard': '/dashboard',
+  'triagem': '/triagem',
+  'crm/oportunidades': '/crm/oportunidades',
+  'crm/contatos': '/crm/contatos',
+  'crm/calendario': '/crm/calendario',
+  'lista-casos': '/calc/lista',
+  'peticoes': '/peticoes',
+  'users': '/users',
+  'permissions': '/permissions',
+  'settings-general': '/settings/general',
+  'settings-documents': '/settings/documents',
+  'settings-funnel': '/settings/funnel',
+  'settings-ocr': '/settings/ocr',
+};
+
+export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   const { profile } = useAuth();
-  const { canRead, canManagePermissions } = usePermissions();
+  const { canRead } = usePermissions();
+  const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
     settings: false,
     calculations: false,
@@ -43,9 +58,14 @@ export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose 
 
   const isAdmin = profile?.roles?.includes('Administrador') || false;
 
+  // Check if current path matches route
+  const isActive = (route: string) => {
+    const path = routeMap[route] || `/${route}`;
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard, route: 'dashboard', adminOnly: false, module: null },
-    { id: 'triagem-express', label: 'Triagem Rápida', icon: Zap, route: 'triagem', adminOnly: false, module: 'calculations' as const },
     {
       id: 'crm',
       label: 'CRM',
@@ -88,14 +108,14 @@ export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose 
   ];
 
   const NavItem = ({ item }: { item: any }) => {
-    const isActive = currentRoute === item.route;
+    const itemIsActive = isActive(item.route);
     const hasSubmenu = item.submenu && item.submenu.length > 0;
     const isExpanded = expandedMenus[item.id];
 
     // Verificar se é adminOnly
     if (item.adminOnly && !isAdmin) return null;
 
-    // Verificar permissão de leitura do módulo (se o item tiver módulo associado)
+    // Verificar permissão de leitura do módulo
     if (item.module && !canRead(item.module)) return null;
 
     if (hasSubmenu) {
@@ -112,21 +132,22 @@ export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose 
           {isExpanded && (
             <div className="mt-1 space-y-1">
               {item.submenu.map((subItem: any) => {
-                // Check permissions for sub-items if they have specific module requirements
                 if (subItem.module && !canRead(subItem.module)) return null;
+                const subPath = routeMap[subItem.route] || `/${subItem.route}`;
 
                 return (
-                  <button
+                  <Link
                     key={subItem.id}
-                    onClick={() => onNavigate(subItem.route)}
-                    className={`w-full flex items-center gap-3 pl-12 pr-4 py-2.5 rounded-lg text-sm transition-colors ${currentRoute === subItem.route
+                    to={subPath as any}
+                    onClick={onMobileClose}
+                    className={`w-full flex items-center gap-3 pl-12 pr-4 py-2.5 rounded-lg text-sm transition-colors ${isActive(subItem.route)
                       ? 'bg-[#3D96FF] text-white'
                       : 'text-gray-600 hover:bg-gray-300 hover:text-gray-900'
                       }`}
                   >
                     {subItem.icon && <subItem.icon className="w-4 h-4" />}
                     {subItem.label}
-                  </button>
+                  </Link>
                 );
               })}
             </div>
@@ -135,18 +156,21 @@ export function Sidebar({ currentRoute, onNavigate, isMobileOpen, onMobileClose 
       );
     }
 
+    const path = routeMap[item.route] || `/${item.route}`;
+
     return (
       <div className="px-2">
-        <button
-          onClick={() => onNavigate(item.route)}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${isActive
+        <Link
+          to={path as any}
+          onClick={onMobileClose}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${itemIsActive
             ? 'bg-[#3D96FF] text-white'
             : 'text-gray-700 hover:bg-gray-300 hover:text-gray-900'
             }`}
         >
           <item.icon className="w-5 h-5 flex-shrink-0" />
           <span>{item.label}</span>
-        </button>
+        </Link>
       </div>
     );
   };

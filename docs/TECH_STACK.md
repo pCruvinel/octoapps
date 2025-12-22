@@ -7,6 +7,14 @@ Este documento descreve as principais tecnologias e ferramentas utilizadas no pr
 - **Framework Principal:** React 18.3.1
 - **Ferramenta de Build:** Vite 6.3.5
 - **Runtime Target:** ESNext (ES2020+)
+- **Router:** TanStack Router v1 (file-based routing)
+
+## 1.1 Router (TanStack Router)
+- **File-Based Routing:** Rotas em `src/routes/`
+- **Auth Guards:** via `beforeLoad` em `_authenticated.tsx`
+- **Typesafe Search Params:** Validação com Zod
+- **Loaders:** Prefetch de dados antes de renderizar
+- **DevTools:** Disponível no canto inferior direito
 
 ## 2. Frontend
 - **Estilização:** Tailwind CSS 4.1.18

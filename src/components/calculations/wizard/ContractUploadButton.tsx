@@ -1,85 +1,76 @@
-import { useState, useRef } from 'react';
-import { Button } from '../../ui/button';
-import { Loader2, Upload, FileText } from 'lucide-react';
+'use client';
+
+import * as React from 'react';
+import { Upload, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ocrService } from '@/services/ocr.service';
-import { OCRCategory } from '@/types/ocr.types';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import type { OCRCategory } from '@/types/ocr.types';
 
 interface ContractUploadButtonProps {
     category: OCRCategory;
     onDataExtracted: (data: any) => void;
+    variant?: 'default' | 'outline' | 'ghost';
     className?: string;
-    variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive';
 }
 
 export function ContractUploadButton({
     category,
     onDataExtracted,
-    className,
-    variant = 'outline'
+    variant = 'default',
+    className = '',
 }: ContractUploadButtonProps) {
-    const { user } = useAuth();
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = React.useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        // Reset input
-        if (fileInputRef.current) fileInputRef.current.value = '';
-
-        // Validations
-        if (!user) {
-            toast.error('Usuário não autenticado');
+        // Validate file type
+        const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+        if (!allowedTypes.includes(file.type)) {
+            toast.error('Formato não suportado. Use PDF, PNG ou JPG.');
             return;
         }
 
-        const MAX_SIZE = 20 * 1024 * 1024; // 20MB
-        if (file.size > MAX_SIZE) {
-            toast.error('O arquivo deve ter no máximo 20MB');
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            toast.error('Arquivo muito grande. Máximo 10MB.');
             return;
         }
 
-        const type = file.type;
-        if (!['application/pdf', 'image/jpeg', 'image/png'].includes(type)) {
-            toast.error('Formato não suportado. Use PDF, JPG ou PNG.');
-            return;
-        }
+        setIsUploading(true);
 
         try {
-            setIsUploading(true);
-            const toastId = toast.loading('Processando contrato com IA...');
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                toast.error('Usuário não autenticado');
+                return;
+            }
+
+            toast.info('Processando contrato com IA...');
 
             const result = await ocrService.extractFromDocument(file, category, user.id);
 
-            if (result.success) {
-                toast.dismiss(toastId);
-
-                const fieldCount = Object.keys(result.data).length;
-                const missingCount = result.missingFields.length;
-
-                let msg = `${fieldCount} campos extraídos com sucesso.`;
-                if (missingCount > 0) msg += ` ${missingCount} campos não encontrados.`;
-
-                toast.success('Extração concluída!', { description: msg });
-
+            if (result.success && result.data) {
+                toast.success('Dados extraídos com sucesso!');
                 onDataExtracted(result.data);
             } else {
-                toast.dismiss(toastId);
-                toast.error('Falha na extração', { description: result.error || 'Erro desconhecido' });
+                toast.error(result.error || 'Erro ao processar documento');
             }
-        } catch (error: any) {
-            console.error('Upload Error:', error);
-            toast.error('Erro ao processar', { description: error.message });
+        } catch (error) {
+            console.error('[ContractUploadButton] Erro:', error);
+            toast.error('Erro ao processar documento');
         } finally {
             setIsUploading(false);
+            // Reset input
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
         }
-    };
-
-    const handleClick = () => {
-        fileInputRef.current?.click();
     };
 
     return (
@@ -88,21 +79,27 @@ export function ContractUploadButton({
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
+                accept=".pdf,.png,.jpg,.jpeg"
                 className="hidden"
-                accept=".pdf,.jpg,.jpeg,.png"
             />
             <Button
+                type="button"
                 variant={variant}
-                onClick={handleClick}
+                className={className}
+                onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className={`gap-2 ${className}`}
             >
                 {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processando...
+                    </>
                 ) : (
-                    <Upload className="h-4 w-4" />
+                    <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Importar Contrato
+                    </>
                 )}
-                {isUploading ? 'Analisando...' : 'Inserir Contrato (IA)'}
             </Button>
         </>
     );

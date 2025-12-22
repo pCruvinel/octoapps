@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
 import { useTasks } from '../../hooks/useTasks';
+import { useAgendamentos } from '../../hooks/useAgendamentos';
+import { useAuth } from '../../hooks/useAuth';
 import type { Opportunity } from '../../types/opportunity';
 import type { Contact } from '../../types/contact';
 import type { TipoTarefa } from '../../types/task';
@@ -40,6 +42,8 @@ interface ActivityLog {
 export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDetailsProps) {
   const { etapas, loading: loadingEtapas } = useEtapasFunil();
   const { tasks, loading: loadingTasks, createTask, loadTasksByOpportunity } = useTasks();
+  const { createAgendamento } = useAgendamentos();
+  const { user } = useAuth();
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -276,6 +280,7 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
 
     setActionLoading(true);
     try {
+      // 1. Create Task (for legacy compatibility and opportunity tracking)
       const { error } = await createTask({
         titulo: scheduleForm.titulo,
         tipo: interactionType,
@@ -287,6 +292,21 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
       });
 
       if (error) throw new Error(error);
+
+      // 2. Also create Agendamento for Calendar view
+      const startDate = new Date(scheduleForm.data_vencimento);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Default 1 hour duration
+
+      await createAgendamento({
+        titulo: `[${interactionType}] ${scheduleForm.titulo}`,
+        descricao: scheduleForm.observacoes || undefined,
+        data_inicio: startDate.toISOString(),
+        data_fim: endDate.toISOString(),
+        cor: interactionType === 'Reunião' ? '#10B981' : interactionType === 'Follow-up' ? '#8B5CF6' : '#3D96FF',
+        contato_id: opportunity?.contato_id || undefined,
+        oportunidade_id: opportunityId!,
+        user_id: user?.id,
+      });
 
       toast.success('Interação agendada com sucesso!');
       setIsScheduleDialogOpen(false);

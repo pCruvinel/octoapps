@@ -88,10 +88,20 @@ export interface EmprestimoSpecificData {
 
 export interface ImobiliarioSpecificData {
     indexer: 'TR' | 'IPCA' | 'INPC' | 'IGPM';
-    insurance_mip?: Decimal;      // Morte e Invalidez Permanente
+    insurance_mip?: Decimal;      // Morte e Invalidez Permanente (fixo ou será calculado por idade)
     insurance_dfi?: Decimal;      // Danos Físicos ao Imóvel
     admin_fee?: Decimal;          // Taxa administrativa mensal
     property_value?: Decimal;
+
+    // MIP baseado em idade (opcional - se fornecido, sobrescreve insurance_mip)
+    borrower_birth_date?: string; // Data de nascimento do mutuário (YYYY-MM-DD)
+    use_age_based_mip?: boolean;  // Se true, calcula MIP por faixa etária
+
+    // Tarifas imobiliárias (podem ser expurgadas no "Momento Zero")
+    taxa_avaliacao?: Decimal;     // Taxa de Avaliação do Imóvel
+    taxa_registro?: Decimal;      // Registro de Contrato
+    taxa_analise?: Decimal;       // Análise de Garantia/Crédito
+    outras_tarifas?: Array<{ name: string; value: Decimal; }>;
 }
 
 export interface CartaoRMCSpecificData {
@@ -148,6 +158,11 @@ export interface ScenarioTotals {
     total_paid: Decimal;
     total_due?: Decimal;
     total_refund?: Decimal;
+
+    // INPC Monetary Correction (for differences scenarios)
+    total_refund_inpc_corrected?: Decimal;  // Refund adjusted by INPC
+    inpc_accumulated?: Decimal;              // Total accumulated INPC factor
+    correction_reference_date?: string;      // Date of correction (today)
 }
 
 export interface ScenarioResult {

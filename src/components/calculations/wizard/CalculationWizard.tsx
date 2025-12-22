@@ -1,3 +1,4 @@
+/** @deprecated Componente depreciado. Utilizar a nova estrutura em tabs (CalculationPage/DataEntryTab) */
 'use client';
 
 import * as React from 'react';
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft, Calculator, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCalculation } from '@/hooks/useCalculation';
-import { wizardToRequest } from '@/lib/calculationAdapters';
+import { wizardToRequest, wizardToDetalhadoRequest, detalhadoToResultsDashboard } from '@/lib/calculationAdapters';
 import { calculationAPI } from '@/services/calculationAPI.service';
 import { contratoRevisionalService } from '@/services/contratoRevisionalService';
 // AnalisePreviaPanel removed - viability check is now in Triagem Rápida
@@ -63,7 +64,7 @@ const WIZARD_STEPS = [
 
 function WizardContent({ module, onBack, onComplete, initialData, existingContratoId }: CalculationWizardProps) {
     const { currentStep, nextStep, prevStep, isLastStep } = useStepperContext();
-    const { calculateFull, isLoading } = useCalculation();
+    const { calculateFull, calculateDetalhado, isLoading } = useCalculation();
 
     const [wizardData, setWizardData] = React.useState<Partial<WizardData>>({
         module,
@@ -187,28 +188,145 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
         }
 
         try {
-            // Build request from wizard data
+            // ========================================
+            // PASSO 1: Preparar dados do wizard
+            // ========================================
+            console.log('\n========================================');
+            console.log('[Wizard] ✅ INICIANDO CÁLCULO DETALHADO');
+            console.log('========================================\n');
+
             const step1 = wizardData.step1 as any;
             const step2 = wizardData.step2 as any;
             const step3 = wizardData.step3 || {};
 
-            const request = wizardToRequest({
+            console.log('[Wizard] Step1 (Dados do Contrato):');
+            console.log('  • Credor:', step1.credor);
+            console.log('  • Devedor:', step1.devedor);
+            console.log('  • Valor Financiado:', step1.valorFinanciado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+            console.log('  • Prazo:', step1.prazoMeses, 'meses');
+            console.log('  • Data Contrato:', step1.dataContrato);
+            console.log('  • Data 1º Vencimento:', step1.dataPrimeiroVencimento);
+            console.log('  • Tipo Contrato:', step1.tipoContrato || 'PESSOAL');
+
+            console.log('\n[Wizard] Step2 (Configuração):');
+            console.log('  • Taxa Mensal Contrato:', step2.taxaMensalContrato || step2.taxaJurosMensal, '%');
+            console.log('  • Taxa Anual Contrato:', step2.taxaAnualContrato || step2.taxaJurosNominal, '%');
+            console.log('  • Sistema Amortização:', step2.sistemaAmortizacao);
+            console.log('  • Capitalização:', step2.capitalizacao);
+            console.log('  • Usar Taxa BACEN:', step2.usarTaxaBacen);
+            console.log('  • Indexador:', step2.indexador || 'NENHUM');
+
+            // ========================================
+            // PASSO 2: Converter para CalculoDetalhadoRequest
+            // ========================================
+            console.log('\n[Wizard] 🔄 Convertendo para CalculoDetalhadoRequest...');
+
+            const fullWizardData = {
                 module,
                 step1: { ...step1, tipoContrato: step1.tipoContrato || 'PESSOAL' },
                 step2: { ...step2 },
                 step3: { tarifas: [], ...step3 },
+            };
+
+            const detalhadoRequest = wizardToDetalhadoRequest(fullWizardData);
+
+            console.log('[Wizard] ✅ Request gerado:');
+            console.log('  • Modalidade:', detalhadoRequest.modalidade);
+            console.log('  • Indexador:', detalhadoRequest.indexador);
+            console.log('  • Valor Financiado:', detalhadoRequest.valorFinanciado?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+            console.log('  • Prazo:', detalhadoRequest.prazoMeses, 'meses');
+            console.log('  • Taxa Contrato (mensal):', detalhadoRequest.taxaContratoMensal, '%');
+            console.log('  • Usar Taxa BACEN:', detalhadoRequest.usarTaxaBacen);
+            console.log('  • Expurgar Tarifas:', detalhadoRequest.expurgarTarifas);
+            console.log('  • Restituição em Dobro:', detalhadoRequest.restituicaoEmDobro);
+
+            // ========================================
+            // PASSO 3: Executar Cálculo Detalhado
+            // ========================================
+            console.log('\n[Wizard] ⏳ Executando calcularEvolucaoDetalhada()...');
+            toast.loading('Calculando evolução detalhada...', { id: 'calc-loading' });
+
+            const startTime = performance.now();
+            const resultDetalhado = await calculateDetalhado(detalhadoRequest);
+            const endTime = performance.now();
+
+            toast.dismiss('calc-loading');
+
+            if (!resultDetalhado) {
+                console.error('[Wizard] ❌ Cálculo retornou null');
+                toast.error('Erro no cálculo detalhado');
+                return;
+            }
+
+            // ========================================
+            // PASSO 4: Log do Resultado
+            // ========================================
+            console.log('\n[Wizard] ✅ CÁLCULO CONCLUÍDO em', Math.round(endTime - startTime), 'ms');
+            console.log('----------------------------------------');
+            console.log('[Resultado] Resumo Executivo:');
+            console.log('  • Valor Total Pago (Banco):', resultDetalhado.resumo.valorTotalPago?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+            console.log('  • Valor Total Devido (Justo):', resultDetalhado.resumo.valorTotalDevido?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+            console.log('  • 💰 DIFERENÇA TOTAL:', resultDetalhado.formatted?.diferencaTotal);
+            console.log('  • Restituição Simples:', resultDetalhado.formatted?.restituicaoSimples);
+            console.log('  • Restituição em Dobro:', resultDetalhado.formatted?.restituicaoDobro);
+            console.log('  • Taxa Contrato (a.a.):', resultDetalhado.formatted?.taxaContratoAnual);
+            console.log('  • Taxa Mercado (a.a.):', resultDetalhado.formatted?.taxaMercadoAnual);
+            console.log('  • Sobretaxa:', resultDetalhado.formatted?.sobretaxaPercent);
+            console.log('  • É Abusivo:', resultDetalhado.resumo.isAbusivo ? '❗ SIM' : 'Não');
+
+            console.log('\n[Resultado] Taxa BACEN Snapshot:');
+            console.log('  • Série:', resultDetalhado.taxaSnapshot.serieId);
+            console.log('  • Código SGS:', resultDetalhado.taxaSnapshot.serieCodigo);
+            console.log('  • Valor:', resultDetalhado.taxaSnapshot.valor, '%');
+            console.log('  • Data Referência:', resultDetalhado.taxaSnapshot.dataReferencia);
+            console.log('  • Fonte:', resultDetalhado.taxaSnapshot.fonte);
+
+            console.log('\n[Resultado] Flags de Análise:');
+            console.log('  • Capitalização Diária:', resultDetalhado.flags.capitalizacaoDiariaDetectada ? '⚠️ SIM' : 'Não');
+            console.log('  • Anatocismo:', resultDetalhado.flags.anatocismoDetectado ? '⚠️ SIM' : 'Não');
+            console.log('  • Tarifas Irregulares:', resultDetalhado.flags.tarifasIrregulares ? '⚠️ SIM' : 'Não');
+            console.log('  • Carência Detectada:', resultDetalhado.flags.carenciaDetectada ? `⚠️ SIM (${resultDetalhado.flags.diasCarencia} dias)` : 'Não');
+
+            console.log('\n[Resultado] Apêndices Gerados:');
+            console.log('  • AP01 (Evolução Original):', resultDetalhado.apendices.ap01?.tabela?.length || 0, 'linhas');
+            console.log('  • AP02 (Recálculo):', resultDetalhado.apendices.ap02?.tabela?.length || 0, 'linhas');
+            console.log('  • AP03 (Diferenças):', resultDetalhado.apendices.ap03?.tabela?.length || 0, 'linhas');
+            console.log('  • AP04 (Dobro):', resultDetalhado.apendices.ap04 ? '✅' : '—');
+            console.log('  • AP05 (Simples):', resultDetalhado.apendices.ap05 ? '✅' : '—');
+
+            // Primeiras 5 linhas do AP03 para debug
+            if (resultDetalhado.apendices.ap03?.tabela?.length) {
+                console.log('\n[Resultado] Primeiras 5 linhas do AP03 (Diferenças):');
+                resultDetalhado.apendices.ap03.tabela.slice(0, 5).forEach((linha, i) => {
+                    console.log(`  Mês ${linha.mes}: Dif = ${linha.diferenca?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} | Acum = ${linha.diferencaAcumulada?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`);
+                });
+            }
+
+            // ========================================
+            // PASSO 5: Converter para Dashboard e retornar
+            // ========================================
+            console.log('\n[Wizard] 🔄 Convertendo para ResultsDashboardData...');
+            const dashboardData = detalhadoToResultsDashboard(resultDetalhado, detalhadoRequest);
+
+            console.log('[Wizard] ✅ Dashboard data gerado');
+            console.log('  • KPIs:', Object.keys(dashboardData.kpis).length, 'indicadores');
+            console.log('  • Evolução:', dashboardData.evolucao.length, 'pontos');
+            console.log('  • Conciliação:', dashboardData.conciliacao.length, 'parcelas');
+
+            console.log('\n========================================');
+            console.log('[Wizard] 🎉 PROCESSO FINALIZADO COM SUCESSO');
+            console.log('========================================\n');
+
+            // Chamar callback com resultado
+            onComplete?.({
+                wizardData: fullWizardData,
+                result: resultDetalhado,
+                dashboardData,
             });
 
-            // Calculate
-            toast.loading('Calculando...', { id: 'calc-loading' });
-            const result = await calculateFull(request);
-            toast.dismiss('calc-loading');
-
-            if (result) {
-                onComplete?.({ wizardData, result });
-            }
         } catch (error) {
             toast.dismiss('calc-loading');
+            console.error('\n[Wizard] ❌ ERRO NO CÁLCULO:');
             console.error(error);
             toast.error('Erro ao processar cálculo');
         }
@@ -253,7 +371,7 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
                                         Novo Cálculo Revisional
                                     </h1>
                                     <p className="text-sm text-slate-500">
-                                        Módulo: {module === 'GERAL' ? 'Empréstimos' : module === 'IMOBILIARIO' ? 'Imobiliário' : 'Cartão de Crédito'}
+                                        Módulo: {module === 'GERAL' ? 'Empréstimos & Veículos' : module === 'IMOBILIARIO' ? 'Imobiliário' : 'Cartão de Crédito'}
                                     </p>
                                 </div>
                             </div>
@@ -306,6 +424,7 @@ function WizardContent({ module, onBack, onComplete, initialData, existingContra
                             onDataChange={(data) => handleStepChange(1, data)}
                             onValidationChange={(valid) => setStepValidity(prev => ({ ...prev, 1: valid }))}
                             contractDate={(wizardData.step1 as GeralStep1Data)?.dataContrato}
+                            contractType={(wizardData.step1 as GeralStep1Data)?.tipoContrato}
                         />
                     )}
                     {module === 'IMOBILIARIO' && (

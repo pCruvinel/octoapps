@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cartaoStep1Schema, type CartaoStep1Data } from '@/schemas/moduloCartao.schema';
-import { ContractUploadButton } from '../ContractUploadButton';
+import { ContractImportCard } from '../ContractImportCard';
 
 
 interface Step1_CartaoProps {
@@ -83,22 +83,10 @@ export function Step1_Cartao({
 
     return (
         <div className="space-y-6">
-            <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100">
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <CardTitle className="text-blue-900">Importar Fatura/Contrato</CardTitle>
-                            <CardDescription className="text-blue-700">Preencher via IA</CardDescription>
-                        </div>
-                        <ContractUploadButton
-                            category="CARTAO_CREDITO"
-                            onDataExtracted={handleOcrData}
-                            variant="default"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                        />
-                    </div>
-                </CardHeader>
-            </Card>
+            <ContractImportCard
+                category="CARTAO_CREDITO"
+                onDataExtracted={handleOcrData}
+            />
 
             <Card>
                 <CardHeader>
