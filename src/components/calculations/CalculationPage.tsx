@@ -265,6 +265,28 @@ export function CalculationPage({
         }
     };
 
+    // ========== EXPORTAR PDF ==========
+    const handleExportPDF = async () => {
+        if (!calculationResult || !dashboardData) {
+            toast.warning('É necessário gerar o resultado primeiro');
+            return;
+        }
+
+        // TODO: Integrar com serviço de PDF
+        // Dados disponíveis para exportação:
+        // - formData: Dados do contrato (credor, devedor, valores, taxas)
+        // - calculationResult: CalculoDetalhadoResponse (apêndices AP01-AP05, resumo)
+        // - dashboardData: Dados formatados para dashboard (kpis, evolucao, totais)
+        // - conciliacaoData: PaymentRow[] com parcelas e pagamentos
+        toast.info('Funcionalidade de PDF em desenvolvimento');
+        console.log('[PDF Export] Dados disponíveis:', {
+            formData,
+            calculationResult,
+            dashboardData,
+            conciliacaoData
+        });
+    };
+
     // Generate Conciliation (first calculation)
     const handleGenerateConciliation = async () => {
         if (!isFormValid) {
