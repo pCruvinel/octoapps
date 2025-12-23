@@ -4,8 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { ArrowLeft, Calendar, Edit, Trash2, Loader2, Clock, FileText, User, Activity, Zap, Lock, Paperclip, MessageSquare, Send, ChevronLeft, ChevronRight, Scale, Download, Upload } from 'lucide-react';
+
+import { ArrowLeft, Calendar, Edit, Trash2, Loader2, FileText, User, Activity, Zap, Paperclip, MessageSquare, Send, ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
@@ -37,6 +37,7 @@ import type { ActivityLog } from '../../types/activity-log';
 interface OpportunityDetailsProps {
   opportunityId: string | null;
   onNavigate: (route: string, id?: string) => void;
+  onBack?: () => void;
 }
 
 interface Comment {
@@ -83,7 +84,7 @@ const ITEMS_PER_PAGE = 10;
 
 // --- Main Component ---
 
-export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDetailsProps) {
+export function OpportunityDetails({ opportunityId, onNavigate, onBack }: OpportunityDetailsProps) {
   const { etapas } = useEtapasFunil();
   const { tasks, loading: loadingTasks, createTask, loadTasksByOpportunity } = useTasks();
   const { createAgendamento } = useAgendamentos();
@@ -623,7 +624,7 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
       {/* Header */}
       <div className="mb-6 space-y-4">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => onNavigate('crm')} className="gap-2">
+          <Button variant="ghost" onClick={() => onBack ? onBack() : onNavigate('crm')} className="gap-2">
             <ArrowLeft className="w-4 h-4" /> Voltar
           </Button>
           <div className="flex gap-2">
