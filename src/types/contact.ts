@@ -21,7 +21,12 @@ export interface Contact {
 
   // CRM e Marketing
   origem_lead?: string | null;
-  status_contato: 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente';
+  /** @deprecated Use categoria_contato instead */
+  status_contato?: 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente';
+  /** Categoria manual: LEAD (prospect), CLIENTE (ativo), EX_CLIENTE (encerrado) */
+  categoria_contato: 'LEAD' | 'CLIENTE' | 'EX_CLIENTE';
+  /** Status calculado automaticamente: ATIVO (<90d), INATIVO (90-180d), ARQUIVADO (>180d) */
+  status_atividade?: 'ATIVO' | 'INATIVO' | 'ARQUIVADO';
   tags?: string[] | null;
   observacoes?: string | null;
 
@@ -40,7 +45,7 @@ export interface ContactFormData {
   email: string;
   cpf_cnpj?: string;
   telefone_principal?: string;
-  status_contato: 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente';
+  categoria_contato: 'LEAD' | 'CLIENTE' | 'EX_CLIENTE';
 }
 
 export interface ContactInsert {
@@ -49,7 +54,8 @@ export interface ContactInsert {
   email?: string | null;
   cpf_cnpj?: string | null;
   telefone_principal?: string | null;
-  status_contato: 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente';
+  categoria_contato: 'LEAD' | 'CLIENTE' | 'EX_CLIENTE';
   responsavel_id?: string | null;
   criado_por?: string | null;
 }
+

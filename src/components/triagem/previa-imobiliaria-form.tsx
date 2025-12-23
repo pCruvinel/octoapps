@@ -13,7 +13,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Calculator, Loader2, ChevronDown, Home, Info, Shield } from 'lucide-react';
-import { DetalhadaUploadButton } from '@/components/calculations/wizard/detalhada-upload-button';
+import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { fetchMarketRate, getEstimatedMarketRate, calculateEconomia, calculatePMT } from '@/utils/financialCalculations';
 import { calcularFluxoSAC, calcularFluxoPRICE, calcularJurosSimplesDetalhado } from '@/utils/imobiliarioCalculations'; // Imported new utils
 import type { PreviaImobiliariaResultadoType as PreviaImobiliariaResultadoTypeALIAS } from '@/schemas/triagemRapida.schema'; // Note: This might be from schema or componente, verifying grep showed schema? No, wait. Grep showed import type { ResultadoImobiliario as ... } from '@/schemas/triagemRapida.schema'.. WAIT.
@@ -402,27 +402,11 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
 
     return (
         <div className="space-y-4">
-            {/* Upload de Contrato (OCR) - INTEGRADO */}
-            <Card className="border-slate-200 shadow-sm">
-                <CardContent className="pt-4">
-                    <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors">
-                        <div className="bg-emerald-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <Home className="w-6 h-6 text-emerald-600" />
-                        </div>
-                        <h3 className="text-sm font-medium text-slate-900 mb-1">
-                            Upload do Contrato Imobiliário (OCR)
-                        </h3>
-                        <p className="text-xs text-slate-500 mb-3">
-                            Arraste o CCB/Contrato para preencher automaticamente
-                        </p>
-                        <DetalhadaUploadButton
-                            category="IMOBILIARIO"
-                            onDataExtracted={handleOcrData}
-                            variant="outline"
-                        />
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Upload de Contrato (OCR) */}
+            <OcrUploadCard
+                category="IMOBILIARIO"
+                onDataExtracted={handleOcrData}
+            />
 
             {/* Formulário Principal */}
             <Card className="border-slate-200 shadow-sm">
@@ -735,7 +719,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                         </form>
                     </Form>
                 </CardContent>
-            </Card>
-        </div>
+            </Card >
+        </div >
     );
 }

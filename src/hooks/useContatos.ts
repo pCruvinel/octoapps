@@ -72,7 +72,8 @@ export function useContatos(options: UseContatosOptions = {}) {
                 .from('contatos')
                 .insert({
                     nome_completo: nome,
-                    tipo: 'PESSOA_FISICA',
+                    tipo: 'Pessoa Física',
+                    categoria_contato: 'LEAD',
                     ativo: true,
                 })
                 .select('id')

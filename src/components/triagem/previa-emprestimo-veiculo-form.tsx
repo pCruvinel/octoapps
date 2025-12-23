@@ -14,7 +14,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Calculator, Loader2, ChevronDown, Info, Car } from 'lucide-react';
-import { DetalhadaUploadButton } from '@/components/calculations/wizard/detalhada-upload-button';
+import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { fetchMarketRate, getEstimatedMarketRate, calculateEconomia, calculatePMT, daysBetween, calculateGracePeriodInterest, detectDailyCapitalization, roundToDisplayPrecision } from '@/utils/financialCalculations';
 import type { ResultadoTriagem } from '@/schemas/triagemRapida.schema';
 import { cn } from '@/lib/utils';
@@ -521,27 +521,11 @@ export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProp
 
     return (
         <div className="space-y-4">
-            {/* Upload de Contrato (OCR) - INTEGRADO */}
-            <Card className="border-slate-200 shadow-sm">
-                <CardContent className="pt-4">
-                    <div className="border-2 border-dashed border-slate-200 rounded-lg p-6 text-center hover:bg-slate-50 transition-colors">
-                        <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <Car className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <h3 className="text-sm font-medium text-slate-900 mb-1">
-                            Upload do Contrato (OCR)
-                        </h3>
-                        <p className="text-xs text-slate-500 mb-3">
-                            Arraste o PDF ou clique para preencher automaticamente
-                        </p>
-                        <DetalhadaUploadButton
-                            category="EMPRESTIMOS_VEICULOS"
-                            onDataExtracted={handleOcrData}
-                            variant="outline"
-                        />
-                    </div>
-                </CardContent>
-            </Card>
+            {/* Upload de Contrato (OCR) */}
+            <OcrUploadCard
+                category="EMPRESTIMOS_VEICULOS"
+                onDataExtracted={handleOcrData}
+            />
 
             {/* Formulário Principal */}
             <Card className="border-slate-200 shadow-sm">
@@ -972,7 +956,7 @@ export function PreviaEmprestimoVeiculoForm({ onResultado }: ModuloGeralFormProp
                         </form>
                     </Form>
                 </CardContent>
-            </Card>
-        </div>
+            </Card >
+        </div >
     );
 }

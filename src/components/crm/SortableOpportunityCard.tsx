@@ -2,7 +2,7 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Opportunity } from '@/types/opportunity';
-import { OpportunityCard } from './OpportunityCard'; // Assuming OpportunityCard is exported or will be separated
+import { OpportunityCard } from './OpportunityCard';
 
 interface SortableOpportunityCardProps {
     opportunity: Opportunity;
@@ -11,6 +11,8 @@ interface SortableOpportunityCardProps {
     onDelete: (opp: Opportunity) => void;
     canUpdate: boolean;
     canDelete: boolean;
+    commentCount?: number;
+    attachmentCount?: number;
 }
 
 export function SortableOpportunityCard({
@@ -19,7 +21,9 @@ export function SortableOpportunityCard({
     onEdit,
     onDelete,
     canUpdate,
-    canDelete
+    canDelete,
+    commentCount = 0,
+    attachmentCount = 0
 }: SortableOpportunityCardProps) {
     const {
         attributes,
@@ -45,6 +49,8 @@ export function SortableOpportunityCard({
                 onDelete={onDelete}
                 canUpdate={canUpdate}
                 canDelete={canDelete}
+                commentCount={commentCount}
+                attachmentCount={attachmentCount}
             />
         </div>
     );

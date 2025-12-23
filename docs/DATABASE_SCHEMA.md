@@ -182,6 +182,8 @@
 | :--- | :--- | :--- | :--- |
 | `id` | `uuid` | NO | `gen_random_uuid()` |
 | `user_id` | `uuid` | NO | — |
+| `contato_id` | `uuid` | YES | — |
+| `oportunidade_id` | `uuid` | YES | — |
 | `lead_id` | `uuid` | YES | — |
 | `modulo` | `modulo_calculo` | NO | — |
 | `status` | `status_contrato` | YES | `RASCUNHO` |
@@ -200,6 +202,8 @@
 **RLS:** Enabled  
 **Foreign Keys:**
 - `contratos_revisionais_user_id_fkey` → `auth.users.id`
+- `contratos_revisionais_contato_id_fkey` → `contatos.id`
+- `contratos_revisionais_oportunidade_id_fkey` → `oportunidades.id`
 
 ---
 
@@ -407,24 +411,28 @@
 ---
 
 ### `contatos`
-> Contatos (clientes/leads) do CRM
+> Contatos (clientes/leads) do CRM - Pessoa Física ou Jurídica
 
 | Column | Type | Nullable | Default |
 | :--- | :--- | :--- | :--- |
 | `id` | `uuid` | NO | `gen_random_uuid()` |
-| `nome` | `text` | NO | — |
+| `nome_completo` | `text` | NO | — |
 | `email` | `text` | YES | — |
-| `telefone` | `text` | YES | — |
+| `telefone_principal` | `text` | YES | — |
 | `cpf_cnpj` | `text` | YES | — |
-| `tipo` | `text` | YES | `PF` |
+| `tipo` | `text` | YES | `Pessoa Física` |
+| `categoria_contato` | `text` | YES | `LEAD` |
 | `endereco` | `jsonb` | YES | — |
 | `observacoes` | `text` | YES | — |
 | `responsavel_id` | `uuid` | YES | — |
-| `created_at` | `timestamptz` | YES | `now()` |
-| `updated_at` | `timestamptz` | YES | `now()` |
+| `ativo` | `boolean` | YES | `true` |
+| `data_criacao` | `timestamptz` | YES | `now()` |
+| `data_atualizacao` | `timestamptz` | YES | `now()` |
 
 **Primary Key:** `id`  
-**RLS:** Enabled
+**RLS:** Enabled  
+**CHECK Constraints:**
+- `categoria_contato IN ('LEAD', 'CLIENTE', 'EX_CLIENTE')`
 
 ---
 
@@ -654,4 +662,14 @@
 
 ---
 
-*Document synced from Supabase MCP on 2025-12-20*
+### `v_contatos_status`
+> View que calcula status de atividade automaticamente baseado em data_atualizacao
+
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| (todas as colunas de contatos) | — | — |
+| `status_atividade` | `text` | `ATIVO` (<90d), `INATIVO` (90-180d), `ARQUIVADO` (>180d) |
+
+---
+
+*Document synced from Supabase MCP on 2025-12-23*

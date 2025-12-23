@@ -12,9 +12,19 @@ type ModuloCalculo = Database['public']['Enums']['modulo_calculo'];
 type StatusContrato = Database['public']['Enums']['status_contrato'];
 type ClassificacaoViabilidade = Database['public']['Enums']['classificacao_viabilidade'];
 
-// Extended type with resultado
+// Extended type with resultado and CRM relationships
 export interface ContratoWithResultado extends ContratoRevisional {
     resultado_analise_previa?: Database['public']['Tables']['resultado_analise_previa']['Row'] | null;
+    // CRM JOINs (quando disponíveis)
+    contato?: {
+        id: string;
+        nome_completo: string;
+        cpf_cnpj?: string | null;
+    } | null;
+    oportunidade?: {
+        id: string;
+        titulo: string;
+    } | null;
 }
 
 /**
@@ -32,6 +42,9 @@ export const contratoRevisionalService = {
             leadNome?: string;
             valorContrato?: number;
             dataContrato?: string;
+            // Novos campos de relacionamento CRM
+            contatoId?: string | null;
+            oportunidadeId?: string | null;
         }
     ): Promise<{ data: ContratoRevisional | null; error: Error | null }> {
         const { data, error } = await supabase
@@ -44,6 +57,8 @@ export const contratoRevisionalService = {
                 lead_nome: options?.leadNome,
                 valor_contrato: options?.valorContrato,
                 data_contrato: options?.dataContrato,
+                contato_id: options?.contatoId,
+                oportunidade_id: options?.oportunidadeId,
             })
             .select()
             .single();
@@ -303,6 +318,76 @@ export const contratoRevisionalService = {
         const { error } = await supabase
             .from('contratos_revisionais')
             .delete()
+            .eq('id', contratoId);
+
+        return { error: error as Error | null };
+    },
+
+    /**
+     * Lista contratos de um contato específico (com JOINs)
+     */
+    async listByContato(contatoId: string): Promise<{ data: ContratoWithResultado[] | null; error: Error | null }> {
+        const { data, error } = await supabase
+            .from('contratos_revisionais')
+            .select(`
+                *,
+                resultado_analise_previa(*),
+                contato:contato_id (
+                    id,
+                    nome_completo,
+                    cpf_cnpj
+                )
+            `)
+            .eq('contato_id', contatoId)
+            .order('updated_at', { ascending: false });
+
+        return { data: data as ContratoWithResultado[] | null, error: error as Error | null };
+    },
+
+    /**
+     * Lista contratos de uma oportunidade específica (com JOINs)
+     */
+    async listByOportunidade(oportunidadeId: string): Promise<{ data: ContratoWithResultado[] | null; error: Error | null }> {
+        const { data, error } = await supabase
+            .from('contratos_revisionais')
+            .select(`
+                *,
+                resultado_analise_previa(*),
+                oportunidade:oportunidade_id (
+                    id,
+                    titulo
+                ),
+                contato:contato_id (
+                    id,
+                    nome_completo,
+                    cpf_cnpj
+                )
+            `)
+            .eq('oportunidade_id', oportunidadeId)
+            .order('updated_at', { ascending: false });
+
+        return { data: data as ContratoWithResultado[] | null, error: error as Error | null };
+    },
+
+    /**
+     * Vincula um contrato a um contato (atualização isolada)
+     */
+    async linkToContato(contratoId: string, contatoId: string | null): Promise<{ error: Error | null }> {
+        const { error } = await supabase
+            .from('contratos_revisionais')
+            .update({ contato_id: contatoId })
+            .eq('id', contratoId);
+
+        return { error: error as Error | null };
+    },
+
+    /**
+     * Vincula um contrato a uma oportunidade (atualização isolada)
+     */
+    async linkToOportunidade(contratoId: string, oportunidadeId: string | null): Promise<{ error: Error | null }> {
+        const { error } = await supabase
+            .from('contratos_revisionais')
+            .update({ oportunidade_id: oportunidadeId })
             .eq('id', contratoId);
 
         return { error: error as Error | null };

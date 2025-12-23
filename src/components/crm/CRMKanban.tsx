@@ -58,6 +58,7 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const [editOpportunity, setEditOpportunity] = useState(initialFormState);
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [opportunityCounts, setOpportunityCounts] = useState<Record<string, { comments: number; attachments: number }>>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
 
@@ -124,11 +125,54 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
       });
 
       setOpportunities(activeOpportunities);
+
+      // Load counts for all opportunities
+      loadCounts(activeOpportunities.map((o: Opportunity) => o.id));
     } catch (error) {
       console.error('Error loading opportunities:', error);
       toast.error('Erro ao carregar oportunidades');
     } finally {
       setLoadingOpportunities(false);
+    }
+  };
+
+  const loadCounts = async (oppIds: string[]) => {
+    if (oppIds.length === 0) return;
+
+    try {
+      // Fetch comment counts
+      const { data: commentData } = await supabase
+        .from('comentarios_oportunidade')
+        .select('oportunidade_id')
+        .in('oportunidade_id', oppIds);
+
+      // Fetch attachment counts
+      const { data: attachmentData } = await supabase
+        .from('anexos_oportunidade')
+        .select('oportunidade_id')
+        .in('oportunidade_id', oppIds);
+
+      // Aggregate counts
+      const counts: Record<string, { comments: number; attachments: number }> = {};
+      oppIds.forEach(id => {
+        counts[id] = { comments: 0, attachments: 0 };
+      });
+
+      commentData?.forEach((c: any) => {
+        if (counts[c.oportunidade_id]) {
+          counts[c.oportunidade_id].comments++;
+        }
+      });
+
+      attachmentData?.forEach((a: any) => {
+        if (counts[a.oportunidade_id]) {
+          counts[a.oportunidade_id].attachments++;
+        }
+      });
+
+      setOpportunityCounts(counts);
+    } catch (error) {
+      console.warn('Error loading counts:', error);
     }
   };
 
@@ -377,6 +421,8 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                         onDelete={handleOpenDelete}
                         canUpdate={canUpdate('crm')}
                         canDelete={canDelete('crm')}
+                        commentCount={opportunityCounts[opp.id]?.comments || 0}
+                        attachmentCount={opportunityCounts[opp.id]?.attachments || 0}
                       />
                     ))}
                   </DroppableColumn>

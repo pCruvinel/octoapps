@@ -12,9 +12,11 @@ export interface OpportunityCardProps {
     onDelete: (id: string) => void;
     canUpdate: boolean;
     canDelete: boolean;
+    commentCount?: number;
+    attachmentCount?: number;
 }
 
-export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, canUpdate, canDelete }: OpportunityCardProps) {
+export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, canUpdate, canDelete, commentCount = 0, attachmentCount = 0 }: OpportunityCardProps) {
     const formatCurrency = (value: number | null | undefined) => {
         if (!value) return 'R$ 0,00';
         return new Intl.NumberFormat('pt-BR', {
@@ -136,11 +138,11 @@ export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, can
                 <div className="flex items-center gap-3 text-gray-400">
                     <div className="flex items-center gap-1" title="Comentários">
                         <MessageSquare className="w-3.5 h-3.5" />
-                        <span className="text-xs">0</span>
+                        <span className="text-xs">{commentCount}</span>
                     </div>
                     <div className="flex items-center gap-1" title="Arquivos">
                         <Paperclip className="w-3.5 h-3.5" />
-                        <span className="text-xs">0</span>
+                        <span className="text-xs">{attachmentCount}</span>
                     </div>
                 </div>
             </div>
