@@ -16,6 +16,9 @@ TESTE-REAL.md
 **/GUIA-*.md
 src/guidelines/
 src/Attributions.md
+.env
+.env.local  
+**/docs-*.md    
 
 # Scripts SQL auxiliares (não código de produção)
 *.sql
