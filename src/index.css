@@ -117,3 +117,9 @@
     height: 0;
   }
 }
+
+@layer utilities {
+  .bg-card-opacity {
+    @apply bg-white/[0.07];
+  }
+}

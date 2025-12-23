@@ -273,7 +273,7 @@ export function DetalhadaEntradaDadosTab({
                         {/* Tipo de Contrato - only for GERAL */}
                         {module === 'GERAL' && (
                             <TipoOperacaoSelect
-                                categorias={['emprestimos', 'veiculos']}
+                                categorias={['EMPRESTIMO', 'VEICULO']}
                                 value={watchedValues.tipoContrato || ''}
                                 onValueChange={(val) => setValue('tipoContrato', val, { shouldValidate: true })}
                                 showSerieInLabel={true}
@@ -284,7 +284,7 @@ export function DetalhadaEntradaDadosTab({
                         {/* Tipo de Financiamento - only for IMOBILIARIO */}
                         {module === 'IMOBILIARIO' && (
                             <TipoOperacaoSelect
-                                categorias="imobiliario"
+                                categorias="IMOBILIARIO"
                                 value={watchedValues.tipoFinanciamento || ''}
                                 onValueChange={(val) => setValue('tipoFinanciamento', val as 'SFH' | 'SFI')}
                                 showSerieInHelper={true}

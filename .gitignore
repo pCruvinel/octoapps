@@ -39,3 +39,4 @@ src/Attributions.md
 # OS específicos
 .DS_Store
 Thumbs.db
+.env*.local

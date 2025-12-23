@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Info, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -100,11 +100,11 @@ export function DetalhadaTabelaComparacao({
             justo: formatCurrency(valorFinanciadoExpurgado || totalPagoRecalculado - totalJurosRecalculado),
             impacto: tarifasExpurgadas && tarifasExpurgadas > 0
                 ? (
-                    <span className="flex items-center gap-1">
+                    <span className="flex items-center gap-1.5">
                         - {formatCurrency(tarifasExpurgadas)}
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 bg-amber-50 border-amber-200 text-amber-700">
-                            Tarifas
-                        </Badge>
+                        <span className="text-[10px] uppercase font-medium tracking-wide text-amber-600 opacity-80">
+                            (Tarifas)
+                        </span>
                     </span>
                 )
                 : '-',
@@ -117,11 +117,11 @@ export function DetalhadaTabelaComparacao({
             banco: formatPercent(monthlyToAnnual(taxaContrato || 0)),
             justo: formatPercent(monthlyToAnnual(taxaMercado || 0)),
             impacto: (
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1.5">
                     - {formatPercent(Math.abs(monthlyToAnnual(taxaContrato || 0) - monthlyToAnnual(taxaMercado || 0)))}
-                    <Badge variant="outline" className="text-[10px] px-1 py-0 bg-blue-50 border-blue-200 text-blue-700">
-                        Ajuste
-                    </Badge>
+                    <span className="text-[10px] uppercase font-medium tracking-wide text-blue-600 opacity-80">
+                        (Ajuste)
+                    </span>
                 </span>
             ),
             impactoType: sobretaxaPercentual > 0 ? 'positive' : 'neutral',
@@ -195,9 +195,10 @@ export function DetalhadaTabelaComparacao({
                             </CardDescription>
                         </div>
                         {isReconciled && (
-                            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
-                                ✓ Conciliado
-                            </Badge>
+                            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Conciliado
+                            </span>
                         )}
                     </div>
                 </CardHeader>

@@ -7,7 +7,6 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { FileText, GitCompare, DollarSign, Settings2, Scale, Calculator, CheckCircle2, Clock, CalendarClock, AlertTriangle } from 'lucide-react';
 import type { LinhaAmortizacaoDetalhada, ApendiceResult, SituacaoParcela } from '@/types/calculation.types';
@@ -42,23 +41,23 @@ function formatDate(dateStr?: string): string {
     }
 }
 
-// Badge de situação da parcela
+// Badge de situação da parcela - Estilo Minimalista
 function SituacaoBadge({ situacao }: { situacao?: SituacaoParcela }) {
     if (!situacao) return null;
 
     const config = {
-        PAGA: { label: 'Paga', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-        VENCIDA: { label: 'Vencida', color: 'bg-red-100 text-red-700 border-red-200', icon: Clock },
-        VINCENDA: { label: 'Vincenda', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: CalendarClock },
+        PAGA: { label: 'Paga', color: 'text-emerald-600', icon: CheckCircle2 },
+        VENCIDA: { label: 'Vencida', color: 'text-red-600', icon: Clock },
+        VINCENDA: { label: 'Vincenda', color: 'text-blue-600', icon: CalendarClock },
     };
 
     const { label, color, icon: Icon } = config[situacao];
 
     return (
-        <Badge variant="outline" className={`${color} text-xs px-1.5 py-0.5`}>
-            <Icon className="h-3 w-3 mr-1" />
+        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${color}`}>
+            <Icon className="h-3.5 w-3.5" />
             {label}
-        </Badge>
+        </span>
     );
 }
 
@@ -203,9 +202,9 @@ function AP03Table({
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger>
-                                    <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-300">
+                                    <span className="text-xs font-medium text-blue-700 bg-blue-100 px-2 py-0.5 rounded border border-blue-200 cursor-help">
                                         Art. 389 CC
-                                    </Badge>
+                                    </span>
                                 </TooltipTrigger>
                                 <TooltipContent className="max-w-xs">
                                     <p className="text-xs">Código Civil Art. 389: Não cumprida a obrigação, responde o devedor por perdas e danos, mais juros e atualização monetária.</p>
@@ -230,9 +229,9 @@ function AP03Table({
                             </div>
                             <div className="text-2xl font-bold">{formatCurrency(parametros.inpcCorrection)}</div>
                             <div className="text-xs text-blue-100 mt-1 flex items-center gap-1">
-                                <Badge variant="outline" className="bg-blue-600 text-white border-blue-400 text-xs px-1 py-0">
+                                <span className="bg-blue-600/50 text-white border border-blue-400/50 text-xs px-1.5 py-0.5 rounded">
                                     +{((parametros.inpcAccumulated || 0) * 100).toFixed(2)}%
-                                </Badge>
+                                </span>
                                 INPC acumulado
                             </div>
                         </div>
@@ -353,9 +352,9 @@ export function DetalhadaApendicesTabs({
                             <div className="font-medium">AP01 - Evolução Original (Cenário Banco)</div>
                             <div className="text-sm text-slate-500">{ap01?.length || 0} parcelas | Taxa Pactuada</div>
                         </div>
-                        <Badge variant="outline" className="ml-auto mr-2 bg-red-50 text-red-700 border-red-200">
+                        <span className="ml-auto mr-2 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded">
                             Cobrado
-                        </Badge>
+                        </span>
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
@@ -374,9 +373,9 @@ export function DetalhadaApendicesTabs({
                             <div className="font-medium">AP02 - Recálculo (Taxa Média BACEN)</div>
                             <div className="text-sm text-slate-500">{ap02?.length || 0} parcelas | Expurgo de Tarifas</div>
                         </div>
-                        <Badge variant="outline" className="ml-auto mr-2 bg-blue-50 text-blue-700 border-blue-200">
+                        <span className="ml-auto mr-2 text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
                             Devido
-                        </Badge>
+                        </span>
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
@@ -395,9 +394,9 @@ export function DetalhadaApendicesTabs({
                             <div className="font-medium">AP03 - Demonstrativo das Diferenças Excedentes</div>
                             <div className="text-sm text-slate-500">{ap03?.length || 0} parcelas | Situação por Parcela</div>
                         </div>
-                        <Badge variant="outline" className="ml-auto mr-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                        <span className="ml-auto mr-2 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
                             Indébito
-                        </Badge>
+                        </span>
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
@@ -417,9 +416,9 @@ export function DetalhadaApendicesTabs({
                                 <div className="font-medium">AP04 - Restituição em Dobro (Art. 42 CDC)</div>
                                 <div className="text-sm text-slate-500">{ap04Descricao || 'Compensação mensal em dobro no saldo'}</div>
                             </div>
-                            <Badge variant="outline" className="ml-auto mr-2 bg-purple-50 text-purple-700 border-purple-200">
+                            <span className="ml-auto mr-2 text-xs font-medium text-purple-600 bg-purple-50 px-2 py-0.5 rounded">
                                 2x CDC
-                            </Badge>
+                            </span>
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-4">
@@ -440,9 +439,9 @@ export function DetalhadaApendicesTabs({
                                 <div className="font-medium">AP05 - Restituição Simples (Art. 368 CC)</div>
                                 <div className="text-sm text-slate-500">{ap05Descricao || 'Real Saldo Devedor após compensações'}</div>
                             </div>
-                            <Badge variant="outline" className="ml-auto mr-2 bg-amber-50 text-amber-700 border-amber-200">
+                            <span className="ml-auto mr-2 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
                                 Simples
-                            </Badge>
+                            </span>
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4 pb-4">

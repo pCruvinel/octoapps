@@ -200,6 +200,9 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
 
     setLoading(true);
     try {
+      // Get current opportunity data for logging
+      const currentOpp = opportunities.find(o => o.id === selectedOpportunityId);
+
       const { error } = await supabase
         .from('oportunidades')
         .update({
@@ -215,6 +218,24 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         .eq('id', selectedOpportunityId);
 
       if (error) throw error;
+
+      // Log activity (non-blocking)
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'EDITAR_OPORTUNIDADE',
+        entidade: 'oportunidades',
+        entidade_id: selectedOpportunityId,
+        dados_anteriores: {
+          titulo: currentOpp?.titulo,
+          tipo_acao: currentOpp?.tipo_acao,
+          valor_estimado: currentOpp?.valor_estimado
+        },
+        dados_novos: {
+          titulo: editOpportunity.titulo,
+          tipo_acao: editOpportunity.tipo_acao || null,
+          valor_estimado: editOpportunity.valor_estimado ? parseFloat(editOpportunity.valor_estimado) : null
+        }
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
 
       toast.success('Oportunidade atualizada com sucesso!');
       setIsEditDialogOpen(false);
@@ -246,12 +267,29 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
 
     setLoading(true);
     try {
+      // Get opportunity data for logging before delete
+      const deletedOpp = opportunities.find(o => o.id === selectedOpportunityId);
+
       const { error } = await supabase
         .from('oportunidades')
         .delete()
         .eq('id', selectedOpportunityId);
 
       if (error) throw error;
+
+      // Log activity (non-blocking) - we log BEFORE clearing the ID
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'EXCLUIR_OPORTUNIDADE',
+        entidade: 'oportunidades',
+        entidade_id: selectedOpportunityId,
+        dados_anteriores: {
+          titulo: deletedOpp?.titulo,
+          contato: deletedOpp?.contatos?.nome_completo || null,
+          valor_estimado: deletedOpp?.valor_estimado
+        },
+        dados_novos: null
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
 
       toast.success('Oportunidade excluída com sucesso!');
       setIsDeleteDialogOpen(false);

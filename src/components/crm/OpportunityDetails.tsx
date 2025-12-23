@@ -4,8 +4,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
-import { ArrowLeft, Calendar, Edit, Trash2, Loader2, Clock, FileText, User, Activity, Zap, Lock, Paperclip, MessageSquare, Send, ChevronLeft, ChevronRight, Scale, Download } from 'lucide-react';
+
+import { ArrowLeft, Calendar, Edit, Trash2, Loader2, FileText, User, Activity, Zap, Paperclip, MessageSquare, Send, ChevronLeft, ChevronRight, Download, Upload } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
@@ -31,19 +31,13 @@ import { getTipoColor } from '../../types/task';
 
 // --- Interfaces & Schemas ---
 
+import { LogMessageFormatter } from './LogMessageFormatter';
+import type { ActivityLog } from '../../types/activity-log';
+
 interface OpportunityDetailsProps {
   opportunityId: string | null;
   onNavigate: (route: string, id?: string) => void;
-}
-
-interface ActivityLog {
-  id: string;
-  acao: string;
-  data_criacao: string;
-  dados_novos: any;
-  user_id: string;
-  users?: { email: string };
-  profiles?: { nome_completo: string; email: string };
+  onBack?: () => void;
 }
 
 interface Comment {
@@ -62,6 +56,7 @@ interface Attachment {
   url_storage: string;
   data_upload: string;
   uploader_id: string;
+  descricao?: string; // New field
   profiles?: { email: string; nome_completo: string };
 }
 
@@ -89,7 +84,7 @@ const ITEMS_PER_PAGE = 10;
 
 // --- Main Component ---
 
-export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDetailsProps) {
+export function OpportunityDetails({ opportunityId, onNavigate, onBack }: OpportunityDetailsProps) {
   const { etapas } = useEtapasFunil();
   const { tasks, loading: loadingTasks, createTask, loadTasksByOpportunity } = useTasks();
   const { createAgendamento } = useAgendamentos();
@@ -104,6 +99,8 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [editingAttachment, setEditingAttachment] = useState<Attachment | null>(null); // New state
+  const [newDescription, setNewDescription] = useState(''); // New state
 
   // Data States
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
@@ -327,6 +324,25 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
 
       if (error) throw error;
 
+      // Log activity (non-blocking)
+      const responsavelNome = profiles.find(p => p.id === values.responsavel_id)?.nome_completo || null;
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'EDITAR_OPORTUNIDADE',
+        entidade: 'oportunidades',
+        entidade_id: opportunityId,
+        dados_anteriores: {
+          tipo_acao: opportunity?.tipo_acao,
+          valor_estimado: opportunity?.valor_estimado,
+          responsavel: opportunity?.responsavel?.nome_completo
+        },
+        dados_novos: {
+          tipo_acao: values.tipo_operacao,
+          valor_estimado: values.valor_estimado,
+          responsavel: responsavelNome
+        }
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
+
       toast.success('Oportunidade atualizada!');
       setIsEditDialogOpen(false);
       await loadOpportunity();
@@ -354,6 +370,18 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
         });
 
       if (error) throw error;
+
+      // Log activity (non-blocking)
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'ADICIONAR_COMENTARIO',
+        entidade: 'oportunidades',
+        entidade_id: opportunityId,
+        dados_anteriores: null,
+        dados_novos: {
+          texto: newCommentText.trim().substring(0, 100) + (newCommentText.length > 100 ? '...' : '')
+        }
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
 
       setNewCommentText('');
       loadComments(opportunityId!);
@@ -418,6 +446,20 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
         user_id: user?.id,
       });
 
+      // Log activity (non-blocking)
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'AGENDAR_INTERACAO',
+        entidade: 'oportunidades',
+        entidade_id: opportunityId,
+        dados_anteriores: null,
+        dados_novos: {
+          tipo: interactionType,
+          titulo: scheduleForm.titulo,
+          data: new Date(scheduleForm.data_vencimento).toLocaleDateString('pt-BR')
+        }
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
+
       toast.success('Agendado com sucesso!');
       setIsScheduleDialogOpen(false);
       setScheduleForm({ titulo: '', data_vencimento: '', observacoes: '' });
@@ -431,12 +473,139 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
     }
   };
 
+  // --- File Handlers ---
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !opportunityId) return;
+
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Arquivo muito grande (máximo 10MB)');
+      return;
+    }
+
+    setLoadingAttachments(true);
+    try {
+      const fileName = `${opportunityId}/${Date.now()}_${file.name}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('oportunidades-anexos')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('oportunidades-anexos')
+        .getPublicUrl(fileName);
+
+      // Insert record in DB
+      const { error: dbError } = await supabase
+        .from('anexos_oportunidade')
+        .insert({
+          oportunidade_id: opportunityId,
+          uploader_id: user?.id,
+          nome_arquivo: file.name,
+          tipo_arquivo: file.type,
+          tamanho_bytes: file.size,
+          url_storage: urlData.publicUrl
+        });
+
+      if (dbError) throw dbError;
+
+      // Log activity
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'ANEXAR_ARQUIVO',
+        entidade: 'oportunidades',
+        entidade_id: opportunityId,
+        dados_anteriores: null,
+        dados_novos: {
+          arquivo: file.name,
+          tipo: file.type,
+          tamanho: `${(file.size / 1024).toFixed(1)} KB`
+        }
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
+
+      toast.success('Arquivo anexado!');
+      loadAttachments(opportunityId);
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error.message || 'Erro ao fazer upload');
+    } finally {
+      setLoadingAttachments(false);
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attachment: Attachment) => {
+    if (!opportunityId) return;
+
+    try {
+      // Extract file path from URL
+      const urlParts = attachment.url_storage.split('/');
+      const filePath = `${opportunityId}/${urlParts[urlParts.length - 1]}`;
+
+      // Delete from storage
+      await supabase.storage
+        .from('oportunidades-anexos')
+        .remove([filePath]);
+
+      // Delete from DB
+      const { error } = await supabase
+        .from('anexos_oportunidade')
+        .delete()
+        .eq('id', attachment.id);
+
+      if (error) throw error;
+
+      // Log activity
+      supabase.from('log_atividades').insert({
+        user_id: user?.id,
+        acao: 'EXCLUIR_ANEXO',
+        entidade: 'oportunidades',
+        entidade_id: opportunityId,
+        dados_anteriores: { arquivo: attachment.nome_arquivo },
+        dados_novos: null
+      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
+
+      toast.success('Anexo removido!');
+      loadAttachments(opportunityId);
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      toast.error(error.message || 'Erro ao excluir anexo');
+    }
+  };
+
+  const handleUpdateDescription = async () => {
+    if (!editingAttachment) return;
+
+    try {
+      const { error } = await supabase
+        .from('anexos_oportunidade')
+        .update({ descricao: newDescription })
+        .eq('id', editingAttachment.id);
+
+      if (error) throw error;
+
+      toast.success('Descrição atualizada!');
+      setEditingAttachment(null);
+      setNewDescription('');
+      loadAttachments(opportunityId!);
+    } catch (error: any) {
+      console.error('Update error:', error);
+      toast.error('Erro ao atualizar descrição');
+    }
+  };
+
   // --- Helpers ---
   const formatCurrency = (val: number | null) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const getEtapaLabel = () => etapas.find(e => e.id === opportunity?.etapa_funil_id)?.nome || 'Sem etapa';
 
   const CustomCard = ({ title, icon: Icon, children, className }: any) => (
-    <div className={`bg-white text-card-foreground flex flex-col gap-6 rounded-xl py-6 shadow-none border border-slate-200 ${className}`}>
+    <div className={`bg-card-opacity text-card-foreground flex flex-col gap-6 rounded-xl py-6 shadow-none border border-slate-200 ${className}`}>
       <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 border-b-2 border-slate-100 bg-slate-50/30 px-6 pb-4 -mt-2">
         <div className="text-sm font-semibold text-slate-700 flex items-center gap-2">
           <Icon className="w-4 h-4 text-slate-400" />
@@ -455,7 +624,7 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
       {/* Header */}
       <div className="mb-6 space-y-4">
         <div className="flex items-center justify-between">
-          <Button variant="ghost" onClick={() => onNavigate('crm')} className="gap-2">
+          <Button variant="ghost" onClick={() => onBack ? onBack() : onNavigate('crm')} className="gap-2">
             <ArrowLeft className="w-4 h-4" /> Voltar
           </Button>
           <div className="flex gap-2">
@@ -471,7 +640,7 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-gray-900 p-4 rounded-xl border border-slate-200 shadow-none">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card-opacity dark:bg-gray-900 p-4 rounded-xl border border-slate-200 shadow-none">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{opportunity.titulo}</h1>
             <div className="flex gap-2 items-center">
@@ -570,7 +739,7 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
 
             <TabsContent value="timeline" className="mt-4">
               {/* Timeline Content */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-none overflow-hidden">
+              <div className="bg-card-opacity rounded-xl border border-slate-200 shadow-none overflow-hidden">
                 <div className="px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                     <Activity className="w-4 h-4 text-slate-400" /> Histórico
@@ -591,14 +760,12 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
                                 </div>
                                 <div className="flex-1">
                                   <div className="flex justify-between items-start">
-                                    <p className="text-sm text-slate-900"><span className="font-medium">{displayName}</span> <span className="text-slate-500 font-normal">{log.acao.toLowerCase()}</span></p>
+                                    <p className="text-sm text-slate-900"><span className="font-medium">{displayName}</span></p>
                                     <span className="text-[10px] text-slate-400">{new Date(log.data_criacao).toLocaleString()}</span>
                                   </div>
-                                  {log.dados_novos && Object.keys(log.dados_novos).length > 0 && (
-                                    <div className="mt-1 text-xs text-slate-500 bg-slate-50 p-2 rounded truncate max-w-lg">
-                                      {JSON.stringify(log.dados_novos)}
-                                    </div>
-                                  )}
+                                  <div className="mt-1">
+                                    <LogMessageFormatter log={log} />
+                                  </div>
                                 </div>
                               </div>
                             </li>
@@ -615,28 +782,24 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
             </TabsContent>
 
             <TabsContent value="comments" className="mt-4">
-              <Card className="shadow-none border border-slate-200">
-                <CardContent className="pt-6">
-                  <div className="flex gap-4">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-500">
-                      <User className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      <Textarea
-                        placeholder="Escreva um comentário..."
-                        className="min-h-[100px] bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                        value={newCommentText}
-                        onChange={e => setNewCommentText(e.target.value)}
-                      />
-                      <div className="flex justify-end">
-                        <Button size="sm" className="gap-2" onClick={handlePostComment} disabled={!newCommentText.trim()}>
-                          <Send className="w-3 h-3" /> Enviar
-                        </Button>
-                      </div>
-                    </div>
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-full bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-500">
+                  <User className="w-5 h-5" />
+                </div>
+                <div className="flex-1 space-y-3">
+                  <Textarea
+                    placeholder="Escreva um comentário..."
+                    className="min-h-[100px] bg-slate-50 border-slate-200 focus:bg-white transition-all"
+                    value={newCommentText}
+                    onChange={e => setNewCommentText(e.target.value)}
+                  />
+                  <div className="flex justify-end">
+                    <Button size="sm" className="gap-2" onClick={handlePostComment} disabled={!newCommentText.trim()}>
+                      <Send className="w-3 h-3" /> Enviar
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
               <div className="mt-6 space-y-4">
                 {loadingComments ? <Loader2 className="mx-auto animate-spin" /> :
@@ -660,14 +823,23 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
             </TabsContent>
 
             <TabsContent value="attachments" className="mt-4">
-              <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
-                <div className="border-2 border-dashed border-slate-200 rounded-lg p-8 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer"
-                  onClick={() => toast.info('Upload de arquivos em breve!')}
-                >
-                  <Paperclip className="w-10 h-10 text-slate-300 mb-2" />
+              <div className="bg-card-opacity rounded-xl border border-slate-200 p-6 text-center">
+                <label className="border-2 border-dashed border-slate-200 rounded-lg p-8 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer">
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    disabled={loadingAttachments}
+                  />
+                  {loadingAttachments ? (
+                    <Loader2 className="w-10 h-10 text-slate-300 mb-2 animate-spin" />
+                  ) : (
+                    <Upload className="w-10 h-10 text-slate-300 mb-2" />
+                  )}
                   <p className="text-sm font-medium text-slate-700">Clique para fazer upload</p>
-                  <p className="text-xs text-slate-500">ou arraste e solte arquivos aqui</p>
-                </div>
+                  <p className="text-xs text-slate-500">PDF, Word, Excel, Imagens (máx. 10MB)</p>
+                </label>
 
                 <div className="mt-6 text-left">
                   <h3 className="text-sm font-semibold text-slate-700 mb-3 px-2">Arquivos Anexados</h3>
@@ -680,10 +852,39 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
                               <FileText className="w-5 h-5 text-indigo-500" />
                               <div>
                                 <p className="text-sm font-medium text-slate-700">{att.nome_arquivo}</p>
+                                {att.descricao && <p className="text-xs text-slate-500 italic">"{att.descricao}"</p>}
                                 <p className="text-xs text-slate-400">{(att.tamanho_bytes / 1024).toFixed(1)} KB • {new Date(att.data_upload).toLocaleDateString()}</p>
                               </div>
                             </div>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400"><Download className="w-4 h-4" /></Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                onClick={() => window.open(att.url_storage, '_blank')}
+                              >
+                                <Download className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-indigo-600"
+                                onClick={() => {
+                                  setEditingAttachment(att);
+                                  setNewDescription(att.descricao || '');
+                                }}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                onClick={() => handleDeleteAttachment(att)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -906,13 +1107,49 @@ export function OpportunityDetails({ opportunityId, onNavigate }: OpportunityDet
       {/* Delete Alert */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Excluir?</AlertDialogTitle><AlertDialogDescription>Ação irreversível.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir?</AlertDialogTitle>
+            <AlertDialogDescription>Ação irreversível.</AlertDialogDescription>
+          </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmDelete} className="bg-red-600">Excluir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Attachment Description Dialog */}
+      <Dialog open={!!editingAttachment} onOpenChange={(open) => {
+        if (!open) {
+          setEditingAttachment(null);
+          setNewDescription('');
+        }
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Descrição</DialogTitle>
+            <DialogDescription>
+              Adicione uma descrição para manter o histórico organizado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="description">Descrição do Anexo</Label>
+              <Textarea
+                id="description"
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="Ex: Comprovante de renda atualizado..."
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingAttachment(null)}>Cancelar</Button>
+            <Button onClick={handleUpdateDescription}>Salvar Descrição</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );
