@@ -117,7 +117,6 @@ export function DetalhadaEntradaDadosTab({
             // Imobiliário
             indexador: (data as any).indexador || 'TR',
             valorImovel: (data as any).valorImovel || 0,
-            valorImovel: (data as any).valorImovel || 0,
             valorBem: (data as any).valorBem || 0,
             valorEntrada: (data as any).valorEntrada || 0,
             dataLiberacao: (data as any).dataLiberacao || '',
