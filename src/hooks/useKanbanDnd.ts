@@ -6,12 +6,14 @@ import { Opportunity } from '@/types/opportunity';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { useEtapasFunil } from '@/hooks/useEtapasFunil';
 
 export function useKanbanDnd(
     opportunities: Opportunity[],
     setOpportunities: React.Dispatch<React.SetStateAction<Opportunity[]>>
 ) {
     const { user } = useAuth();
+    const { etapas } = useEtapasFunil();
     const [activeId, setActiveId] = useState<string | null>(null);
 
     const handleDragStart = (event: DragStartEvent) => {
@@ -72,14 +74,17 @@ export function useKanbanDnd(
 
             toast.success('Oportunidade movida!');
 
-            // Log activity (non-blocking - don't fail the operation if logging fails)
+            // Log activity with human-readable etapa names (non-blocking)
+            const fromEtapa = etapas.find(e => e.id === draggedOpp.etapa_funil_id)?.nome || 'Desconhecida';
+            const toEtapa = etapas.find(e => e.id === targetEtapaId)?.nome || 'Desconhecida';
+
             supabase.from('log_atividades').insert({
                 user_id: user?.id,
                 acao: 'MOVER_OPORTUNIDADE',
                 entidade: 'oportunidades',
                 entidade_id: opportunityId,
-                dados_anteriores: { etapa_funil_id: draggedOpp.etapa_funil_id },
-                dados_novos: { etapa_funil_id: targetEtapaId }
+                dados_anteriores: { etapa: fromEtapa },
+                dados_novos: { etapa: toEtapa }
             }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
 
         } catch (error) {

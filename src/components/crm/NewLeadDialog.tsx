@@ -147,7 +147,7 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
 
             const currentTitle = `${contactName}`;
 
-            const { error } = await supabase
+            const { data: createdOpp, error } = await supabase
                 .from('oportunidades')
                 .insert([{
                     titulo: currentTitle,
@@ -159,9 +159,32 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                     valor_estimado: values.valor_estimado || 0,
                     observacoes: values.observacoes || null,
                     criado_por: user?.id || null,
-                }]);
+                }])
+                .select('id')
+                .single();
 
             if (error) throw error;
+
+            // Log activity (non-blocking)
+            const responsavelNome = profiles.find(p => p.id === values.responsavel_id)?.nome_completo || 'Não definido';
+            const etapaNome = etapas.find(e => e.id === values.etapa_funil_id)?.nome || 'Primeira etapa';
+
+            supabase.from('log_atividades').insert({
+                user_id: user?.id,
+                acao: 'CRIAR_OPORTUNIDADE',
+                entidade: 'oportunidades',
+                entidade_id: createdOpp.id,
+                dados_anteriores: null,
+                dados_novos: {
+                    titulo: currentTitle,
+                    contato: contactName,
+                    tipo_acao: values.tipo_operacao || null,
+                    valor_estimado: values.valor_estimado || 0,
+                    etapa: etapaNome,
+                    responsavel: responsavelNome,
+                    origem: values.origem || null
+                }
+            }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
 
             toast.success('Oportunidade criada com sucesso!');
             onSuccess();

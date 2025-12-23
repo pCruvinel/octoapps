@@ -28,13 +28,19 @@ export function DroppableColumn({
 }: DroppableColumnProps) {
     const { setNodeRef } = useDroppable({ id: etapa.id });
 
-    // 10% opacity (90% transparency)
-    const columnBgColor = etapa.cor ? hexToRgba(etapa.cor, 0.1) : 'rgba(243, 244, 246, 0.5)';
+    // White background with 50% opacity
+    const columnBgColor = 'rgba(255, 255, 255, 0.1)';
 
     return (
         <div className="w-80 flex-shrink-0 flex flex-col h-full max-h-full">
-            <div className="mb-4 flex-shrink-0">
-                <div className="flex items-center gap-2 mb-2">
+            <div
+                className="mb-4 flex-shrink-0 rounded-lg px-3 py-2 border"
+                style={{
+                    backgroundColor: etapa.cor ? hexToRgba(etapa.cor, 0.2) : 'rgba(243, 244, 246, 0.2)',
+                    borderColor: etapa.cor ? hexToRgba(etapa.cor, 0.3) : 'rgba(203, 213, 225, 0.3)'
+                }}
+            >
+                <div className="flex items-center gap-2">
                     <div
                         className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: etapa.cor }}
