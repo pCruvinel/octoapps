@@ -16,7 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { AlertTriangle, TrendingUp, Loader2, ChevronDown, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { geralStep1Schema, type GeralStep1Data } from '@/schemas/moduloGeral.schema';
-import { DetalhadaImportCard } from '../detalhada-import-card';
+import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { fetchMarketRate, getEstimatedMarketRate } from '@/utils/financialCalculations';
 
 
@@ -207,7 +207,7 @@ export function DetalhadaEmprestimoVeiculoStep1({
 
     return (
         <div className="space-y-6">
-            <DetalhadaImportCard
+            <OcrUploadCard
                 category="EMPRESTIMOS_VEICULOS"
                 onDataExtracted={handleOcrData}
             />

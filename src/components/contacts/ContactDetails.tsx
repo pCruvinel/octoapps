@@ -382,11 +382,16 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
           <div>
             <h1 className="text-gray-900 dark:text-white mb-2">{contact.nome_completo}</h1>
             <Badge variant={
-              contact.status_contato === 'Ativo' || contact.status_contato === 'Cliente'
+              contact.categoria_contato === 'CLIENTE'
                 ? 'default'
-                : 'secondary'
+                : contact.categoria_contato === 'LEAD'
+                  ? 'secondary'
+                  : 'outline'
             }>
-              {contact.status_contato}
+              {contact.categoria_contato === 'LEAD' ? 'Lead' :
+                contact.categoria_contato === 'CLIENTE' ? 'Cliente' :
+                  contact.categoria_contato === 'EX_CLIENTE' ? 'Ex-Cliente' :
+                    contact.categoria_contato || 'Lead'}
             </Badge>
           </div>
           <Button variant="destructive" className="gap-2" onClick={() => setDeleteDialogOpen(true)}>
@@ -538,7 +543,7 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status">Status</Label>
-              <Select value={contact.status} onValueChange={(value) => {}}>
+              <Select value={contact.status} onValueChange={(value) => { }}>
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Selecione o status" />
                 </SelectTrigger>

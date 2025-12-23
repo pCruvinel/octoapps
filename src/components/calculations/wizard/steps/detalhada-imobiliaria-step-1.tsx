@@ -12,7 +12,7 @@ import { PercentInput } from '@/components/ui/percent-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { toast } from 'sonner';
 import { imobiliarioStep1Schema, type ImobiliarioStep1Data } from '@/schemas/moduloImobiliario.schema';
-import { DetalhadaImportCard } from '../detalhada-import-card';
+import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 
 
 interface Step1_ImobiliarioProps {
@@ -133,7 +133,7 @@ export function DetalhadaImobiliariaStep1({
 
     return (
         <div className="space-y-6">
-            <DetalhadaImportCard
+            <OcrUploadCard
                 category="IMOBILIARIO"
                 onDataExtracted={handleOcrData}
             />

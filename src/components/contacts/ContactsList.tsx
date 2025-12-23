@@ -23,6 +23,28 @@ interface ContactsListProps {
   onNavigate: (route: string, id?: string) => void;
 }
 
+// Helper function to calculate activity status based on last update
+const getStatusAtividade = (dataAtualizacao: string) => {
+  const dias = Math.floor((Date.now() - new Date(dataAtualizacao).getTime()) / 86400000);
+  if (dias < 90) return { label: 'Ativo', variant: 'default' as const, className: 'bg-green-600 hover:bg-green-700' };
+  if (dias < 180) return { label: 'Inativo', variant: 'secondary' as const, className: 'bg-yellow-500 text-yellow-900 hover:bg-yellow-600' };
+  return { label: 'Arquivado', variant: 'outline' as const, className: 'text-gray-500' };
+};
+
+// Helper function to get category display label
+const getCategoriaLabel = (categoria: string | null | undefined): string => {
+  const map: Record<string, string> = { 'LEAD': 'Lead', 'CLIENTE': 'Cliente', 'EX_CLIENTE': 'Ex-Cliente' };
+  return categoria ? (map[categoria] || 'Lead') : 'Lead';
+};
+
+// Helper function to get category badge variant
+const getCategoriaVariant = (categoria: string | null | undefined): 'default' | 'secondary' | 'outline' => {
+  if (categoria === 'CLIENTE') return 'default';
+  if (categoria === 'LEAD') return 'secondary';
+  return 'outline';
+};
+
+
 export function ContactsList({ onNavigate }: ContactsListProps) {
   const { user } = useAuth();
   const { canCreate, canUpdate, canDelete } = usePermissions();
@@ -39,7 +61,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
     cpfCnpj: '',
     email: '',
     phone: '',
-    status: 'Lead' as 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente',
+    categoria: 'LEAD' as 'LEAD' | 'CLIENTE' | 'EX_CLIENTE',
     tipo: 'PF' as 'PF' | 'PJ'
   });
 
@@ -48,7 +70,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
     cpfCnpj: '',
     email: '',
     phone: '',
-    status: 'Lead' as 'Ativo' | 'Inativo' | 'Lead' | 'Cliente' | 'Ex-Cliente',
+    categoria: 'LEAD' as 'LEAD' | 'CLIENTE' | 'EX_CLIENTE',
     tipo: 'PF' as 'PF' | 'PJ'
   });
 
@@ -127,7 +149,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
           email: newContact.email,
           cpf_cnpj: newContact.cpfCnpj || null,
           telefone_principal: newContact.phone || null,
-          status_contato: newContact.status,
+          categoria_contato: newContact.categoria,
           responsavel_id: user?.id || null,
           criado_por: user?.id || null,
         }])
@@ -143,7 +165,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
         cpfCnpj: '',
         email: '',
         phone: '',
-        status: 'Lead',
+        categoria: 'LEAD',
         tipo: 'PF'
       });
 
@@ -183,7 +205,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
         cpfCnpj: contact.cpf_cnpj || '',
         email: contact.email || '',
         phone: contact.telefone_principal || '',
-        status: contact.status_contato,
+        categoria: (contact.categoria_contato as 'LEAD' | 'CLIENTE' | 'EX_CLIENTE') || 'LEAD',
         tipo: isPJ ? 'PJ' : 'PF'
       });
       setEditDialogOpen(true);
@@ -227,7 +249,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
           email: editContact.email,
           cpf_cnpj: editContact.cpfCnpj || null,
           telefone_principal: editContact.phone || null,
-          status_contato: editContact.status,
+          categoria_contato: editContact.categoria,
           data_atualizacao: new Date().toISOString(),
         })
         .eq('id', selectedContactId);
@@ -435,20 +457,18 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="status">Status *</Label>
+                <Label htmlFor="categoria">Categoria *</Label>
                 <Select
-                  value={newContact.status}
-                  onValueChange={(value: any) => setNewContact(prev => ({ ...prev, status: value }))}
+                  value={newContact.categoria}
+                  onValueChange={(value: 'LEAD' | 'CLIENTE' | 'EX_CLIENTE') => setNewContact(prev => ({ ...prev, categoria: value }))}
                 >
-                  <SelectTrigger id="status">
+                  <SelectTrigger id="categoria">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Lead">Lead</SelectItem>
-                    <SelectItem value="Cliente">Cliente</SelectItem>
-                    <SelectItem value="Ativo">Ativo</SelectItem>
-                    <SelectItem value="Inativo">Inativo</SelectItem>
-                    <SelectItem value="Ex-Cliente">Ex-Cliente</SelectItem>
+                    <SelectItem value="LEAD">Lead</SelectItem>
+                    <SelectItem value="CLIENTE">Cliente</SelectItem>
+                    <SelectItem value="EX_CLIENTE">Ex-Cliente</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -487,6 +507,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                   <TableHead>CPF/CNPJ</TableHead>
                   <TableHead>E-mail</TableHead>
                   <TableHead>Telefone</TableHead>
+                  <TableHead>Categoria</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Data Criação</TableHead>
                   <TableHead className="w-12">Ações</TableHead>
@@ -512,13 +533,15 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                     <TableCell>{contact.email || '-'}</TableCell>
                     <TableCell>{contact.telefone_principal || '-'}</TableCell>
                     <TableCell>
-                      <Badge variant={
-                        contact.status_contato === 'Ativo' || contact.status_contato === 'Cliente'
-                          ? 'default'
-                          : 'secondary'
-                      }>
-                        {contact.status_contato}
+                      <Badge variant={getCategoriaVariant(contact.categoria_contato)}>
+                        {getCategoriaLabel(contact.categoria_contato)}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const status = getStatusAtividade(contact.data_atualizacao);
+                        return <Badge variant={status.variant} className={status.className}>{status.label}</Badge>;
+                      })()}
                     </TableCell>
                     <TableCell>
                       {new Date(contact.data_criacao).toLocaleDateString('pt-BR')}
@@ -704,20 +727,18 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-status">Status *</Label>
+              <Label htmlFor="edit-categoria">Categoria *</Label>
               <Select
-                value={editContact.status}
-                onValueChange={(value: any) => setEditContact(prev => ({ ...prev, status: value }))}
+                value={editContact.categoria}
+                onValueChange={(value: 'LEAD' | 'CLIENTE' | 'EX_CLIENTE') => setEditContact(prev => ({ ...prev, categoria: value }))}
               >
-                <SelectTrigger id="edit-status">
+                <SelectTrigger id="edit-categoria">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Lead">Lead</SelectItem>
-                  <SelectItem value="Cliente">Cliente</SelectItem>
-                  <SelectItem value="Ativo">Ativo</SelectItem>
-                  <SelectItem value="Inativo">Inativo</SelectItem>
-                  <SelectItem value="Ex-Cliente">Ex-Cliente</SelectItem>
+                  <SelectItem value="LEAD">Lead</SelectItem>
+                  <SelectItem value="CLIENTE">Cliente</SelectItem>
+                  <SelectItem value="EX_CLIENTE">Ex-Cliente</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -196,13 +196,13 @@ export function PreviaContainer({ onNavigateToWizard }: PreviaContainerProps) {
                 onValueChange={(v) => setModuloAtivo(v as ModuloAtivo)}
                 className="w-full"
             >
-                <TabsList className="grid w-full grid-cols-3 mb-6 h-14">
-                    <TabsTrigger value="GERAL" className="text-base gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <TabsList className="bg-muted text-muted-foreground items-center justify-center rounded-lg p-[3px] grid w-full grid-cols-3 mb-6 h-14">
+                    <TabsTrigger value="GERAL" className="text-base gap-2">
                         <Car className="w-4 h-4" />
                         <span className="hidden sm:inline">Veículos/Empréstimos</span>
                         <span className="sm:hidden">Geral</span>
                     </TabsTrigger>
-                    <TabsTrigger value="IMOBILIARIO" className="text-base gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                    <TabsTrigger value="IMOBILIARIO" className="text-base gap-2">
                         <Home className="w-4 h-4" />
                         <span className="hidden sm:inline">Imobiliário</span>
                         <span className="sm:hidden">Imóvel</span>

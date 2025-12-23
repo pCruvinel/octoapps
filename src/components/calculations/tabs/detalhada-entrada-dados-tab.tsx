@@ -14,7 +14,7 @@ import { PercentInput } from '@/components/ui/percent-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Button } from '@/components/ui/button';
 import { Trash2, Plus, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
-import { DetalhadaImportCard } from '../wizard/detalhada-import-card';
+import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
 import type { DetalhadaModuleType, DetalhadaPageData } from '../detalhada-page';
 
@@ -238,7 +238,7 @@ export function DetalhadaEntradaDadosTab({
     return (
         <div className="space-y-6">
             {/* OCR Import */}
-            <DetalhadaImportCard
+            <OcrUploadCard
                 category={module === 'IMOBILIARIO' ? 'IMOBILIARIO' : module === 'CARTAO' ? 'CARTAO_CREDITO' : 'EMPRESTIMOS_VEICULOS'}
                 onDataExtracted={handleOcrData}
             />

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cartaoStep1Schema, type CartaoStep1Data } from '@/schemas/moduloCartao.schema';
-import { DetalhadaImportCard } from '../detalhada-import-card';
+import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 
 
 interface DetalhadaCartaoStep1Props {
@@ -83,7 +83,7 @@ export function DetalhadaCartaoStep1({
 
     return (
         <div className="space-y-6">
-            <DetalhadaImportCard
+            <OcrUploadCard
                 category="CARTAO_CREDITO"
                 onDataExtracted={handleOcrData}
             />
