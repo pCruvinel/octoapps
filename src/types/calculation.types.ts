@@ -1438,6 +1438,10 @@ export interface LinhaAmortizacaoDetalhada {
   fatorNaoPeriodico?: number;      // Fator NP = (1+i)^(dias/30)
   quocienteXTIR?: number;          // Quociente = parcela / saldoDevedor
 
+  // NEW: Campos específicos para Capitalização Diária (AP01)
+  diasAcumulados?: number;         // Dias corridos desde liberação até vencimento
+  quocienteDiario?: number;        // Quociente = 1 / (1 + taxa)^(diasAcumulados/30)
+
   // NEW: Situação da parcela (AP03)
   situacao?: SituacaoParcela;      // PAGA, VENCIDA, VINCENDA
   valorPago?: number;              // Valor efetivamente pago (AP01)

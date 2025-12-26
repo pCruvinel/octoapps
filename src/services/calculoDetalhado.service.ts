@@ -178,6 +178,8 @@ export async function calcularEvolucaoDetalhada(
         conciliacao: request.conciliacao,
         jurosMora: request.jurosMora,
         multaMoratoria: request.multaMoratoria,
+        // NOVO: Data de liberação para cálculo de dias acumulados (capitalização diária)
+        dataLiberacao: request.dataLiberacao,
     });
     const ap01EndTime = performance.now();
 
@@ -484,6 +486,8 @@ interface GerarAPParams {
     }>;
     jurosMora?: number;        // % a.m. (padrão 1%)
     multaMoratoria?: number;   // % (padrão 2%)
+    // NOVO: Data de liberação para cálculo de dias acumulados (capitalização diária)
+    dataLiberacao?: string;     // YYYY-MM-DD
 }
 
 /**
@@ -612,6 +616,19 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
         // Quociente XTIR: parcela / saldoDevedorAnterior
         const quocienteXTIR = saldoAbertura > 0 ? parcelaTotal.toNumber() / saldoAbertura : 0;
 
+        // NEW: Campos específicos para Capitalização Diária
+        let diasAcumulados: number | undefined;
+        let quocienteDiario: number | undefined;
+
+        if (params.capitalizacao === 'DIARIA') {
+            // Dias acumulados desde a data de liberação (ou dataInicio se não informada)
+            const dataBase = params.dataLiberacao || params.dataInicio;
+            diasAcumulados = calcularDiasEntre(dataBase, dataVencimento);
+
+            // Quociente = 1 / (1 + taxa)^(diasAcumulados/30)
+            quocienteDiario = 1 / Math.pow(1 + params.taxaMensal, diasAcumulados / 30);
+        }
+
         // 10. NOVO: Calcular encargos moratórios se houver atraso
         const dadosConciliacao = params.conciliacao?.find(c => c.numeroParcela === mes);
         let diasAtraso = 0;
@@ -663,6 +680,9 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
             diasEntreParcelas,
             fatorNaoPeriodico,
             quocienteXTIR,
+            // Campos específicos para Capitalização Diária
+            diasAcumulados,
+            quocienteDiario,
             // NOVO: Campos de mora
             diasAtraso,
             encargosMora,

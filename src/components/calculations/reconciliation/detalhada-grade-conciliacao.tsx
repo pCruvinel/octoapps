@@ -5,6 +5,7 @@ import {
     createColumnHelper,
     flexRender,
     getCoreRowModel,
+    getPaginationRowModel,
     useReactTable,
     type ColumnDef,
     type CellContext,
@@ -17,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyInput } from '@/components/ui/currency-input';
-import { Loader2, CheckCircle2, Clock, XCircle, RotateCcw, Download, Upload } from 'lucide-react';
+import { Loader2, CheckCircle2, Clock, XCircle, RotateCcw, Download, Upload, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Tipos para a linha de pagamento
@@ -50,13 +51,7 @@ const STATUS_CONFIG = {
     ATRASO: { label: 'Atraso', color: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300', icon: XCircle },
 };
 
-// Estilos dos inputs baseados no status (fundo suave, texto preto)
-const INPUT_STATUS_STYLES = {
-    PAGO: 'bg-blue-50 border-blue-200 text-slate-900 dark:bg-blue-950/50 dark:border-blue-800 dark:text-slate-100',
-    EM_ABERTO: 'bg-amber-50 border-amber-200 text-slate-900 dark:bg-amber-950/50 dark:border-amber-800 dark:text-slate-100',
-    RENEGOCIADO: 'bg-purple-50 border-purple-200 text-slate-900 dark:bg-purple-950/50 dark:border-purple-800 dark:text-slate-100',
-    ATRASO: 'bg-red-50 border-red-200 text-slate-900 dark:bg-red-950/50 dark:border-red-800 dark:text-slate-100',
-};
+
 
 // Formatar moeda
 function formatCurrency(value: number): string {
@@ -81,7 +76,6 @@ const EditableDateCell = React.memo(function EditableDateCell({
     const [value, setValue] = React.useState(initialValue);
     const rowIndex = row.index;
     const columnId = column.id;
-    const status = row.original.status;
 
     const onBlur = React.useCallback(() => {
         if (value !== initialValue) {
@@ -93,15 +87,13 @@ const EditableDateCell = React.memo(function EditableDateCell({
         setValue(initialValue);
     }, [initialValue]);
 
-    const inputStyle = INPUT_STATUS_STYLES[status];
-
     return (
         <Input
             type="date"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onBlur={onBlur}
-            className={cn('h-8 text-sm', inputStyle)}
+            className="h-8 text-sm"
         />
     );
 });
@@ -116,7 +108,6 @@ const EditableCurrencyCell = React.memo(function EditableCurrencyCell({
     const lastCommittedValue = React.useRef(initialValue);
     const rowIndex = row.index;
     const columnId = column.id;
-    const status = row.original.status;
 
     // Sync ref when table data changes
     React.useEffect(() => {
@@ -132,13 +123,11 @@ const EditableCurrencyCell = React.memo(function EditableCurrencyCell({
         }
     }, [table.options.meta, rowIndex, columnId]);
 
-    const inputStyle = INPUT_STATUS_STYLES[status];
-
     return (
         <CurrencyInput
             value={initialValue}
             onChange={handleChange}
-            className={cn('h-8 text-sm', inputStyle)}
+            className="h-8 text-sm"
         />
     );
 });
@@ -150,8 +139,6 @@ const EditableStatusCell = React.memo(function EditableStatusCell({
 }: CellContext<PaymentRow, PaymentRow['status']>) {
     const value = getValue();
     const rowIndex = row.index;
-    const status = row.original.status;
-    const inputStyle = INPUT_STATUS_STYLES[status];
 
     const handleChange = React.useCallback((newValue: PaymentRow['status']) => {
         table.options.meta?.updateData(rowIndex, 'status', newValue);
@@ -159,7 +146,7 @@ const EditableStatusCell = React.memo(function EditableStatusCell({
 
     return (
         <Select value={value} onValueChange={handleChange}>
-            <SelectTrigger className={cn('h-8 text-xs w-[120px] text-slate-900', inputStyle)}>
+            <SelectTrigger className="h-8 text-xs w-[120px]">
                 <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -348,7 +335,13 @@ export function DetalhadaGradeConciliacao({
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
+        getPaginationRowModel: getPaginationRowModel(),
         onRowSelectionChange: setRowSelection,
+        initialState: {
+            pagination: {
+                pageSize: 30,
+            },
+        },
         state: {
             rowSelection,
         },
@@ -499,59 +492,104 @@ export function DetalhadaGradeConciliacao({
                             ))}
                         </thead>
                         <tbody>
-                            {table.getRowModel().rows.map((row, index) => {
-                                const statusColor = STATUS_CONFIG[row.original.status]?.color;
-                                return (
-                                    <tr
-                                        key={row.id}
-                                        className={cn(
-                                            'border-b hover:opacity-80 transition-colors',
-                                            statusColor, // Applies strict status color (Background + Text)
-                                            row.original.isEdited && 'border-l-2 border-l-amber-500', // Edited indicator
-                                            row.getIsSelected() && 'ring-2 ring-inset ring-blue-500' // Selection indicator
-                                        )}
-                                    >
-                                        {row.getVisibleCells().map((cell) => (
-                                            <td key={cell.id} className="px-3 py-2">
-                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                );
-                            })}
+                            {table.getRowModel().rows.map((row) => (
+                                <tr
+                                    key={row.id}
+                                    className={cn(
+                                        'border-b bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
+                                        row.original.isEdited && 'border-l-2 border-l-amber-500', // Edited indicator
+                                        row.getIsSelected() && 'ring-2 ring-inset ring-blue-500' // Selection indicator
+                                    )}
+                                >
+                                    {row.getVisibleCells().map((cell) => (
+                                        <td key={cell.id} className="px-3 py-2">
+                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
 
-                {/* Footer com resumo */}
+                {/* Footer com resumo e paginação */}
                 <div className="border-t p-4 bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-6">
-                            <div>
-                                <span className="text-slate-500">Total Parcelas:</span>{' '}
-                                <span className="font-medium">{data.length}</span>
+                    <div className="flex flex-col gap-4">
+                        {/* Resumo */}
+                        <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-6">
+                                <div>
+                                    <span className="text-slate-500">Total Parcelas:</span>{' '}
+                                    <span className="font-medium">{data.length}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500">Editadas:</span>{' '}
+                                    <span className="font-medium text-amber-600">{data.filter(r => r.isEdited).length}</span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500">Pagas:</span>{' '}
+                                    <span className="font-medium text-emerald-600">{data.filter(r => r.status === 'PAGO').length}</span>
+                                </div>
                             </div>
-                            <div>
-                                <span className="text-slate-500">Editadas:</span>{' '}
-                                <span className="font-medium text-amber-600">{data.filter(r => r.isEdited).length}</span>
-                            </div>
-                            <div>
-                                <span className="text-slate-500">Pagas:</span>{' '}
-                                <span className="font-medium text-emerald-600">{data.filter(r => r.status === 'PAGO').length}</span>
+                            <div className="flex items-center gap-4">
+                                <div>
+                                    <span className="text-slate-500">Total Contrato:</span>{' '}
+                                    <span className="font-mono font-medium">
+                                        {formatCurrency(data.reduce((sum, r) => sum + (r.valorContrato || 0), 0))}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-500">Total Pago Real:</span>{' '}
+                                    <span className="font-mono font-medium text-blue-600">
+                                        {formatCurrency(data.filter(r => r.status === 'PAGO').reduce((sum, r) => sum + (r.valorPagoReal || 0), 0))}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div>
-                                <span className="text-slate-500">Total Contrato:</span>{' '}
-                                <span className="font-mono font-medium">
-                                    {formatCurrency(data.reduce((sum, r) => sum + (r.valorContrato || 0), 0))}
-                                </span>
-                            </div>
-                            <div>
-                                <span className="text-slate-500">Total Pago Real:</span>{' '}
-                                <span className="font-mono font-medium text-blue-600">
-                                    {formatCurrency(data.filter(r => r.status === 'PAGO').reduce((sum, r) => sum + (r.valorPagoReal || 0), 0))}
-                                </span>
+
+                        {/* Paginação */}
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-500">
+                                Página {table.getState().pagination.pageIndex + 1} de{' '}
+                                {table.getPageCount()} ({data.length} parcelas)
+                            </span>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => table.setPageIndex(0)}
+                                    disabled={!table.getCanPreviousPage()}
+                                >
+                                    <ChevronsLeft className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => table.previousPage()}
+                                    disabled={!table.getCanPreviousPage()}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => table.nextPage()}
+                                    disabled={!table.getCanNextPage()}
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                                    disabled={!table.getCanNextPage()}
+                                >
+                                    <ChevronsRight className="h-4 w-4" />
+                                </Button>
                             </div>
                         </div>
                     </div>

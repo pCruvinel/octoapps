@@ -8,7 +8,7 @@ import {
     AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileText, GitCompare, DollarSign, Settings2, Scale, Calculator, CheckCircle2, Clock, CalendarClock, AlertTriangle } from 'lucide-react';
+import { FileText, GitCompare, DollarSign, Settings2, Scale, Calculator, AlertTriangle } from 'lucide-react';
 import type { LinhaAmortizacaoDetalhada, ApendiceResult, SituacaoParcela } from '@/types/calculation.types';
 
 interface DetalhadaApendicesTabsProps {
@@ -25,6 +25,8 @@ interface DetalhadaApendicesTabsProps {
         dataConsulta?: string;
         metodologia?: string;
     };
+    // NOVO: Para exibir colunas de capitalização diária
+    capitalizacao?: 'MENSAL' | 'DIARIA';
 }
 
 function formatCurrency(value: number | undefined): string {
@@ -41,31 +43,30 @@ function formatDate(dateStr?: string): string {
     }
 }
 
-// Badge de situação da parcela - Estilo Minimalista
+// Texto de situação da parcela - Estilo Minimalista (apenas texto)
 function SituacaoBadge({ situacao }: { situacao?: SituacaoParcela }) {
     if (!situacao) return null;
 
-    const config = {
-        PAGA: { label: 'Paga', color: 'text-emerald-600', icon: CheckCircle2 },
-        VENCIDA: { label: 'Vencida', color: 'text-red-600', icon: Clock },
-        VINCENDA: { label: 'Vincenda', color: 'text-blue-600', icon: CalendarClock },
+    const labels: Record<SituacaoParcela, string> = {
+        PAGA: 'Paga',
+        VENCIDA: 'Vencida',
+        VINCENDA: 'Vincenda',
     };
 
-    const { label, color, icon: Icon } = config[situacao];
-
     return (
-        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${color}`}>
-            <Icon className="h-3.5 w-3.5" />
-            {label}
+        <span className="text-xs text-slate-600">
+            {labels[situacao]}
         </span>
     );
 }
 
-// Tabela AP01 com campos XTIR
-function AP01Table({ data }: { data: LinhaAmortizacaoDetalhada[] }) {
+// Tabela AP01 com campos XTIR e colunas condicionais para capitalização diária
+function AP01Table({ data, capitalizacao }: { data: LinhaAmortizacaoDetalhada[]; capitalizacao?: 'MENSAL' | 'DIARIA' }) {
     if (!data || data.length === 0) {
         return <div className="text-center py-6 text-slate-500">Nenhum dado disponível</div>;
     }
+
+    const isDiaria = capitalizacao === 'DIARIA';
 
     return (
         <div className="overflow-x-auto">
@@ -73,13 +74,19 @@ function AP01Table({ data }: { data: LinhaAmortizacaoDetalhada[] }) {
                 <thead className="bg-slate-100">
                     <tr>
                         <th className="px-2 py-2 text-left font-medium text-slate-600">Nº</th>
-                        <th className="px-2 py-2 text-left font-medium text-slate-600">Vencimento</th>
-                        <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Anterior</th>
+                        <th className="px-2 py-2 text-left font-medium text-slate-600">Venc.</th>
+                        <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Ant.</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Juros</th>
-                        <th className="px-2 py-2 text-right font-medium text-slate-600">Amortização</th>
+                        <th className="px-2 py-2 text-right font-medium text-slate-600">Amort.</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Parcela</th>
-                        <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Devedor</th>
+                        <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Dev.</th>
                         <th className="px-2 py-2 text-center font-medium text-slate-600">Dias</th>
+                        {isDiaria && (
+                            <>
+                                <th className="px-2 py-2 text-center font-medium text-slate-600 bg-amber-50">Dias Acum</th>
+                                <th className="px-2 py-2 text-right font-medium text-slate-600 bg-amber-50">Quociente</th>
+                            </>
+                        )}
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Fator NP</th>
                     </tr>
                 </thead>
@@ -94,6 +101,12 @@ function AP01Table({ data }: { data: LinhaAmortizacaoDetalhada[] }) {
                             <td className="px-2 py-2 text-right font-mono font-medium">{formatCurrency(row.parcelaTotal)}</td>
                             <td className="px-2 py-2 text-right font-mono font-medium">{formatCurrency(row.saldoDevedor)}</td>
                             <td className="px-2 py-2 text-center font-mono text-slate-500">{row.diasEntreParcelas || 30}</td>
+                            {isDiaria && (
+                                <>
+                                    <td className="px-2 py-2 text-center font-mono text-amber-700 bg-amber-50/50">{row.diasAcumulados || '-'}</td>
+                                    <td className="px-2 py-2 text-right font-mono text-amber-700 bg-amber-50/50">{row.quocienteDiario?.toFixed(6) || '-'}</td>
+                                </>
+                            )}
                             <td className="px-2 py-2 text-right font-mono text-slate-500">{row.fatorNaoPeriodico?.toFixed(6) || '-'}</td>
                         </tr>
                     ))}
@@ -338,6 +351,7 @@ export function DetalhadaApendicesTabs({
     ap04Descricao,
     ap05Descricao,
     parametros,
+    capitalizacao,
 }: DetalhadaApendicesTabsProps) {
     return (
         <Accordion type="multiple" defaultValue={['ap01']} className="w-full space-y-3">
@@ -350,7 +364,7 @@ export function DetalhadaApendicesTabs({
                         </div>
                         <div className="text-left">
                             <div className="font-medium">AP01 - Evolução Original (Cenário Banco)</div>
-                            <div className="text-sm text-slate-500">{ap01?.length || 0} parcelas | Taxa Pactuada</div>
+                            <div className="text-sm text-slate-500">{ap01?.length || 0} parcelas | Taxa Pactuada{capitalizacao === 'DIARIA' ? ' | Cap. Diária' : ''}</div>
                         </div>
                         <span className="ml-auto mr-2 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded">
                             Cobrado
@@ -358,7 +372,7 @@ export function DetalhadaApendicesTabs({
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                    <AP01Table data={ap01 || []} />
+                    <AP01Table data={ap01 || []} capitalizacao={capitalizacao} />
                 </AccordionContent>
             </AccordionItem>
 

@@ -98,6 +98,18 @@ export function DetalhadaEmprestimoVeiculoStep1({
     // Busca taxa Bacen real via Edge Function (com debounce)
     const lastFetchedRef = React.useRef<string | null>(null);
 
+    // Mapeamento local de tipoContrato para série BACEN (componente depreciado)
+    const TIPO_CONTRATO_TO_SERIE: Record<string, number> = {
+        'EMPRESTIMO_PESSOAL': 25464,
+        'CONSIGNADO_PRIVADO': 25463,
+        'CONSIGNADO_PUBLICO': 25462,
+        'CONSIGNADO_INSS': 25470,
+        'CAPITAL_GIRO': 20739,
+        'FINANCIAMENTO_VEICULO': 20749,
+        'FINANCIAMENTO_VEICULO_PJ': 20728,
+        'CHEQUE_ESPECIAL': 20712,
+    };
+
     React.useEffect(() => {
         const tipoContrato = watchedValues.tipoContrato;
         const dataContrato = watchedValues.dataContrato;
@@ -107,17 +119,22 @@ export function DetalhadaEmprestimoVeiculoStep1({
             return;
         }
 
-        // Guard: não refetchar se já buscou essa data
-        if (lastFetchedRef.current === dataContrato) {
+        // Guard: não refetchar se já buscou essa combinação
+        const fetchKey = `${tipoContrato}-${dataContrato}`;
+        if (lastFetchedRef.current === fetchKey) {
             return;
         }
 
         // Debounce de 500ms
         const timer = setTimeout(() => {
-            lastFetchedRef.current = dataContrato;
+            lastFetchedRef.current = fetchKey;
             setLoadingTaxa(true);
 
-            fetchMarketRate('GERAL', dataContrato)
+            // Usar a série específica do tipoContrato
+            const serieBacen = TIPO_CONTRATO_TO_SERIE[tipoContrato];
+            console.log(`[Step1_Geral] Buscando taxa BACEN série ${serieBacen} para ${tipoContrato}`);
+
+            fetchMarketRate(serieBacen || 'GERAL', dataContrato)
                 .then((rate) => {
                     if (rate !== null) {
                         setTaxaMercado(rate);

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Trash2, Plus, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
 import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
+import { useTaxaBacen } from '@/hooks/useTaxaBacen';
 import type { DetalhadaModuleType, DetalhadaPageData } from '../detalhada-page';
 
 // Generic Validation Schema (will be adjusted per module)
@@ -82,12 +83,6 @@ export function DetalhadaEntradaDadosTab({
     onValidationChange,
 }: DetalhadaEntradaDadosTabProps) {
     const [tarifas, setTarifas] = React.useState<Array<{ nome: string; valor: number }>>(data.tarifas || []);
-
-    // BACEN Rate State
-    const [taxaBacenAnual, setTaxaBacenAnual] = React.useState<number | null>(null);
-    const [taxaBacenMensal, setTaxaBacenMensal] = React.useState<number | null>(null);
-    const [loadingBacen, setLoadingBacen] = React.useState(false);
-    const lastFetchRef = React.useRef<string | null>(null);
 
     const {
         register,
@@ -160,39 +155,18 @@ export function DetalhadaEntradaDadosTab({
     };
 
     // Fetch BACEN rate when contract date and type change
-    React.useEffect(() => {
-        const dataContrato = watchedValues.dataContrato;
-        const tipoContrato = watchedValues.tipoContrato;
-
-        if (!dataContrato || dataContrato.length < 10) return;
-
-        const fetchKey = `${dataContrato}-${tipoContrato || 'default'}-${module}`;
-        if (lastFetchRef.current === fetchKey) return;
-
-        const timer = setTimeout(async () => {
-            lastFetchRef.current = fetchKey;
-            setLoadingBacen(true);
-
-            try {
-                const { fetchMarketRate } = await import('@/utils/financialCalculations');
-                // fetchMarketRate returns MONTHLY rate
-                const rateMensal = await fetchMarketRate(module, dataContrato);
-
-                if (rateMensal && rateMensal > 0) {
-                    setTaxaBacenMensal(rateMensal);
-                    // Convert monthly to annual for display
-                    const rateAnual = (Math.pow(1 + rateMensal / 100, 12) - 1) * 100;
-                    setTaxaBacenAnual(parseFloat(rateAnual.toFixed(2)));
-                }
-            } catch (error) {
-                console.error('[DataEntryTab] Erro ao buscar taxa BACEN:', error);
-            } finally {
-                setLoadingBacen(false);
-            }
-        }, 500);
-
-        return () => clearTimeout(timer);
-    }, [watchedValues.dataContrato, watchedValues.tipoContrato, module]);
+    // Hook de Taxa BACEN
+    const {
+        taxaMensal: taxaBacenMensal,
+        taxaAnual: taxaBacenAnual,
+        loading: loadingBacen
+    } = useTaxaBacen({
+        dataContrato: watchedValues.dataContrato,
+        tipoContrato: watchedValues.tipoContrato,
+        tipoFinanciamento: watchedValues.tipoFinanciamento,
+        module,
+        disabled: !watchedValues.dataContrato || watchedValues.dataContrato.length < 10
+    });
 
     // Handle OCR data
     const handleOcrData = (ocrData: any) => {

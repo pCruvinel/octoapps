@@ -565,21 +565,11 @@ export function DetalhadaPage({
                     <TabsContent value="conciliacao" className="space-y-6">
                         {conciliacaoData.length > 0 ? (
                             <>
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>Conciliação de Pagamentos</CardTitle>
-                                        <CardDescription>
-                                            Revise e ajuste os pagamentos reais antes de gerar o resultado final
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <DetalhadaGradeConciliacao
-                                            data={conciliacaoData}
-                                            onDataChange={handleConciliacaoChange}
-                                            onRecalculate={handleGenerateResults}
-                                        />
-                                    </CardContent>
-                                </Card>
+                                <DetalhadaGradeConciliacao
+                                    data={conciliacaoData}
+                                    onDataChange={handleConciliacaoChange}
+                                    onRecalculate={handleGenerateResults}
+                                />
 
                                 {/* Action Button */}
                                 <div className="flex justify-between items-center pt-4 border-t">
@@ -638,6 +628,7 @@ export function DetalhadaPage({
                                 ap04Descricao={calculationResult.apendices.ap04?.descricao}
                                 ap05Descricao={calculationResult.apendices.ap05?.descricao}
                                 parametros={dashboardData?.appendices?.parametros}
+                                capitalizacao={formData.capitalizacao}
                             />
                         ) : (
                             <div className="text-center py-12 text-slate-500">

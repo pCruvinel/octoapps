@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Plus, Loader2, FileText, Zap } from 'lucide-react';
+import { Plus, Loader2, FileText, Zap, MoreHorizontal, Layers, Archive, Settings2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -378,6 +379,29 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
               <Plus className="w-4 h-4" />
               Nova Oportunidade
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => onNavigate('etapas-funil')}>
+                  <Layers className="w-4 h-4 mr-2" />
+                  Etapas do Funil
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate('campos-oportunidade')}>
+                  <Settings2 className="w-4 h-4 mr-2" />
+                  Campos
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onNavigate('oportunidades-arquivadas')}>
+                  <Archive className="w-4 h-4 mr-2" />
+                  Arquivados
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           <NewLeadDialog
