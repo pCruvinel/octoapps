@@ -199,21 +199,13 @@ export async function buscarTaxaSGS(
 
     if (error) throw error;
 
-    // taxaMediaMensalPercent sempre vem em percentual (ex: 22.52 para 22.52%)
-    const taxaBruta = data.taxaMediaMensalPercent;
-    let taxaMensalPercent: number;
+    // Edge Function retorna 'taxaMediaMensalPercent' que JÁ É a taxa mensal
+    // (o Edge Function já faz a conversão de anual→mensal internamente)
+    const taxaMensalPercent = data.taxaMediaMensalPercent;
 
-    if (config.tipo === 'ANUAL') {
-      // Série retorna taxa ANUAL - converter para mensal
-      const taxaAnualDecimal = taxaBruta / 100;  // 22.52% -> 0.2252
-      const taxaMensalDecimal = Math.pow(1 + taxaAnualDecimal, 1 / 12) - 1;
-      taxaMensalPercent = taxaMensalDecimal * 100;  // 0.0171 -> 1.71%
-      console.log(`[SGS] Série ${config.mensal}: ${taxaBruta.toFixed(2)}% a.a. → ${taxaMensalPercent.toFixed(4)}% a.m.`);
-    } else {
-      // Série retorna taxa MENSAL - usar direto
-      taxaMensalPercent = taxaBruta;
-      console.log(`[SGS] Série ${config.mensal}: ${taxaMensalPercent.toFixed(4)}% a.m.`);
-    }
+    // Log de debug com taxa anual equivalente para verificação
+    const taxaAnualEquivalente = (Math.pow(1 + taxaMensalPercent / 100, 12) - 1) * 100;
+    console.log(`[SGS] Série ${config.mensal}: Taxa mensal ${taxaMensalPercent.toFixed(4)}% a.m. (${taxaAnualEquivalente.toFixed(2)}% a.a.)`);
 
     return {
       serieId: config.descricao,

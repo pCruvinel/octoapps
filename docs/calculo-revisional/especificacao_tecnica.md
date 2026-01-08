@@ -180,15 +180,24 @@ Focado em "limpar" a dívida desde a origem. Fundamental para Capital de Giro e 
 
 Recurso acessível na tela de detalhes do cálculo ("Modo Perito").
 
-* **Interface:** Uma Grid (Tabela) editável de todas as parcelas geradas.
+* **Interface:** Uma Grid (Tabela) editável de todas as parcelas geradas (TanStack Table).
 * **Capacidades de Edição:**
-1. **Alterar Data/Valor Pago:** O cliente pagou a parcela 10 com 15 dias de atraso e multa? O perito insere o valor exato do comprovante.
-2. **Amortização Extraordinária:** Inserir um aporte (ex: uso de FGTS na parcela 20).
+  1. **Alterar Data/Valor Pago:** O cliente pagou a parcela 10 com 15 dias de atraso e multa? O perito insere o valor exato do comprovante.
+  2. **Amortização Extraordinária:** Inserir um aporte (ex: uso de FGTS na parcela 20).
+  3. **Status com Ícones Coloridos:** Seletor visual com 4 ícones clicáveis:
+     - ✅ **PAGO** → Verde (Emerald) - Parcela quitada
+     - ⏳ **EM_ABERTO** → Amarelo (Amber) - Aguardando pagamento
+     - 🔄 **RENEGOCIADO** → Roxo (Purple) - Incluída em renegociação
+     - ❌ **ATRASO** → Vermelho (Red) - Parcela vencida
 
+* **Feedback Visual:**
+  * **Row Coloring:** Ao selecionar um status, a linha inteira recebe um tom suave da cor correspondente para facilitar visualização rápida.
+  * **Edited Indicator:** Linhas editadas recebem borda esquerda amarela.
+  * **Pré-preenchimento:** A coluna "Valor Pago Real" é automaticamente preenchida com o valor da parcela contratual.
 
 * **Recálculo em Cascata (Trigger):**
-* Ao editar a parcela N, o sistema deve **reprocessar instantaneamente** o Saldo Devedor de todas as parcelas N+1 até o final.
-* A diferença entre o valor exigido pelo banco e o valor pago editado gera o saldo de indébito/crédito atualizado.
+  * Ao editar a parcela N, o sistema deve **reprocessar instantaneamente** o Saldo Devedor de todas as parcelas N+1 até o final.
+  * A diferença entre o valor exigido pelo banco e o valor pago editado gera o saldo de indébito/crédito atualizado.
 * **Mapeamento de Dados (Adapters):** O `calculationAdapters.ts` garante que campos como `valorContrato`, `valorPago` e `status` sejam mapeados corretamente da base de dados para a interface do perito, evitando valores `NaN`.
 
 

@@ -9,12 +9,12 @@ import {
     useReactTable,
     type ColumnDef,
     type CellContext,
+    type Row,
 } from '@tanstack/react-table';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { CurrencyInput } from '@/components/ui/currency-input';
@@ -43,12 +43,36 @@ interface DetalhadaGradeConciliacaoProps {
     isLoading?: boolean;
 }
 
-// Status com cores e ícones
+// Status com cores e ícones - novo design com 4 ícones clicáveis
 const STATUS_CONFIG = {
-    PAGO: { label: 'Pago', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300', icon: CheckCircle2 },
-    EM_ABERTO: { label: 'Em Aberto', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300', icon: Clock },
-    RENEGOCIADO: { label: 'Renegociado', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300', icon: RotateCcw },
-    ATRASO: { label: 'Atraso', color: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300', icon: XCircle },
+    PAGO: {
+        label: 'Pago',
+        color: 'text-emerald-600 dark:text-emerald-400',
+        bgColor: 'bg-emerald-100 dark:bg-emerald-900/50',
+        rowBg: 'bg-emerald-50/60 dark:bg-emerald-950/30',
+        icon: CheckCircle2
+    },
+    EM_ABERTO: {
+        label: 'Em Aberto',
+        color: 'text-amber-600 dark:text-amber-400',
+        bgColor: 'bg-amber-100 dark:bg-amber-900/50',
+        rowBg: 'bg-amber-50/60 dark:bg-amber-950/30',
+        icon: Clock
+    },
+    RENEGOCIADO: {
+        label: 'Renegociado',
+        color: 'text-purple-600 dark:text-purple-400',
+        bgColor: 'bg-purple-100 dark:bg-purple-900/50',
+        rowBg: 'bg-purple-50/60 dark:bg-purple-950/30',
+        icon: RotateCcw
+    },
+    ATRASO: {
+        label: 'Atraso',
+        color: 'text-red-600 dark:text-red-400',
+        bgColor: 'bg-red-100 dark:bg-red-900/50',
+        rowBg: 'bg-red-50/60 dark:bg-red-950/30',
+        icon: XCircle
+    },
 };
 
 
@@ -132,7 +156,8 @@ const EditableCurrencyCell = React.memo(function EditableCurrencyCell({
     );
 });
 
-const EditableStatusCell = React.memo(function EditableStatusCell({
+// Novo seletor de status com 4 ícones clicáveis
+const IconStatusSelector = React.memo(function IconStatusSelector({
     getValue,
     row,
     table
@@ -145,21 +170,29 @@ const EditableStatusCell = React.memo(function EditableStatusCell({
     }, [table.options.meta, rowIndex]);
 
     return (
-        <Select value={value} onValueChange={handleChange}>
-            <SelectTrigger className="h-8 text-xs w-[120px]">
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                        <div className="flex items-center gap-2">
-                            <config.icon className="h-3 w-3" />
-                            {config.label}
-                        </div>
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1">
+            {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+                const isActive = value === key;
+                const Icon = config.icon;
+
+                return (
+                    <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleChange(key as PaymentRow['status'])}
+                        className={cn(
+                            'p-1.5 rounded-md transition-all duration-150',
+                            isActive
+                                ? `${config.bgColor} ${config.color} ring-2 ring-current ring-offset-1`
+                                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        )}
+                        title={config.label}
+                    >
+                        <Icon className="h-4 w-4" />
+                    </button>
+                );
+            })}
+        </div>
     );
 });
 
@@ -297,8 +330,8 @@ const columns = [
     }),
     columnHelper.accessor('status', {
         header: 'Status',
-        cell: EditableStatusCell,
-        size: 130,
+        cell: IconStatusSelector,
+        size: 160,
     }),
 ];
 
@@ -496,7 +529,10 @@ export function DetalhadaGradeConciliacao({
                                 <tr
                                     key={row.id}
                                     className={cn(
-                                        'border-b bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors',
+                                        'border-b transition-colors',
+                                        // Aplicar cor de fundo suave baseada no status
+                                        STATUS_CONFIG[row.original.status]?.rowBg || 'bg-white dark:bg-slate-900',
+                                        'hover:brightness-[0.97] dark:hover:brightness-110',
                                         row.original.isEdited && 'border-l-2 border-l-amber-500', // Edited indicator
                                         row.getIsSelected() && 'ring-2 ring-inset ring-blue-500' // Selection indicator
                                     )}

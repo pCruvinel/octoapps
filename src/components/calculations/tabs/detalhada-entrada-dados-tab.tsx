@@ -24,7 +24,7 @@ const baseSchema = z.object({
     credor: z.string().min(1, 'Credor obrigatório'),
     devedor: z.string().min(1, 'Devedor obrigatório'),
     numeroContrato: z.string().optional(),
-    tipoContrato: z.string().optional(),
+    tipoContrato: z.string().min(1, 'Selecione o tipo de operação'), // OBRIGATÓRIO
     valorFinanciado: z.number().min(1, 'Valor obrigatório'),
     dataContrato: z.string().min(1, 'Data obrigatória'),
     dataPrimeiroVencimento: z.string().min(1, 'Data obrigatória'),
@@ -41,10 +41,10 @@ const baseSchema = z.object({
     jurosMora: z.number().min(0).max(100).optional(),
     multaMoratoria: z.number().min(0).max(100).optional(),
     encargosIncidirSobrePrincipalCorrigido: z.boolean().optional(),
-    // Imobiliário specific
+    // Imobiliário specific - aceita valores com ou sem prefixo IMOBILIARIO_
     indexador: z.enum(['TR', 'IPCA', 'INPC', 'IGPM', 'NENHUM']).optional(),
     valorImovel: z.number().optional(),
-    tipoFinanciamento: z.enum(['SFH', 'SFI']).optional(),
+    tipoFinanciamento: z.enum(['SFH', 'SFI', 'IMOBILIARIO_SFH', 'IMOBILIARIO_SFI', 'IMOBILIARIO_MERCADO']).optional(),
     // Veículo specific
     valorBem: z.number().optional(),
     valorEntrada: z.number().optional(),
@@ -96,7 +96,13 @@ export function DetalhadaEntradaDadosTab({
             credor: data.credor || '',
             devedor: data.devedor || '',
             numeroContrato: data.numeroContrato || '',
-            tipoContrato: data.tipoContrato || (module === 'GERAL' ? 'EMPRESTIMO_PESSOAL' : undefined),
+            // Para IMOBILIARIO, tipoContrato é definido automaticamente baseado em tipoFinanciamento
+            // Verifica se já tem prefixo para não duplicar
+            tipoContrato: data.tipoContrato || (module === 'IMOBILIARIO'
+                ? (((data as any).tipoFinanciamento || 'IMOBILIARIO_SFH').startsWith('IMOBILIARIO_')
+                    ? (data as any).tipoFinanciamento
+                    : `IMOBILIARIO_${(data as any).tipoFinanciamento}`)
+                : ''),
             valorFinanciado: data.valorFinanciado || 0,
             dataContrato: data.dataContrato || '',
             dataPrimeiroVencimento: data.dataPrimeiroVencimento || '',
@@ -115,11 +121,27 @@ export function DetalhadaEntradaDadosTab({
             valorBem: (data as any).valorBem || 0,
             valorEntrada: (data as any).valorEntrada || 0,
             dataLiberacao: (data as any).dataLiberacao || '',
-            tipoFinanciamento: (data as any).tipoFinanciamento || 'SFH',
+            // Default usa código completo do banco para consistência com TipoOperacaoSelect
+            tipoFinanciamento: (data as any).tipoFinanciamento || 'IMOBILIARIO_SFH',
         },
     });
 
     const watchedValues = watch();
+
+    // Para IMOBILIÁRIO: sincronizar tipoContrato quando tipoFinanciamento mudar
+    // O TipoOperacaoSelect para IMOBILIARIO retorna códigos como 'IMOBILIARIO_SFH'
+    // Já o default 'SFH' precisa do prefixo
+    React.useEffect(() => {
+        if (module === 'IMOBILIARIO' && watchedValues.tipoFinanciamento) {
+            const tipoFin = watchedValues.tipoFinanciamento;
+            // Se já tem o prefixo IMOBILIARIO_, use diretamente
+            // Senão, adicione o prefixo
+            const tipoContrato = tipoFin.startsWith('IMOBILIARIO_')
+                ? tipoFin
+                : `IMOBILIARIO_${tipoFin}`;
+            setValue('tipoContrato', tipoContrato, { shouldValidate: true });
+        }
+    }, [module, watchedValues.tipoFinanciamento, setValue]);
 
     // Sync form values with parent
     React.useEffect(() => {
@@ -129,7 +151,9 @@ export function DetalhadaEntradaDadosTab({
     // Notify validation state
     React.useEffect(() => {
         onValidationChange(isValid);
-    }, [isValid, onValidationChange]);
+        // Log simples sem watchedValues para evitar loop infinito
+        console.log('[Validation State]', { isValid, errorCount: Object.keys(errors).length });
+    }, [isValid, onValidationChange, errors]);
 
     // Calculate monthly rate from annual (when annual changes)
     const [lastEditedField, setLastEditedField] = React.useState<'mensal' | 'anual'>('anual');
@@ -246,13 +270,19 @@ export function DetalhadaEntradaDadosTab({
 
                         {/* Tipo de Contrato - only for GERAL */}
                         {module === 'GERAL' && (
-                            <TipoOperacaoSelect
-                                categorias={['EMPRESTIMO', 'VEICULO']}
-                                value={watchedValues.tipoContrato || ''}
-                                onValueChange={(val) => setValue('tipoContrato', val, { shouldValidate: true })}
-                                showSerieInLabel={true}
-                                name="tipoContrato"
-                            />
+                            <div className="space-y-2">
+                                <TipoOperacaoSelect
+                                    categorias={['EMPRESTIMO', 'VEICULO']}
+                                    value={watchedValues.tipoContrato || ''}
+                                    onValueChange={(val) => setValue('tipoContrato', val, { shouldValidate: true })}
+                                    showSerieInLabel={true}
+                                    name="tipoContrato"
+                                    label="Tipo de Operação *"
+                                />
+                                {errors.tipoContrato && (
+                                    <p className="text-sm text-red-500">{errors.tipoContrato.message}</p>
+                                )}
+                            </div>
                         )}
 
                         {/* Tipo de Financiamento - only for IMOBILIARIO */}
@@ -333,7 +363,7 @@ export function DetalhadaEntradaDadosTab({
                             </div>
 
                             <div className="space-y-2">
-                                <Label>{module === 'IMOBILIARIO' ? 'D ata 1ª Parcela *' : 'Data 1º Vencimento *'}</Label>
+                                <Label>{module === 'IMOBILIARIO' ? 'Data 1ª Parcela *' : 'Data 1º Vencimento *'}</Label>
                                 <DatePicker
                                     value={watchedValues.dataPrimeiroVencimento}
                                     onChange={(val) => setValue('dataPrimeiroVencimento', val || '', { shouldValidate: true })}

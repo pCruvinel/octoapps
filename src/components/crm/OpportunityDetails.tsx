@@ -907,8 +907,11 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader><DialogTitle>Agendar Interação</DialogTitle></DialogHeader>
-                  <Tabs defaultValue="Tarefa" onValueChange={(v) => setInteractionType(v as TipoTarefa)} className="w-full">
+                  <DialogHeader>
+                    <DialogTitle>Agendar Interação</DialogTitle>
+                    <DialogDescription>Crie uma nova tarefa, follow-up ou reunião para esta oportunidade.</DialogDescription>
+                  </DialogHeader>
+                  <Tabs value={interactionType} onValueChange={(v) => setInteractionType(v as TipoTarefa)} className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="Tarefa">Tarefa</TabsTrigger>
                       <TabsTrigger value="Follow-up">Follow-up</TabsTrigger>

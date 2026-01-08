@@ -21,8 +21,11 @@ import { Route as AuthenticatedSettingsOcrRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_authenticated/settings/general'
 import { Route as AuthenticatedSettingsFunnelRouteImport } from './routes/_authenticated/settings/funnel'
 import { Route as AuthenticatedSettingsDocumentsRouteImport } from './routes/_authenticated/settings/documents'
+import { Route as AuthenticatedCrmOportunidadesArquivadasRouteImport } from './routes/_authenticated/crm/oportunidades-arquivadas'
 import { Route as AuthenticatedCrmOportunidadesRouteImport } from './routes/_authenticated/crm/oportunidades'
+import { Route as AuthenticatedCrmEtapasFunilRouteImport } from './routes/_authenticated/crm/etapas-funil'
 import { Route as AuthenticatedCrmContatosRouteImport } from './routes/_authenticated/crm/contatos'
+import { Route as AuthenticatedCrmCamposOportunidadeRouteImport } from './routes/_authenticated/crm/campos-oportunidade'
 import { Route as AuthenticatedCrmCalendarioRouteImport } from './routes/_authenticated/crm/calendario'
 import { Route as AuthenticatedContatosIdRouteImport } from './routes/_authenticated/contatos/$id'
 import { Route as AuthenticatedCalcWizardRouteImport } from './routes/_authenticated/calc/wizard'
@@ -98,16 +101,34 @@ const AuthenticatedSettingsDocumentsRoute =
     path: '/settings/documents',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCrmOportunidadesArquivadasRoute =
+  AuthenticatedCrmOportunidadesArquivadasRouteImport.update({
+    id: '/crm/oportunidades-arquivadas',
+    path: '/crm/oportunidades-arquivadas',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedCrmOportunidadesRoute =
   AuthenticatedCrmOportunidadesRouteImport.update({
     id: '/crm/oportunidades',
     path: '/crm/oportunidades',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCrmEtapasFunilRoute =
+  AuthenticatedCrmEtapasFunilRouteImport.update({
+    id: '/crm/etapas-funil',
+    path: '/crm/etapas-funil',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedCrmContatosRoute =
   AuthenticatedCrmContatosRouteImport.update({
     id: '/crm/contatos',
     path: '/crm/contatos',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedCrmCamposOportunidadeRoute =
+  AuthenticatedCrmCamposOportunidadeRouteImport.update({
+    id: '/crm/campos-oportunidade',
+    path: '/crm/campos-oportunidade',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCrmCalendarioRoute =
@@ -175,8 +196,11 @@ export interface FileRoutesByFullPath {
   '/calc/wizard': typeof AuthenticatedCalcWizardRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/crm/calendario': typeof AuthenticatedCrmCalendarioRoute
+  '/crm/campos-oportunidade': typeof AuthenticatedCrmCamposOportunidadeRoute
   '/crm/contatos': typeof AuthenticatedCrmContatosRoute
+  '/crm/etapas-funil': typeof AuthenticatedCrmEtapasFunilRoute
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
+  '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
   '/settings/funnel': typeof AuthenticatedSettingsFunnelRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -199,8 +223,11 @@ export interface FileRoutesByTo {
   '/calc/wizard': typeof AuthenticatedCalcWizardRoute
   '/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/crm/calendario': typeof AuthenticatedCrmCalendarioRoute
+  '/crm/campos-oportunidade': typeof AuthenticatedCrmCamposOportunidadeRoute
   '/crm/contatos': typeof AuthenticatedCrmContatosRoute
+  '/crm/etapas-funil': typeof AuthenticatedCrmEtapasFunilRoute
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
+  '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
   '/settings/funnel': typeof AuthenticatedSettingsFunnelRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -225,8 +252,11 @@ export interface FileRoutesById {
   '/_authenticated/calc/wizard': typeof AuthenticatedCalcWizardRoute
   '/_authenticated/contatos/$id': typeof AuthenticatedContatosIdRoute
   '/_authenticated/crm/calendario': typeof AuthenticatedCrmCalendarioRoute
+  '/_authenticated/crm/campos-oportunidade': typeof AuthenticatedCrmCamposOportunidadeRoute
   '/_authenticated/crm/contatos': typeof AuthenticatedCrmContatosRoute
+  '/_authenticated/crm/etapas-funil': typeof AuthenticatedCrmEtapasFunilRoute
   '/_authenticated/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
+  '/_authenticated/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/_authenticated/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
   '/_authenticated/settings/funnel': typeof AuthenticatedSettingsFunnelRoute
   '/_authenticated/settings/general': typeof AuthenticatedSettingsGeneralRoute
@@ -251,8 +281,11 @@ export interface FileRouteTypes {
     | '/calc/wizard'
     | '/contatos/$id'
     | '/crm/calendario'
+    | '/crm/campos-oportunidade'
     | '/crm/contatos'
+    | '/crm/etapas-funil'
     | '/crm/oportunidades'
+    | '/crm/oportunidades-arquivadas'
     | '/settings/documents'
     | '/settings/funnel'
     | '/settings/general'
@@ -275,8 +308,11 @@ export interface FileRouteTypes {
     | '/calc/wizard'
     | '/contatos/$id'
     | '/crm/calendario'
+    | '/crm/campos-oportunidade'
     | '/crm/contatos'
+    | '/crm/etapas-funil'
     | '/crm/oportunidades'
+    | '/crm/oportunidades-arquivadas'
     | '/settings/documents'
     | '/settings/funnel'
     | '/settings/general'
@@ -300,8 +336,11 @@ export interface FileRouteTypes {
     | '/_authenticated/calc/wizard'
     | '/_authenticated/contatos/$id'
     | '/_authenticated/crm/calendario'
+    | '/_authenticated/crm/campos-oportunidade'
     | '/_authenticated/crm/contatos'
+    | '/_authenticated/crm/etapas-funil'
     | '/_authenticated/crm/oportunidades'
+    | '/_authenticated/crm/oportunidades-arquivadas'
     | '/_authenticated/settings/documents'
     | '/_authenticated/settings/funnel'
     | '/_authenticated/settings/general'
@@ -403,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsDocumentsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/crm/oportunidades-arquivadas': {
+      id: '/_authenticated/crm/oportunidades-arquivadas'
+      path: '/crm/oportunidades-arquivadas'
+      fullPath: '/crm/oportunidades-arquivadas'
+      preLoaderRoute: typeof AuthenticatedCrmOportunidadesArquivadasRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/crm/oportunidades': {
       id: '/_authenticated/crm/oportunidades'
       path: '/crm/oportunidades'
@@ -410,11 +456,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCrmOportunidadesRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/crm/etapas-funil': {
+      id: '/_authenticated/crm/etapas-funil'
+      path: '/crm/etapas-funil'
+      fullPath: '/crm/etapas-funil'
+      preLoaderRoute: typeof AuthenticatedCrmEtapasFunilRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/crm/contatos': {
       id: '/_authenticated/crm/contatos'
       path: '/crm/contatos'
       fullPath: '/crm/contatos'
       preLoaderRoute: typeof AuthenticatedCrmContatosRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/crm/campos-oportunidade': {
+      id: '/_authenticated/crm/campos-oportunidade'
+      path: '/crm/campos-oportunidade'
+      fullPath: '/crm/campos-oportunidade'
+      preLoaderRoute: typeof AuthenticatedCrmCamposOportunidadeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/crm/calendario': {
@@ -495,8 +555,11 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCalcWizardRoute: typeof AuthenticatedCalcWizardRoute
   AuthenticatedContatosIdRoute: typeof AuthenticatedContatosIdRoute
   AuthenticatedCrmCalendarioRoute: typeof AuthenticatedCrmCalendarioRoute
+  AuthenticatedCrmCamposOportunidadeRoute: typeof AuthenticatedCrmCamposOportunidadeRoute
   AuthenticatedCrmContatosRoute: typeof AuthenticatedCrmContatosRoute
+  AuthenticatedCrmEtapasFunilRoute: typeof AuthenticatedCrmEtapasFunilRoute
   AuthenticatedCrmOportunidadesRoute: typeof AuthenticatedCrmOportunidadesRoute
+  AuthenticatedCrmOportunidadesArquivadasRoute: typeof AuthenticatedCrmOportunidadesArquivadasRoute
   AuthenticatedSettingsDocumentsRoute: typeof AuthenticatedSettingsDocumentsRoute
   AuthenticatedSettingsFunnelRoute: typeof AuthenticatedSettingsFunnelRoute
   AuthenticatedSettingsGeneralRoute: typeof AuthenticatedSettingsGeneralRoute
@@ -519,8 +582,13 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCalcWizardRoute: AuthenticatedCalcWizardRoute,
   AuthenticatedContatosIdRoute: AuthenticatedContatosIdRoute,
   AuthenticatedCrmCalendarioRoute: AuthenticatedCrmCalendarioRoute,
+  AuthenticatedCrmCamposOportunidadeRoute:
+    AuthenticatedCrmCamposOportunidadeRoute,
   AuthenticatedCrmContatosRoute: AuthenticatedCrmContatosRoute,
+  AuthenticatedCrmEtapasFunilRoute: AuthenticatedCrmEtapasFunilRoute,
   AuthenticatedCrmOportunidadesRoute: AuthenticatedCrmOportunidadesRoute,
+  AuthenticatedCrmOportunidadesArquivadasRoute:
+    AuthenticatedCrmOportunidadesArquivadasRoute,
   AuthenticatedSettingsDocumentsRoute: AuthenticatedSettingsDocumentsRoute,
   AuthenticatedSettingsFunnelRoute: AuthenticatedSettingsFunnelRoute,
   AuthenticatedSettingsGeneralRoute: AuthenticatedSettingsGeneralRoute,

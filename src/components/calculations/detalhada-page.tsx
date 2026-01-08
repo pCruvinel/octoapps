@@ -219,6 +219,17 @@ export function DetalhadaPage({
         setIsFormValid(isValid);
     }, []);
 
+    // DEBUG: Rastrear estados que controlam o botão
+    React.useEffect(() => {
+        console.log('[DEBUG Button Conditions]', {
+            isFormValid,
+            isLoading,
+            isDadosDirty,
+            buttonDisabled: !isFormValid || isLoading || !isDadosDirty,
+            reason: !isFormValid ? 'FORM INVALID' : !isDadosDirty ? 'DATA NOT DIRTY' : isLoading ? 'LOADING' : 'ENABLED'
+        });
+    }, [isFormValid, isLoading, isDadosDirty]);
+
     // NOTE: handleConciliacaoChange is defined after handleGenerateResults (line ~436)
 
     // ========== SALVAR RASCUNHO ==========
@@ -398,9 +409,58 @@ export function DetalhadaPage({
 
     // Generate Results (after conciliation review)
     const handleGenerateResults = async () => {
+        // If calculation result is missing but we have form data, regenerate it first
         if (!calculationResult || !dashboardData) {
-            toast.error('Execute a conciliação primeiro');
-            return;
+            if (!isFormValid) {
+                toast.error('Preencha os dados do contrato primeiro');
+                return;
+            }
+
+            // Regenerate calculation before generating results
+            try {
+                toast.loading('Recalculando...', { id: 'regen-loading' });
+                const request = formDataToRequest(formData as DetalhadaPageData);
+                const result = await calculateDetalhado(request);
+
+                toast.dismiss('regen-loading');
+
+                if (!result) {
+                    toast.error('Erro ao recalcular');
+                    return;
+                }
+
+                setCalculationResult(result);
+                const dashboard = detalhadoToDetalhadaDashboard(result, request);
+
+                // Apply existing conciliation edits if available
+                if (conciliacaoData.length > 0) {
+                    dashboard.conciliacao = conciliacaoData;
+                } else {
+                    setConciliacaoData(dashboard.conciliacao);
+                }
+
+                setDashboardData(dashboard);
+                setAvailableTabs(prev => new Set([...prev, 'resumo', 'apendices']));
+                setActiveTab('resumo');
+                setIsConciliacaoDirty(false);
+
+                // Save to database
+                if (contratoId) {
+                    await contratoRevisionalService.finalize(
+                        contratoId,
+                        { conciliacao: conciliacaoData.length > 0 ? conciliacaoData : dashboard.conciliacao },
+                        { resultado: result, dashboard }
+                    );
+                }
+
+                toast.success('Resultados gerados!');
+                return;
+            } catch (error) {
+                toast.dismiss('regen-loading');
+                console.error('[CalculationPage] Erro:', error);
+                toast.error('Erro ao recalcular');
+                return;
+            }
         }
 
         try {
@@ -585,9 +645,10 @@ export function DetalhadaPage({
                                         size="lg"
                                         onClick={handleGenerateResults}
                                         disabled={!isConciliacaoDirty && availableTabs.has('resumo')}
+                                        variant={isConciliacaoDirty ? 'default' : availableTabs.has('resumo') ? 'outline' : 'default'}
                                     >
                                         <BarChart3 className="h-4 w-4 mr-2" />
-                                        {isConciliacaoDirty ? 'Recalcular Resultado' : 'Gerar Resultado'}
+                                        {availableTabs.has('resumo') ? (isConciliacaoDirty ? 'Recalcular Resultado' : 'Ver Resultado') : 'Gerar Resultado'}
                                     </Button>
                                 </div>
                             </>
@@ -644,6 +705,9 @@ export function DetalhadaPage({
 
 // Helper function to convert form data to calculation request
 function formDataToRequest(data: DetalhadaPageData) {
+    // DEBUG: Log para verificar tipoContrato
+    console.log('[formDataToRequest] tipoContrato recebido:', data.tipoContrato);
+
     return {
         // Identificação
         modalidade: mapTipoContratoToModalidade(data.tipoContrato),
@@ -680,14 +744,33 @@ function formDataToRequest(data: DetalhadaPageData) {
 function mapTipoContratoToModalidade(tipo: string) {
     // Map tipoContrato to ModalidadeCredito (must match SERIES_SGS_BACEN keys)
     const map: Record<string, string> = {
-        'EMPRESTIMO_PESSOAL': 'EMPRESTIMO_PESSOAL',
+        // Códigos do TipoOperacaoSelect (novos)
+        'VEICULOS_PF': 'AQUISICAO_VEICULOS_PF',
+        'VEICULOS_PJ': 'AQUISICAO_VEICULOS_PJ',
+        'CREDITO_PESSOAL': 'EMPRESTIMO_PESSOAL',
         'CONSIGNADO_PRIVADO': 'CONSIGNADO_PRIVADO',
         'CONSIGNADO_PUBLICO': 'CONSIGNADO_PUBLICO',
         'CONSIGNADO_INSS': 'CONSIGNADO_INSS',
+        'CHEQUE_ESPECIAL': 'CHEQUE_ESPECIAL',
         'CAPITAL_GIRO': 'CAPITAL_GIRO_ATE_365',
+        // Imobiliário (novos - sincronizados com tipoFinanciamento)
+        'IMOBILIARIO_SFH': 'IMOBILIARIO_SFH',
+        'IMOBILIARIO_SFI': 'IMOBILIARIO_SFI',
+        // Códigos legados (mantidos para compatibilidade)
+        'EMPRESTIMO_PESSOAL': 'EMPRESTIMO_PESSOAL',
         'FINANCIAMENTO_VEICULO': 'AQUISICAO_VEICULOS_PF',
         'FINANCIAMENTO_VEICULO_PJ': 'AQUISICAO_VEICULOS_PJ',
-        'CHEQUE_ESPECIAL': 'CHEQUE_ESPECIAL',
+        'SFH': 'IMOBILIARIO_SFH',
+        'SFI': 'IMOBILIARIO_SFI',
     };
-    return map[tipo] || 'EMPRESTIMO_PESSOAL';
+    const modalidade = map[tipo];
+
+    // DEBUG: Log para rastrear mapeamento
+    console.log('[mapTipoContratoToModalidade] tipoContrato:', tipo, '→ modalidade:', modalidade || 'VALOR NÃO MAPEADO');
+
+    if (!modalidade) {
+        console.warn('[mapTipoContratoToModalidade] ⚠️ tipoContrato não mapeado! Isso pode causar série BACEN incorreta.');
+    }
+
+    return modalidade || 'EMPRESTIMO_PESSOAL';
 }

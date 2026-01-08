@@ -109,12 +109,21 @@ Uma tela dividida (Split View) para facilitar a comparação.
 2. `Vencimento` (Texto cinza).
 3. `Valor Parcela (Contrato)` (Texto cinza, lock icon).
 4. `Data Pagamento Real` (Input Date Simplificado - *Default: Data Vencimento*).
-5. `Valor Pago Real` (Input Currency - *Default: Valor Parcela*).
-6. `Status` (Select: Pago, Em Aberto, Renegociado).
+5. `Valor Pago Real` (Input Currency - **Pré-preenchido com Valor Parcela**).
+6. `Status` (Seletor de 4 ícones coloridos - ver abaixo).
 
+* **Seletor de Status (Novo Design):**
+  * Substituído o dropdown por **4 ícones clicáveis** lado a lado:
+    * ✅ **PAGO** → Ícone verde (Emerald)
+    * ⏳ **EM_ABERTO** → Ícone amarelo (Amber)
+    * 🔄 **RENEGOCIADO** → Ícone roxo (Purple)
+    * ❌ **ATRASO** → Ícone vermelho (Red)
+  * Ao selecionar um status, a **linha inteira recebe um tom muito suave** da cor correspondente
+  * Ícone selecionado exibe ring de destaque
 
 * **Interações:**
-* **Highlight:** Células editadas ficam com fundo amarelo suave para indicar divergência do contrato original.
+* **Highlight:** Células editadas ficam com borda esquerda amarela para indicar divergência do contrato original.
+* **Row Color:** Linhas recebem tom suave conforme status selecionado (verde, amarelo, roxo ou vermelho).
 * **Bulk Actions:** Checkbox na esquerda permite selecionar múltiplas linhas -> "Definir todas como Pagas", "Aplicar valor X para selecionadas".
 
 
