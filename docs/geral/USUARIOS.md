@@ -56,6 +56,54 @@
 
 ---
 
+## Fluxo de Convite de Usuário
+
+### Diagrama de Sequência
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant Sistema
+    participant Supabase as Supabase Auth
+    participant Email
+    participant Novo as Novo Usuário
+    
+    Admin->>Sistema: Preenche dados (nome, email, cargo, perfil)
+    Sistema->>Supabase: inviteUserByEmail()
+    Supabase->>Supabase: Cria usuário pendente
+    Supabase->>Email: Envia email de convite
+    Email->>Novo: Link de ativação
+    
+    Novo->>Sistema: Clica no link
+    Sistema->>Supabase: Valida token
+    Sistema->>Sistema: Redireciona para /setup-password
+    
+    Novo->>Sistema: Define senha
+    Sistema->>Supabase: updateUser({ password })
+    Sistema->>Sistema: Redireciona para /dashboard
+```
+
+### Estados do Usuário
+
+| Status | Descrição | Badge |
+|--------|-----------|-------|
+| `PENDENTE` | Convite enviado, aguardando ativação | 🟡 Amarelo |
+| `ATIVO` | Senha definida, acesso liberado | 🟢 Verde |
+| `INATIVO` | Desabilitado pelo admin | 🔴 Vermelho |
+
+### Campos do Perfil
+
+| Campo | Tipo | Obrigatório | Descrição |
+|-------|------|-------------|-----------|
+| `nome_completo` | TEXT | ✅ | Nome do usuário |
+| `email` | TEXT | ✅ | Email de login |
+| `cargo` | TEXT | ❌ | Cargo/função |
+| `telefone` | VARCHAR(20) | ❌ | Telefone com DDD |
+| `cpf` | VARCHAR(14) | ❌ | CPF formatado |
+| `ativo` | BOOLEAN | - | Status do usuário |
+
+---
+
 ## Perfil: Colaborador
 
 ### Descrição

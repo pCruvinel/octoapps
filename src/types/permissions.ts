@@ -96,3 +96,88 @@ export const MODULE_LABELS: Record<ModuleCode, string> = {
 // Constantes para verificação rápida
 export const PERMISSION_ACTIONS: PermissionAction[] = ['create', 'read', 'update', 'delete'];
 export const MODULE_CODES: ModuleCode[] = ['crm', 'contacts', 'calculations', 'petitions'];
+
+// ==================================================
+// DADOS ESTÁTICOS (fallback quando tabelas não existem)
+// ==================================================
+
+/**
+ * Módulos estáticos do sistema
+ * Usado como fallback quando a tabela `modules` não existe
+ */
+export const STATIC_MODULES: Module[] = [
+  {
+    id: 'module-crm',
+    code: 'crm',
+    name: 'Pipeline',
+    description: 'Gestão de oportunidades no Kanban',
+    active: true
+  },
+  {
+    id: 'module-contacts',
+    code: 'contacts',
+    name: 'Contatos',
+    description: 'Leads e clientes do escritório',
+    active: true
+  },
+  {
+    id: 'module-calculations',
+    code: 'calculations',
+    name: 'Cálculos',
+    description: 'Motor de cálculo revisional',
+    active: true
+  },
+  {
+    id: 'module-petitions',
+    code: 'petitions',
+    name: 'Petições',
+    description: 'Geração de documentos',
+    active: true
+  }
+];
+
+/**
+ * Ações de permissão estáticas
+ * Usado como fallback quando a tabela `permission_actions` não existe
+ */
+export const STATIC_ACTIONS: PermissionActionType[] = [
+  {
+    id: 'action-create',
+    code: 'create',
+    name: 'Criar',
+    description: 'Criar novos registros'
+  },
+  {
+    id: 'action-read',
+    code: 'read',
+    name: 'Ler',
+    description: 'Visualizar dados'
+  },
+  {
+    id: 'action-update',
+    code: 'update',
+    name: 'Editar',
+    description: 'Modificar registros existentes'
+  },
+  {
+    id: 'action-delete',
+    code: 'delete',
+    name: 'Deletar',
+    description: 'Excluir registros'
+  }
+];
+
+// Status de usuário
+export type UserStatus = 'PENDENTE' | 'ATIVO' | 'INATIVO';
+
+export const USER_STATUS_LABELS: Record<UserStatus, string> = {
+  PENDENTE: 'Pendente',
+  ATIVO: 'Ativo',
+  INATIVO: 'Inativo'
+};
+
+export const USER_STATUS_COLORS: Record<UserStatus, string> = {
+  PENDENTE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  ATIVO: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  INATIVO: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+};

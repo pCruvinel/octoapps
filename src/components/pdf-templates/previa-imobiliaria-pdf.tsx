@@ -12,6 +12,17 @@ const formatCurrency = (value: number) =>
 const formatPercent = (value: number) =>
     (value || 0).toFixed(2).replace('.', ',') + '%';
 
+// ===== IMAGE VALIDATION =====
+const isValidImageUrl = (url: string | null | undefined): boolean => {
+    if (!url || typeof url !== 'string' || url.trim() === '') return false;
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
+    const lowerUrl = url.toLowerCase();
+    const hasValidExtension = validExtensions.some(ext => lowerUrl.includes(ext));
+    const isDataUrl = lowerUrl.startsWith('data:image/');
+    const isSupabaseStorage = lowerUrl.includes('supabase') && lowerUrl.includes('storage');
+    return hasValidExtension || isDataUrl || isSupabaseStorage;
+};
+
 interface TriagemImobiliarioTemplateProps {
     data: PreviaImobiliariaResultadoType;
     settings: UserDocumentSettings;
@@ -96,8 +107,8 @@ export const PreviaImobiliariaPdf = ({ data, settings }: TriagemImobiliarioTempl
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 {/* Left: Logo */}
                 <View style={{ flex: 1 }}>
-                    {settings.logo_url ? (
-                        <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
+                    {isValidImageUrl(settings.logo_url) ? (
+                        <Image src={settings.logo_url!} style={{ width: 100, height: 'auto' }} />
                     ) : (
                         <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
                             OCTOAPPS
@@ -137,8 +148,8 @@ export const PreviaImobiliariaPdf = ({ data, settings }: TriagemImobiliarioTempl
     );
 
     const Watermark = () => {
-        if (!settings.watermark_url) return null;
-        return <Image src={settings.watermark_url} style={styles.watermarkImage} fixed />;
+        if (!isValidImageUrl(settings.watermark_url)) return null;
+        return <Image src={settings.watermark_url!} style={styles.watermarkImage} fixed />;
     }
 
     // Classification Colors
@@ -165,8 +176,6 @@ export const PreviaImobiliariaPdf = ({ data, settings }: TriagemImobiliarioTempl
                     borderTopWidth: 1,
                     borderBottomWidth: 1,
                     marginBottom: 20,
-                    shadowOpacity: 0.1,
-                    shadowRadius: 2,
                 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>

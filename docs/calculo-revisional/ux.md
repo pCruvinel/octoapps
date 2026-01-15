@@ -122,9 +122,11 @@ Uma tela dividida (Split View) para facilitar a comparação.
   * Ícone selecionado exibe ring de destaque
 
 * **Interações:**
+* **Pagar Primeiras N:** Input no cabeçalho permite marcar rapidamente as primeiras X parcelas como pagas (útil quando cliente pagou em dia até certo mês).
 * **Highlight:** Células editadas ficam com borda esquerda amarela para indicar divergência do contrato original.
 * **Row Color:** Linhas recebem tom suave conforme status selecionado (verde, amarelo, roxo ou vermelho).
-* **Bulk Actions:** Checkbox na esquerda permite selecionar múltiplas linhas -> "Definir todas como Pagas", "Aplicar valor X para selecionadas".
+* **Selecionar Todos:** Checkbox na esquerda seleciona **todas as parcelas do contrato** (mesmo as que não estão visíveis na página atual).
+* **Bulk Actions:** Barra flutuante permite marcar todas as linhas selecionadas com um status específico.
 
 
 

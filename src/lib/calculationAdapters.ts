@@ -655,9 +655,9 @@ export function detalhadoToDetalhadaDashboard(
             vencimento: linha.data,
             valorContrato: valorContrato,
             dataPagamentoReal: dataPgto,
-            valorPagoReal: linha.status === 'PAGO' ? valorContrato : 0, // Only set if PAGO, otherwise 0
+            valorPagoReal: valorContrato, // Always pre-fill with contract value for easier editing
             amortizacaoExtra: linha.override?.amortizacaoExtra || 0,
-            status: (linha.status === 'PAGO' ? 'PAGO' : 'EM_ABERTO') as 'PAGO' | 'EM_ABERTO' | 'PARCIAL',
+            status: (linha.status === 'PAGO' ? 'PAGO' : 'EM_ABERTO') as 'PAGO' | 'EM_ABERTO' | 'RENEGOCIADO' | 'ATRASO',
             isEdited: !!linha.override,
             diasAtraso,
             encargosApurados,

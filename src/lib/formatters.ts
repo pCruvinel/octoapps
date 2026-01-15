@@ -25,3 +25,50 @@ export const formatPercent = (value: number | undefined) => {
         maximumFractionDigits: 2,
     }).format(value);
 };
+
+/**
+ * Formata número de telefone brasileiro
+ * Formato: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX
+ */
+export const formatPhone = (value: string): string => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '');
+    
+    // Limita a 11 dígitos
+    const limited = numbers.slice(0, 11);
+    
+    // Aplica máscara
+    if (limited.length <= 2) {
+        return `(${limited}`;
+    } else if (limited.length <= 6) {
+        return `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
+    } else if (limited.length <= 10) {
+        return `(${limited.slice(0, 2)}) ${limited.slice(2, 6)}-${limited.slice(6)}`;
+    } else {
+        return `(${limited.slice(0, 2)}) ${limited.slice(2, 7)}-${limited.slice(7)}`;
+    }
+};
+
+/**
+ * Formata CPF brasileiro
+ * Formato: XXX.XXX.XXX-XX
+ */
+export const formatCpf = (value: string): string => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '');
+    
+    // Limita a 11 dígitos
+    const limited = numbers.slice(0, 11);
+    
+    // Aplica máscara
+    if (limited.length <= 3) {
+        return limited;
+    } else if (limited.length <= 6) {
+        return `${limited.slice(0, 3)}.${limited.slice(3)}`;
+    } else if (limited.length <= 9) {
+        return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6)}`;
+    } else {
+        return `${limited.slice(0, 3)}.${limited.slice(3, 6)}.${limited.slice(6, 9)}-${limited.slice(9)}`;
+    }
+};
+

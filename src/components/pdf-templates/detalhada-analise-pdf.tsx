@@ -24,6 +24,19 @@ const formatDate = (dateStr: string | undefined) => {
     }
 };
 
+// ===== IMAGE VALIDATION =====
+// @react-pdf/renderer requires valid image URLs with proper extensions
+const isValidImageUrl = (url: string | null | undefined): boolean => {
+    if (!url || typeof url !== 'string' || url.trim() === '') return false;
+    // Check if URL has a valid image extension or is a data URL
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
+    const lowerUrl = url.toLowerCase();
+    const hasValidExtension = validExtensions.some(ext => lowerUrl.includes(ext));
+    const isDataUrl = lowerUrl.startsWith('data:image/');
+    const isSupabaseStorage = lowerUrl.includes('supabase') && lowerUrl.includes('storage');
+    return hasValidExtension || isDataUrl || isSupabaseStorage;
+};
+
 // ===== TYPES =====
 interface LaudoRevisionalTemplateProps {
     formData: Partial<DetalhadaPageData>;
@@ -55,7 +68,19 @@ interface LaudoRevisionalTemplateProps {
         }>;
     };
     settings: UserDocumentSettings;
+    /** Se true, exibe todas as linhas das tabelas (gera múltiplas páginas). Padrão: false (truncado em 30 linhas) */
+    showFullTables?: boolean;
 }
+
+// Helper to split array into chunks for pagination
+const ROWS_PER_PAGE = 30;
+const chunkArray = <T,>(array: T[], chunkSize: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+        chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+};
 
 // ===== MAIN TEMPLATE =====
 export const DetalhadaAnalisePdf = ({
@@ -63,6 +88,7 @@ export const DetalhadaAnalisePdf = ({
     resultado,
     dashboard,
     settings,
+    showFullTables,
 }: LaudoRevisionalTemplateProps) => {
     const styles = PdfEngine.createStyles({
         ...PdfEngine.styles,
@@ -196,8 +222,8 @@ export const DetalhadaAnalisePdf = ({
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 {/* Left: Logo */}
                 <View style={{ flex: 1 }}>
-                    {settings.logo_url ? (
-                        <Image src={settings.logo_url} style={{ width: 80, height: 'auto' }} />
+                    {isValidImageUrl(settings.logo_url) ? (
+                        <Image src={settings.logo_url!} style={{ width: 80, height: 'auto' }} />
                     ) : (
                         <Text style={{ fontSize: 12, fontWeight: 'bold', color: settings.primary_color || '#000' }}>
                             OCTOAPPS
@@ -237,8 +263,8 @@ export const DetalhadaAnalisePdf = ({
     );
 
     const Watermark = () => {
-        if (!settings.watermark_url) return null;
-        return <Image src={settings.watermark_url} style={styles.watermarkImage} fixed />;
+        if (!isValidImageUrl(settings.watermark_url)) return null;
+        return <Image src={settings.watermark_url!} style={styles.watermarkImage} fixed />;
     };
 
     // Get appendix data
@@ -272,7 +298,6 @@ export const DetalhadaAnalisePdf = ({
                     borderBottomWidth: 1,
                     marginBottom: 15,
                     marginTop: 10,
-                    shadowOpacity: 0.1,
                 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                         <View>
@@ -431,144 +456,178 @@ export const DetalhadaAnalisePdf = ({
             </Page>
 
             {/* ===== PAGE 2+: APPENDIX AP01 - EVOLUÇÃO BANCO ===== */}
-            {ap01.length > 0 && (
-                <Page size="A4" style={PdfEngine.styles.page}>
-                    <Watermark />
-                    <BrandingHeader />
+            {(() => {
+                if (ap01.length === 0) return null;
 
-                    <Text style={[PdfEngine.styles.title, { fontSize: 14, marginTop: 10 }]}>APÊNDICE AP-01</Text>
-                    <Text style={PdfEngine.styles.subtitle}>Evolução do Saldo Devedor - Metodologia do Banco</Text>
+                // Determine pagination strategy
+                const chunks = showFullTables
+                    ? chunkArray(ap01, ROWS_PER_PAGE)
+                    : [ap01.slice(0, ROWS_PER_PAGE)];
 
-                    <View style={[styles.table, { marginTop: 15 }]}>
-                        <View style={[styles.tableRow, styles.tableHeader]}>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Mês</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Anterior</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Juros</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Parcela</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Final</Text></View>
-                        </View>
-                        {ap01.slice(0, 30).map((row: any, idx: number) => (
-                            <View key={idx} style={styles.tableRow}>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{row.mes}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoAnterior || row.saldoAbertura)}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.juros)}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.parcela || row.parcelaTotal)}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoDevedor)}</Text></View>
-                            </View>
-                        ))}
-                    </View>
+                return chunks.map((chunk, pageIndex) => (
+                    <Page key={`ap01-${pageIndex}`} size="A4" style={PdfEngine.styles.page}>
+                        <Watermark />
+                        <BrandingHeader />
 
-                    {ap01.length > 30 && (
-                        <Text style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', marginTop: 5 }}>
-                            ... tabela truncada. Exibindo 30 de {ap01.length} linhas.
+                        <Text style={[PdfEngine.styles.title, { fontSize: 14, marginTop: 10 }]}>
+                            APÊNDICE AP-01 {chunks.length > 1 ? `(${pageIndex + 1}/${chunks.length})` : ''}
                         </Text>
-                    )}
+                        <Text style={PdfEngine.styles.subtitle}>Evolução do Saldo Devedor - Metodologia do Banco</Text>
 
-                    <BrandingFooter />
-                </Page>
-            )}
+                        <View style={[styles.table, { marginTop: 15 }]}>
+                            <View style={[styles.tableRow, styles.tableHeader]}>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Mês</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Anterior</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Juros</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Parcela</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Final</Text></View>
+                            </View>
+                            {chunk.map((row: any, idx: number) => (
+                                <View key={idx} style={styles.tableRow}>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{row.mes}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoAnterior || row.saldoAbertura)}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.juros)}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.parcela || row.parcelaTotal)}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoDevedor)}</Text></View>
+                                </View>
+                            ))}
+                        </View>
+
+                        {!showFullTables && ap01.length > 30 && (
+                            <Text style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', marginTop: 5 }}>
+                                ... tabela truncada. Exibindo 30 de {ap01.length} linhas. Para ver completo, configure nas opções.
+                            </Text>
+                        )}
+
+                        <BrandingFooter />
+                    </Page>
+                ));
+            })()}
 
             {/* ===== PAGE 3+: APPENDIX AP02 - RECALCULADO ===== */}
-            {ap02.length > 0 && (
-                <Page size="A4" style={PdfEngine.styles.page}>
-                    <Watermark />
-                    <BrandingHeader />
+            {(() => {
+                if (ap02.length === 0) return null;
 
-                    <Text style={[PdfEngine.styles.title, { fontSize: 14, marginTop: 10 }]}>APÊNDICE AP-02</Text>
-                    <Text style={PdfEngine.styles.subtitle}>Evolução do Saldo Devedor - Metodologia Recalculada (Taxa BACEN)</Text>
+                const chunks = showFullTables
+                    ? chunkArray(ap02, ROWS_PER_PAGE)
+                    : [ap02.slice(0, ROWS_PER_PAGE)];
 
-                    <View style={[styles.table, { marginTop: 15 }]}>
-                        <View style={[styles.tableRow, styles.tableHeader]}>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Mês</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Anterior</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Juros</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Parcela</Text></View>
-                            <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Final</Text></View>
-                        </View>
-                        {ap02.slice(0, 30).map((row: any, idx: number) => (
-                            <View key={idx} style={styles.tableRow}>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{row.mes}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoAnterior || row.saldoAbertura)}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.juros)}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.parcela || row.parcelaTotal)}</Text></View>
-                                <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoDevedor)}</Text></View>
-                            </View>
-                        ))}
-                    </View>
+                return chunks.map((chunk, pageIndex) => (
+                    <Page key={`ap02-${pageIndex}`} size="A4" style={PdfEngine.styles.page}>
+                        <Watermark />
+                        <BrandingHeader />
 
-                    {ap02.length > 30 && (
-                        <Text style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', marginTop: 5 }}>
-                            ... tabela truncada. Exibindo 30 de {ap02.length} linhas.
+                        <Text style={[PdfEngine.styles.title, { fontSize: 14, marginTop: 10 }]}>
+                            APÊNDICE AP-02 {chunks.length > 1 ? `(${pageIndex + 1}/${chunks.length})` : ''}
                         </Text>
-                    )}
+                        <Text style={PdfEngine.styles.subtitle}>Evolução do Saldo Devedor - Metodologia Recalculada (Taxa BACEN)</Text>
 
-                    <BrandingFooter />
-                </Page>
-            )}
+                        <View style={[styles.table, { marginTop: 15 }]}>
+                            <View style={[styles.tableRow, styles.tableHeader]}>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Mês</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Anterior</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Juros</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Parcela</Text></View>
+                                <View style={styles.tableCol5}><Text style={styles.tableCell}>Saldo Final</Text></View>
+                            </View>
+                            {chunk.map((row: any, idx: number) => (
+                                <View key={idx} style={styles.tableRow}>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{row.mes}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoAnterior || row.saldoAbertura)}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.juros)}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.parcela || row.parcelaTotal)}</Text></View>
+                                    <View style={styles.tableCol5}><Text style={styles.tableCell}>{formatCurrency(row.saldoDevedor)}</Text></View>
+                                </View>
+                            ))}
+                        </View>
+
+                        {!showFullTables && ap02.length > 30 && (
+                            <Text style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', marginTop: 5 }}>
+                                ... tabela truncada. Exibindo 30 de {ap02.length} linhas. Para ver completo, configure nas opções.
+                            </Text>
+                        )}
+
+                        <BrandingFooter />
+                    </Page>
+                ));
+            })()}
 
             {/* ===== PAGE 4+: APPENDIX AP03 - DIFERENÇAS ===== */}
-            {ap03.length > 0 && (
-                <Page size="A4" style={PdfEngine.styles.page}>
-                    <Watermark />
-                    <BrandingHeader />
+            {(() => {
+                if (ap03.length === 0) return null;
 
-                    <Text style={[PdfEngine.styles.title, { fontSize: 14, marginTop: 10 }]}>APÊNDICE AP-03</Text>
-                    <Text style={PdfEngine.styles.subtitle}>Demonstrativo de Diferenças Mensais</Text>
+                const chunks = showFullTables
+                    ? chunkArray(ap03, 35) // Slightly more rows per page for AP03 due to simpler columns
+                    : [ap03.slice(0, 35)];
 
-                    <View style={[styles.table, { marginTop: 15 }]}>
-                        <View style={[styles.tableRow, styles.tableHeader]}>
-                            <View style={styles.tableCol4}><Text style={styles.tableCell}>Mês</Text></View>
-                            <View style={styles.tableCol4}><Text style={styles.tableCell}>Diferença Mensal</Text></View>
-                            <View style={styles.tableCol4}><Text style={styles.tableCell}>Diferença Acumulada</Text></View>
-                            <View style={styles.tableCol4}><Text style={styles.tableCell}>Observação</Text></View>
-                        </View>
-                        {ap03.slice(0, 35).map((row: any, idx: number) => (
-                            <View key={idx} style={styles.tableRow}>
-                                <View style={styles.tableCol4}><Text style={styles.tableCell}>{row.mes}</Text></View>
-                                <View style={styles.tableCol4}>
-                                    <Text style={{ ...styles.tableCell, color: (row.diferenca || 0) > 0 ? '#dc2626' : '#166534' }}>
-                                        {formatCurrency(row.diferenca)}
-                                    </Text>
-                                </View>
-                                <View style={styles.tableCol4}>
-                                    <Text style={{ ...styles.tableCell, fontWeight: 'bold' }}>
-                                        {formatCurrency(row.diferencaAcumulada)}
-                                    </Text>
-                                </View>
-                                <View style={styles.tableCol4}>
-                                    <Text style={{ ...styles.tableCell, fontSize: 7 }}>
-                                        {row.override ? 'Ajustado' : '-'}
-                                    </Text>
-                                </View>
-                            </View>
-                        ))}
-                    </View>
+                return chunks.map((chunk, pageIndex) => (
+                    <Page key={`ap03-${pageIndex}`} size="A4" style={PdfEngine.styles.page}>
+                        <Watermark />
+                        <BrandingHeader />
 
-                    {ap03.length > 35 && (
-                        <Text style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', marginTop: 5 }}>
-                            ... tabela truncada. Exibindo 35 de {ap03.length} linhas.
+                        <Text style={[PdfEngine.styles.title, { fontSize: 14, marginTop: 10 }]}>
+                            APÊNDICE AP-03 {chunks.length > 1 ? `(${pageIndex + 1}/${chunks.length})` : ''}
                         </Text>
-                    )}
+                        <Text style={PdfEngine.styles.subtitle}>Demonstrativo de Diferenças Mensais</Text>
 
-                    {/* Final Summary */}
-                    <View style={[styles.card, { marginTop: 15, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#166534' }}>TOTAL INDÉBITO APURADO</Text>
-                            <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#166534' }}>
-                                {formatCurrency(dashboard.totais.economiaTotal)}
-                            </Text>
+                        <View style={[styles.table, { marginTop: 15 }]}>
+                            <View style={[styles.tableRow, styles.tableHeader]}>
+                                <View style={styles.tableCol4}><Text style={styles.tableCell}>Mês</Text></View>
+                                <View style={styles.tableCol4}><Text style={styles.tableCell}>Diferença Mensal</Text></View>
+                                <View style={styles.tableCol4}><Text style={styles.tableCell}>Diferença Acumulada</Text></View>
+                                <View style={styles.tableCol4}><Text style={styles.tableCell}>Observação</Text></View>
+                            </View>
+                            {chunk.map((row: any, idx: number) => (
+                                <View key={idx} style={styles.tableRow}>
+                                    <View style={styles.tableCol4}><Text style={styles.tableCell}>{row.mes}</Text></View>
+                                    <View style={styles.tableCol4}>
+                                        <Text style={{ ...styles.tableCell, color: (row.diferenca || 0) > 0 ? '#dc2626' : '#166534' }}>
+                                            {formatCurrency(row.diferenca)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.tableCol4}>
+                                        <Text style={{ ...styles.tableCell, fontWeight: 'bold' }}>
+                                            {formatCurrency(row.diferencaAcumulada)}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.tableCol4}>
+                                        <Text style={{ ...styles.tableCell, fontSize: 7 }}>
+                                            {row.override ? 'Ajustado' : '-'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            ))}
                         </View>
-                    </View>
 
-                    {/* Disclaimer */}
-                    <Text style={{ fontSize: 7, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>
-                        Este parecer técnico foi elaborado com base em metodologia técnica reconhecida e jurisprudência consolidada (Tema 234 STJ).
-                        Os valores apresentados são estimativas e podem variar conforme análise pericial detalhada.
-                    </Text>
+                        {!showFullTables && ap03.length > 35 && (
+                            <Text style={{ fontSize: 8, color: '#94a3b8', textAlign: 'center', marginTop: 5 }}>
+                                ... tabela truncada. Exibindo 35 de {ap03.length} linhas. Para ver completo, configure nas opções.
+                            </Text>
+                        )}
 
-                    <BrandingFooter />
-                </Page>
-            )}
+                        {/* Shows summary and disclaimer only on the last page */}
+                        {pageIndex === chunks.length - 1 && (
+                            <>
+                                <View style={[styles.card, { marginTop: 15, backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                        <Text style={{ fontSize: 10, fontWeight: 'bold', color: '#166534' }}>TOTAL INDÉBITO APURADO</Text>
+                                        <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#166534' }}>
+                                            {formatCurrency(dashboard.totais.economiaTotal)}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <Text style={{ fontSize: 7, color: '#94a3b8', textAlign: 'center', marginTop: 20 }}>
+                                    Este parecer técnico foi elaborado com base em metodologia técnica reconhecida e jurisprudência consolidada (Tema 234 STJ).
+                                    Os valores apresentados são estimativas e podem variar conforme análise pericial detalhada.
+                                </Text>
+                            </>
+                        )}
+
+                        <BrandingFooter />
+                    </Page>
+                ));
+            })()}
         </Document>
     );
 };

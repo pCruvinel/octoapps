@@ -28,10 +28,25 @@ function WizardPage() {
   const [initialStep2, setInitialStep2] = React.useState<any>(null);
   const [initialStep3, setInitialStep3] = React.useState<any>(null);
   const [initialTab, setInitialTab] = React.useState<'dados' | 'conciliacao' | 'resumo' | 'apendices'>('dados');
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  // Helper to validate UUID format
+  const isValidUUID = (id: string): boolean => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  };
 
   // Load existing contract data if contratoId is provided
   React.useEffect(() => {
     if (!contratoId) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate UUID format before making API call
+    if (!isValidUUID(contratoId)) {
+      console.error('[WizardPage] UUID inválido:', contratoId);
+      setLoadError('ID de cálculo inválido. Verifique o link ou inicie um novo cálculo.');
       setIsLoading(false);
       return;
     }
@@ -42,6 +57,7 @@ function WizardPage() {
 
         if (error || !contrato) {
           console.error('[WizardPage] Erro ao carregar contrato:', error);
+          setLoadError('Cálculo não encontrado ou sem permissão de acesso.');
           setIsLoading(false);
           return;
         }
@@ -104,6 +120,7 @@ function WizardPage() {
 
       } catch (err) {
         console.error('[WizardPage] Erro ao carregar contrato:', err);
+        setLoadError('Erro ao carregar dados do cálculo. Tente novamente.');
       } finally {
         setIsLoading(false);
       }
@@ -119,6 +136,37 @@ function WizardPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
           <p className="text-slate-600">Carregando dados do contrato...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error message if contract loading failed
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="text-center max-w-md p-8 bg-white rounded-lg shadow-md">
+          <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-semibold text-slate-900 mb-2">Erro ao carregar cálculo</h2>
+          <p className="text-slate-600 mb-6">{loadError}</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => navigate({ to: '/calc/lista' })}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              Ver Meus Cálculos
+            </button>
+            <button
+              onClick={() => navigate({ to: '/calc/wizard', search: { module } })}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Novo Cálculo
+            </button>
+          </div>
         </div>
       </div>
     );

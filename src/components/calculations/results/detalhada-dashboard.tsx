@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, FileDown, Printer, Share2 } from 'lucide-react';
-import { DetalhadaKPICards, type DetalhadaKPICardsProps, type KPIData } from './detalhada-kpi-cards';
+import { DetalhadaKPICards, type KPIData } from './detalhada-kpi-cards';
 import { DetalhadaGraficoEvolucao, type EvolutionDataPoint } from './detalhada-grafico-evolucao';
 import { DetalhadaTabelaComparacao } from './detalhada-tabela-comparacao';
 import { DetalhadaApendicesTabs } from './detalhada-apendices-tabs';
@@ -30,12 +30,26 @@ export interface DetalhadaDashboardData {
         nome: string;
         contrato: string;
     };
-    // Totais para tabela comparativa
+    // Totais para tabela comparativa (valores do adapter)
     totais?: {
+        // Cenário Banco (AP01)
         totalPagoBanco: number;
         totalJurosBanco: number;
+        parcelaBanco?: number;
+        taxaContrato?: number;
+        valorFinanciadoBanco?: number;
+        // Cenário Recalculado (AP02)
         totalPagoRecalculado: number;
         totalJurosRecalculado: number;
+        parcelaRecalculada?: number;
+        taxaMercado?: number;
+        valorFinanciadoExpurgado?: number;
+        tarifasExpurgadas?: number;
+        // Diferenças / Economia
+        economiaTotal?: number;
+        economiaJuros?: number;
+        economiaParcela?: number;
+        sobretaxaPercentual?: number;
     };
 }
 
@@ -95,14 +109,16 @@ export function DetalhadaDashboard({
     const dynamicEconomiaTotal = dynamicTotalPagoBanco - dynamicTotalPagoRecalculado;
     const dynamicEconomiaParcela = data.kpis.parcelaOriginalValor - data.kpis.novaParcelaValor;
 
-    // Estimar Juros (proporcional ao valor pago, mantendo a razão implícita original ou 40%)
-    // Se tivermos os totais originais, calculamos a razão de juros
+    // Estimar Juros (proporcional ao valor pago, mantendo a razão implícita dos totais)
+    // Se tivermos os totais originais, calculamos a razão de juros corretamente
     const originalTotalPago = data.totais?.totalPagoBanco || (data.kpis.parcelaOriginalValor * conciliacaoData.length);
-    const originalTotalJuros = data.totais?.totalJurosBanco || (originalTotalPago - 50000); // 50k estimativa de principal
-    const jurosRatio = originalTotalPago > 0 ? (originalTotalJuros / originalTotalPago) : 0.4;
+    // Usar totalJurosBanco do adapter, ou calcular como diferença entre total pago e valor financiado
+    const valorFinanciado = data.totais?.valorFinanciadoBanco || (data.kpis.parcelaOriginalValor * conciliacaoData.length * 0.6);
+    const originalTotalJuros = data.totais?.totalJurosBanco || Math.max(0, originalTotalPago - valorFinanciado);
+    const jurosRatio = originalTotalPago > 0 ? (originalTotalJuros / originalTotalPago) : 0.3; // 30% = estimativa conservadora
 
     const dynamicTotalJurosBanco = dynamicTotalPagoBanco * jurosRatio;
-    const dynamicTotalJurosRecalculado = dynamicTotalPagoRecalculado * jurosRatio; // Assumindo mesma proporção para simplificação
+    const dynamicTotalJurosRecalculado = dynamicTotalPagoRecalculado * jurosRatio;
     const dynamicEconomiaJuros = dynamicTotalJurosBanco - dynamicTotalJurosRecalculado;
 
     // Conteúdo do Resumo (Dashboard)
@@ -206,7 +222,7 @@ export function DetalhadaDashboard({
                 {/* Apêndices */}
                 <div className="mt-8">
                     <h2 className="text-lg font-semibold mb-4">Apêndices Técnicos</h2>
-                    <AppendicesTabs
+                    <DetalhadaApendicesTabs
                         ap01={data.appendices?.ap01}
                         ap02={data.appendices?.ap02}
                         ap03={data.appendices?.ap03}

@@ -20,6 +20,17 @@ const formatDate = (dateStr: string) => {
     }
 };
 
+// ===== IMAGE VALIDATION =====
+const isValidImageUrl = (url: string | null | undefined): boolean => {
+    if (!url || typeof url !== 'string' || url.trim() === '') return false;
+    const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
+    const lowerUrl = url.toLowerCase();
+    const hasValidExtension = validExtensions.some(ext => lowerUrl.includes(ext));
+    const isDataUrl = lowerUrl.startsWith('data:image/');
+    const isSupabaseStorage = lowerUrl.includes('supabase') && lowerUrl.includes('storage');
+    return hasValidExtension || isDataUrl || isSupabaseStorage;
+};
+
 interface DetalhadaRelatorioFinanceiroPdfProps {
     data: LaudoExportData;
     settings: UserDocumentSettings;
@@ -100,8 +111,8 @@ export const DetalhadaRelatorioFinanceiroPdf = ({ data, settings }: DetalhadaRel
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                 {/* Left: Logo */}
                 <View style={{ flex: 1 }}>
-                    {settings.logo_url ? (
-                        <Image src={settings.logo_url} style={{ width: 100, height: 'auto' }} />
+                    {isValidImageUrl(settings.logo_url) ? (
+                        <Image src={settings.logo_url!} style={{ width: 100, height: 'auto' }} />
                     ) : (
                         <Text style={{ fontSize: 14, fontWeight: 'bold', color: settings.primary_color }}>
                             OCTOAPPS
@@ -144,8 +155,8 @@ export const DetalhadaRelatorioFinanceiroPdf = ({ data, settings }: DetalhadaRel
     );
 
     const Watermark = () => {
-        if (!settings.watermark_url) return null;
-        return <Image src={settings.watermark_url} style={styles.watermarkImage} fixed />;
+        if (!isValidImageUrl(settings.watermark_url)) return null;
+        return <Image src={settings.watermark_url!} style={styles.watermarkImage} fixed />;
     }
 
     return (
@@ -181,7 +192,6 @@ export const DetalhadaRelatorioFinanceiroPdf = ({ data, settings }: DetalhadaRel
                         borderRightColor: '#f0fdf4', // slightly visible
                         borderTopColor: '#f0fdf4',
                         borderBottomColor: '#f0fdf4',
-                        shadowOpacity: 0.1,
                     }}>
                         <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#15803d', textAlign: 'center', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 1 }}>
                             VALOR A RESTITUIR APURADO

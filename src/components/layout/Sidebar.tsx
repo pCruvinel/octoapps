@@ -38,7 +38,6 @@ const routeMap: Record<string, string> = {
   'permissions': '/permissions',
   'settings-general': '/settings/general',
   'settings-documents': '/settings/documents',
-  'settings-funnel': '/settings/funnel',
   'settings-ocr': '/settings/ocr',
 };
 
@@ -91,7 +90,7 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
     },
     { id: 'peticoes', label: 'Geração de Petições', icon: FileText, route: 'peticoes', adminOnly: false, module: 'petitions' as const },
     { id: 'users', label: 'Usuários', icon: Users, route: 'users', adminOnly: true, module: null },
-    { id: 'permissions', label: 'Permissões', icon: Shield, route: 'permissions', adminOnly: true, module: null },
+    // { id: 'permissions', label: 'Permissões', icon: Shield, route: 'permissions', adminOnly: true, module: null },
     {
       id: 'settings',
       label: 'Configurações',
@@ -101,7 +100,6 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       submenu: [
         { id: 'settings-general', label: 'Opções Gerais', route: 'settings-general' },
         { id: 'settings-documents', label: 'Documentos', route: 'settings-documents' },
-        { id: 'settings-funnel', label: 'Funil e Cards', route: 'settings-funnel' },
         { id: 'settings-ocr', label: 'OCR & IA', route: 'settings-ocr' },
       ]
     },

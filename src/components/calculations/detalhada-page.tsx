@@ -555,6 +555,7 @@ export function DetalhadaPage({
                                 size="sm"
                                 onClick={handleExportPDF}
                                 disabled={!calculationResult}
+                                title={!calculationResult ? 'Execute o cálculo primeiro para gerar o PDF' : 'Baixar Parecer Técnico em PDF'}
                             >
                                 <Download className="h-4 w-4 mr-1" />
                                 Baixar PDF

@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
-import { Save, RefreshCw, AlertCircle } from 'lucide-react';
+import { Save, RefreshCw, AlertCircle, ArrowLeft, Search, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
+import { Input } from '../ui/input';
 import { permissionsService } from '../../services/permissions.service';
 import { usePermissions } from '../../hooks/usePermissions';
 import type {
@@ -15,10 +16,10 @@ import type {
   UserWithPermissions,
   UserPermissionsMap
 } from '../../types/permissions';
-import { PERMISSION_LABELS } from '../../types/permissions';
+import { Link } from '@tanstack/react-router';
 
 export function PermissionsManagement() {
-  const { refetch } = usePermissions(); // Hook para forçar reload das permissões
+  const { refetch } = usePermissions();
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [actions, setActions] = useState<PermissionActionType[]>([]);
@@ -26,6 +27,7 @@ export function PermissionsManagement() {
   const [saving, setSaving] = useState(false);
   const [localPermissions, setLocalPermissions] = useState<Record<string, UserPermissionsMap>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   /**
    * Carrega todos os dados necessários para a tela
@@ -198,25 +200,56 @@ export function PermissionsManagement() {
 
   return (
     <div className="p-4 lg:p-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Gerenciamento de Permissões
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Defina permissões granulares por usuário e módulo
-          </p>
+      <div className="mb-6">
+        <Link to="/users" className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mb-4">
+          <ArrowLeft className="w-4 h-4 mr-1" />
+          Voltar para Usuários
+        </Link>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              Gerenciamento de Permissões
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Defina permissões granulares por usuário e módulo
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading || saving}
+            className="gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Recarregar
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={loading || saving}
-          className="gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Recarregar
-        </Button>
+      </div>
+
+      {/* Search */}
+      <div className="mb-6 flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Buscar usuário por nome ou email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+          <Users className="w-4 h-4" />
+          <span>
+            {searchTerm
+              ? `${users.filter(u =>
+                u.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                u.email.toLowerCase().includes(searchTerm.toLowerCase())
+              ).length} de ${users.length} usuários`
+              : `${users.length} usuários`
+            }
+          </span>
+        </div>
       </div>
 
       <Card>
@@ -252,57 +285,63 @@ export function PermissionsManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map(user => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {user.avatar_url && (
-                          <img
-                            src={user.avatar_url}
-                            alt={user.nome_completo}
-                            className="w-8 h-8 rounded-full object-cover"
-                          />
-                        )}
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white">
-                            {user.nome_completo}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {user.email}
-                          </div>
-                          <div className="flex gap-1 mt-1">
-                            {user.roles.map(role => (
-                              <Badge
-                                key={role.id}
-                                variant="secondary"
-                                className="text-xs"
-                              >
-                                {role.nome}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    {modules.map(module => (
-                      <TableCell key={module.id}>
-                        <div className="flex items-center justify-center gap-2">
-                          {actions.map(action => (
-                            <Checkbox
-                              key={action.code}
-                              checked={hasPermission(user.id, module.code, action.code)}
-                              onCheckedChange={() =>
-                                togglePermission(user.id, module.code, action.code)
-                              }
-                              title={`${action.name} - ${module.name}`}
-                              disabled={saving}
+                {users
+                  .filter(user =>
+                    !searchTerm ||
+                    user.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map(user => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          {user.avatar_url && (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.nome_completo}
+                              className="w-8 h-8 rounded-full object-cover"
                             />
-                          ))}
+                          )}
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {user.nome_completo}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {user.email}
+                            </div>
+                            <div className="flex gap-1 mt-1">
+                              {user.roles.map(role => (
+                                <Badge
+                                  key={role.id}
+                                  variant="secondary"
+                                  className="text-xs"
+                                >
+                                  {role.nome}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
+                      {modules.map(module => (
+                        <TableCell key={module.id}>
+                          <div className="flex items-center justify-center gap-2">
+                            {actions.map(action => (
+                              <Checkbox
+                                key={action.code}
+                                checked={hasPermission(user.id, module.code, action.code)}
+                                onCheckedChange={() =>
+                                  togglePermission(user.id, module.code, action.code)
+                                }
+                                title={`${action.name} - ${module.name}`}
+                                disabled={saving}
+                              />
+                            ))}
+                          </div>
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
               </TableBody>
             </Table>
           </div>

@@ -19,7 +19,6 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedPeticoesIndexRouteImport } from './routes/_authenticated/peticoes/index'
 import { Route as AuthenticatedSettingsOcrRouteImport } from './routes/_authenticated/settings/ocr'
 import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_authenticated/settings/general'
-import { Route as AuthenticatedSettingsFunnelRouteImport } from './routes/_authenticated/settings/funnel'
 import { Route as AuthenticatedSettingsDocumentsRouteImport } from './routes/_authenticated/settings/documents'
 import { Route as AuthenticatedCrmOportunidadesArquivadasRouteImport } from './routes/_authenticated/crm/oportunidades-arquivadas'
 import { Route as AuthenticatedCrmOportunidadesRouteImport } from './routes/_authenticated/crm/oportunidades'
@@ -87,12 +86,6 @@ const AuthenticatedSettingsGeneralRoute =
   AuthenticatedSettingsGeneralRouteImport.update({
     id: '/settings/general',
     path: '/settings/general',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSettingsFunnelRoute =
-  AuthenticatedSettingsFunnelRouteImport.update({
-    id: '/settings/funnel',
-    path: '/settings/funnel',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsDocumentsRoute =
@@ -202,7 +195,6 @@ export interface FileRoutesByFullPath {
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
-  '/settings/funnel': typeof AuthenticatedSettingsFunnelRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/settings/ocr': typeof AuthenticatedSettingsOcrRoute
   '/peticoes': typeof AuthenticatedPeticoesIndexRoute
@@ -229,7 +221,6 @@ export interface FileRoutesByTo {
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
-  '/settings/funnel': typeof AuthenticatedSettingsFunnelRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/settings/ocr': typeof AuthenticatedSettingsOcrRoute
   '/peticoes': typeof AuthenticatedPeticoesIndexRoute
@@ -258,7 +249,6 @@ export interface FileRoutesById {
   '/_authenticated/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/_authenticated/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/_authenticated/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
-  '/_authenticated/settings/funnel': typeof AuthenticatedSettingsFunnelRoute
   '/_authenticated/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/_authenticated/settings/ocr': typeof AuthenticatedSettingsOcrRoute
   '/_authenticated/peticoes/': typeof AuthenticatedPeticoesIndexRoute
@@ -287,7 +277,6 @@ export interface FileRouteTypes {
     | '/crm/oportunidades'
     | '/crm/oportunidades-arquivadas'
     | '/settings/documents'
-    | '/settings/funnel'
     | '/settings/general'
     | '/settings/ocr'
     | '/peticoes'
@@ -314,7 +303,6 @@ export interface FileRouteTypes {
     | '/crm/oportunidades'
     | '/crm/oportunidades-arquivadas'
     | '/settings/documents'
-    | '/settings/funnel'
     | '/settings/general'
     | '/settings/ocr'
     | '/peticoes'
@@ -342,7 +330,6 @@ export interface FileRouteTypes {
     | '/_authenticated/crm/oportunidades'
     | '/_authenticated/crm/oportunidades-arquivadas'
     | '/_authenticated/settings/documents'
-    | '/_authenticated/settings/funnel'
     | '/_authenticated/settings/general'
     | '/_authenticated/settings/ocr'
     | '/_authenticated/peticoes/'
@@ -426,13 +413,6 @@ declare module '@tanstack/react-router' {
       path: '/settings/general'
       fullPath: '/settings/general'
       preLoaderRoute: typeof AuthenticatedSettingsGeneralRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/settings/funnel': {
-      id: '/_authenticated/settings/funnel'
-      path: '/settings/funnel'
-      fullPath: '/settings/funnel'
-      preLoaderRoute: typeof AuthenticatedSettingsFunnelRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/documents': {
@@ -561,7 +541,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCrmOportunidadesRoute: typeof AuthenticatedCrmOportunidadesRoute
   AuthenticatedCrmOportunidadesArquivadasRoute: typeof AuthenticatedCrmOportunidadesArquivadasRoute
   AuthenticatedSettingsDocumentsRoute: typeof AuthenticatedSettingsDocumentsRoute
-  AuthenticatedSettingsFunnelRoute: typeof AuthenticatedSettingsFunnelRoute
   AuthenticatedSettingsGeneralRoute: typeof AuthenticatedSettingsGeneralRoute
   AuthenticatedSettingsOcrRoute: typeof AuthenticatedSettingsOcrRoute
   AuthenticatedPeticoesIndexRoute: typeof AuthenticatedPeticoesIndexRoute
@@ -590,7 +569,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCrmOportunidadesArquivadasRoute:
     AuthenticatedCrmOportunidadesArquivadasRoute,
   AuthenticatedSettingsDocumentsRoute: AuthenticatedSettingsDocumentsRoute,
-  AuthenticatedSettingsFunnelRoute: AuthenticatedSettingsFunnelRoute,
   AuthenticatedSettingsGeneralRoute: AuthenticatedSettingsGeneralRoute,
   AuthenticatedSettingsOcrRoute: AuthenticatedSettingsOcrRoute,
   AuthenticatedPeticoesIndexRoute: AuthenticatedPeticoesIndexRoute,

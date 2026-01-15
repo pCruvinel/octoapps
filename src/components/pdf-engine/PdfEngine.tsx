@@ -3,15 +3,23 @@
 import React from 'react';
 import { Font, StyleSheet } from '@react-pdf/renderer';
 
-// Register standard fonts or custom fonts here if needed.
-// For now, we use standard Helvetica which is built-in.
-// Example of registering a font:
-/*
+// Register Inter font from Google Fonts for better typography
 Font.register({
-  family: 'Roboto',
-  src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/Roboto-Regular.ttf',
+    family: 'Inter',
+    fonts: [
+        {
+            src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff2',
+            fontWeight: 'normal',
+        },
+        {
+            src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYAZ9hjp-Ek-_EeA.woff2',
+            fontWeight: 'bold',
+        },
+    ],
 });
-*/
+
+// Hyphenation callback to improve text wrapping
+Font.registerHyphenationCallback((word) => [word]);
 
 // Common styles that can be used across templates
 export const commonStyles = StyleSheet.create({

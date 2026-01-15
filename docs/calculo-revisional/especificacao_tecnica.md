@@ -184,7 +184,8 @@ Recurso acessível na tela de detalhes do cálculo ("Modo Perito").
 * **Capacidades de Edição:**
   1. **Alterar Data/Valor Pago:** O cliente pagou a parcela 10 com 15 dias de atraso e multa? O perito insere o valor exato do comprovante.
   2. **Amortização Extraordinária:** Inserir um aporte (ex: uso de FGTS na parcela 20).
-  3. **Status com Ícones Coloridos:** Seletor visual com 4 ícones clicáveis:
+  3. **Pagar Primeiras N:** Ferramenta de agilidade para marcar as primeiras X parcelas como pagas em lote, respeitando o valor do contrato.
+  4. **Status com Ícones Coloridos:** Seletor visual com 4 ícones clicáveis:
      - ✅ **PAGO** → Verde (Emerald) - Parcela quitada
      - ⏳ **EM_ABERTO** → Amarelo (Amber) - Aguardando pagamento
      - 🔄 **RENEGOCIADO** → Roxo (Purple) - Incluída em renegociação

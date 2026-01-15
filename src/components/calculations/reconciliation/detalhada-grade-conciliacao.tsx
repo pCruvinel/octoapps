@@ -433,6 +433,7 @@ export function DetalhadaGradeConciliacao({
         },
     });
 
+    const [bulkPayCount, setBulkPayCount] = React.useState<string>('');
     const selectedCount = Object.keys(rowSelection).length;
 
     // Bulk actions
@@ -440,7 +441,13 @@ export function DetalhadaGradeConciliacao({
         const selectedIndices = Object.keys(rowSelection).map(Number);
         const newData = data.map((row, index) => {
             if (selectedIndices.includes(index)) {
-                return { ...row, status, isEdited: true };
+                return {
+                    ...row,
+                    status,
+                    // Se marcando como pago, garantir valor correto
+                    valorPagoReal: status === 'PAGO' ? row.valorContrato : (status === 'EM_ABERTO' ? 0 : row.valorPagoReal),
+                    isEdited: true
+                };
             }
             return row;
         });
@@ -449,22 +456,44 @@ export function DetalhadaGradeConciliacao({
         toast.success(`${selectedIndices.length} parcelas atualizadas`);
     };
 
+    const handleBulkPayFirstN = () => {
+        const count = parseInt(bulkPayCount);
+        if (isNaN(count) || count <= 0) return;
+
+        const newData = data.map((row, index) => {
+            if (index < count) {
+                return {
+                    ...row,
+                    status: 'PAGO' as const,
+                    valorPagoReal: row.valorContrato,
+                    isEdited: true
+                };
+            }
+            return row;
+        });
+        onDataChange(newData);
+        setBulkPayCount('');
+        toast.success(`Primeiras ${count} parcelas marcadas como pagas`);
+    };
+
     const handleResetEdits = () => {
         const newData = data.map(row => ({
             ...row,
             dataPagamentoReal: row.vencimento,
             valorPagoReal: row.valorContrato,
             amortizacaoExtra: 0,
+            status: 'EM_ABERTO' as const,
             isEdited: false,
         }));
         onDataChange(newData);
+        setRowSelection({});
         toast.success('Edições resetadas');
     };
 
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
                         <CardTitle className="flex items-center gap-2">
                             Editor de Conciliação
@@ -476,6 +505,29 @@ export function DetalhadaGradeConciliacao({
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 rounded-lg mr-2">
+                            <span className="text-xs font-medium text-slate-500 pl-2">Pagar Primeiras:</span>
+                            <Input
+                                type="number"
+                                className="h-8 w-16 text-center"
+                                placeholder="Nº"
+                                value={bulkPayCount}
+                                onChange={(e) => setBulkPayCount(e.target.value)}
+                                min={1}
+                                max={data.length}
+                            />
+                            <Button
+                                size="sm"
+                                variant="default"
+                                onClick={handleBulkPayFirstN}
+                                disabled={!bulkPayCount}
+                                className="h-8 shadow-sm"
+                            >
+                                <CheckCircle2 className="h-3 w-3 mr-1.5" />
+                                Aplicar
+                            </Button>
+                        </div>
+
                         <Button variant="outline" size="sm" onClick={handleResetEdits}>
                             <RotateCcw className="h-4 w-4 mr-1" />
                             Resetar
@@ -486,17 +538,19 @@ export function DetalhadaGradeConciliacao({
                 {/* Bulk Actions */}
                 {selectedCount > 0 && (
                     <div className="flex items-center gap-3 mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                        <span className="text-sm text-blue-700 dark:text-blue-300">
+                        <span className="text-sm text-blue-700 dark:text-blue-300 font-medium flex items-center gap-2">
+                            <CheckCircle2 className="h-4 w-4" />
                             {selectedCount} parcela(s) selecionada(s)
                         </span>
+                        <div className="h-4 w-px bg-blue-200 dark:bg-blue-800 mx-2" />
                         <div className="flex gap-2">
-                            <Button size="sm" variant="secondary" onClick={() => handleBulkSetStatus('PAGO')}>
+                            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white border-0" onClick={() => handleBulkSetStatus('PAGO')}>
                                 Marcar como Pago
                             </Button>
-                            <Button size="sm" variant="secondary" onClick={() => handleBulkSetStatus('EM_ABERTO')}>
+                            <Button size="sm" variant="secondary" className="bg-amber-100 text-amber-900 hover:bg-amber-200" onClick={() => handleBulkSetStatus('EM_ABERTO')}>
                                 Marcar como Em Aberto
                             </Button>
-                            <Button size="sm" variant="secondary" onClick={() => handleBulkSetStatus('ATRASO')}>
+                            <Button size="sm" variant="secondary" className="bg-red-100 text-red-900 hover:bg-red-200" onClick={() => handleBulkSetStatus('ATRASO')}>
                                 Marcar como Atraso
                             </Button>
                         </div>

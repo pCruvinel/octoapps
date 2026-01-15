@@ -10,41 +10,62 @@ import type {
   UserPermissionsMap,
   EffectivePermission
 } from '../types/permissions';
+import { STATIC_MODULES, STATIC_ACTIONS } from '../types/permissions';
 
 export const permissionsService = {
   /**
    * Busca todos os módulos ativos do sistema
+   * Com fallback para dados estáticos se a tabela não existir
    */
   async getModules(): Promise<Module[]> {
-    const { data, error } = await supabase
-      .from('modules')
-      .select('*')
-      .eq('active', true)
-      .order('name');
+    try {
+      const { data, error } = await supabase
+        .from('modules')
+        .select('*')
+        .eq('active', true)
+        .order('name');
 
-    if (error) {
-      console.error('Erro ao buscar módulos:', error);
-      throw error;
+      if (error) {
+        // Se a tabela não existir, usar dados estáticos
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('Tabela modules não existe, usando dados estáticos');
+          return STATIC_MODULES;
+        }
+        throw error;
+      }
+
+      return data && data.length > 0 ? data : STATIC_MODULES;
+    } catch (error) {
+      console.warn('Erro ao buscar módulos, usando dados estáticos:', error);
+      return STATIC_MODULES;
     }
-
-    return data || [];
   },
 
   /**
    * Busca todas as ações de permissão (CLED)
+   * Com fallback para dados estáticos se a tabela não existir
    */
   async getActions(): Promise<PermissionActionType[]> {
-    const { data, error } = await supabase
-      .from('permission_actions')
-      .select('*')
-      .order('code');
+    try {
+      const { data, error } = await supabase
+        .from('permission_actions')
+        .select('*')
+        .order('code');
 
-    if (error) {
-      console.error('Erro ao buscar ações:', error);
-      throw error;
+      if (error) {
+        // Se a tabela não existir, usar dados estáticos
+        if (error.code === '42P01' || error.message?.includes('does not exist')) {
+          console.warn('Tabela permission_actions não existe, usando dados estáticos');
+          return STATIC_ACTIONS;
+        }
+        throw error;
+      }
+
+      return data && data.length > 0 ? data : STATIC_ACTIONS;
+    } catch (error) {
+      console.warn('Erro ao buscar ações, usando dados estáticos:', error);
+      return STATIC_ACTIONS;
     }
-
-    return data || [];
   },
 
   /**

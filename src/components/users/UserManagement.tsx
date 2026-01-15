@@ -1,50 +1,73 @@
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Plus, Search, MoreVertical, User, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Search, MoreVertical, User, Edit, Trash2, Loader2, Mail, RefreshCw, Shield } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
 import { usersService, type UserWithRole, type Role } from '../../services/users.service';
+import { USER_STATUS_COLORS } from '../../types/permissions';
 import { isValidEmail } from '../ui/utils';
+import { formatPhone, formatCpf } from '../../lib/formatters';
 
 interface UserManagementProps {
   onNavigate: (page: string, id?: string) => void;
 }
 
+// Lista de cargos disponíveis
+const CARGOS = [
+  'Administrador',
+  'Advogado',
+  'Advogado Sênior',
+  'Assistente Jurídico',
+  'Estagiário',
+  'Perito Técnico',
+  'Analista Financeiro',
+  'Secretário(a)',
+  'Outro'
+];
+
 export function UserManagement({ onNavigate }: UserManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isInviteDialogOpen, setIsInviteDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
 
-  const [newUser, setNewUser] = useState({
-    name: '',
+  // Formulário de convite
+  const [inviteData, setInviteData] = useState({
+    nome_completo: '',
     email: '',
     role_id: '',
-    password: '',
+    cargo: '',
+    telefone: '',
+    cpf: '',
   });
 
-  const [editUser, setEditUser] = useState({
-    name: '',
+  // Formulário de edição
+  const [editData, setEditData] = useState({
+    nome_completo: '',
     email: '',
     role_id: '',
+    cargo: '',
+    telefone: '',
+    cpf: '',
   });
 
   const [emailError, setEmailError] = useState<string>('');
@@ -72,59 +95,67 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
     }
   };
 
-  const handleCreateUser = async () => {
-    if (!newUser.name || !newUser.email || !newUser.password || !newUser.role_id) {
-      toast.error('Preencha todos os campos obrigatórios');
+  const resetInviteForm = () => {
+    setInviteData({
+      nome_completo: '',
+      email: '',
+      role_id: '',
+      cargo: '',
+      telefone: '',
+      cpf: '',
+    });
+    setEmailError('');
+  };
+
+  const handleInviteUser = async () => {
+    if (!inviteData.nome_completo || !inviteData.email || !inviteData.role_id) {
+      toast.error('Preencha os campos obrigatórios: Nome, E-mail e Perfil');
       return;
     }
 
-    if (!isValidEmail(newUser.email)) {
+    if (!isValidEmail(inviteData.email)) {
       setEmailError('Por favor, insira um email válido');
       toast.error('E-mail inválido');
       return;
     }
 
-    if (newUser.password.length < 6) {
-      toast.error('A senha deve ter pelo menos 6 caracteres');
-      return;
-    }
-
     try {
-      setCreating(true);
+      setInviting(true);
 
-      const userId = await usersService.createUser({
-        nome_completo: newUser.name,
-        email: newUser.email,
-        password: newUser.password,
-        role_id: newUser.role_id,
+      await usersService.inviteUser({
+        nome_completo: inviteData.nome_completo,
+        email: inviteData.email,
+        role_id: inviteData.role_id,
+        cargo: inviteData.cargo || undefined,
+        telefone: inviteData.telefone || undefined,
+        cpf: inviteData.cpf || undefined,
       });
 
-      toast.success('Usuário criado com sucesso!');
-      setIsDialogOpen(false);
-      setNewUser({
-        name: '',
-        email: '',
-        role_id: '',
-        password: '',
-      });
+      toast.success('Convite enviado com sucesso! O usuário receberá um e-mail para definir sua senha.');
+      setIsInviteDialogOpen(false);
+      resetInviteForm();
 
       // Recarregar lista de usuários
       await loadData();
 
-      // Navegar para a página de permissões
-      onNavigate('permissions');
     } catch (error: any) {
-      console.error('Erro ao criar usuário:', error);
-
-      if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
-        toast.error('Este e-mail já está em uso');
-      } else if (error.message?.includes('admin')) {
-        toast.error('Você não tem permissão para criar usuários');
-      } else {
-        toast.error(`Erro ao criar usuário: ${error.message || 'Tente novamente'}`);
-      }
+      console.error('Erro ao convidar usuário:', error);
+      toast.error(error.message || 'Erro ao enviar convite');
     } finally {
-      setCreating(false);
+      setInviting(false);
+    }
+  };
+
+  const handleResendInvite = async (userId: string) => {
+    try {
+      setResending(true);
+      await usersService.resendInvite(userId);
+      toast.success('Convite reenviado com sucesso!');
+    } catch (error: any) {
+      console.error('Erro ao reenviar convite:', error);
+      toast.error(error.message || 'Erro ao reenviar convite');
+    } finally {
+      setResending(false);
     }
   };
 
@@ -140,22 +171,25 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
     const user = users.find(u => u.id === id);
     if (user) {
       setSelectedUserId(id);
-      setEditUser({
-        name: user.nome_completo,
+      setEditData({
+        nome_completo: user.nome_completo,
         email: user.email,
         role_id: user.roles[0]?.id || '',
+        cargo: user.cargo || '',
+        telefone: user.telefone || '',
+        cpf: user.cpf || '',
       });
       setEditDialogOpen(true);
     }
   };
 
   const handleUpdateUser = async () => {
-    if (!editUser.name || !editUser.email || !editUser.role_id) {
-      toast.error('Preencha todos os campos obrigatórios');
+    if (!editData.nome_completo || !editData.email || !editData.role_id) {
+      toast.error('Preencha os campos obrigatórios');
       return;
     }
 
-    if (!isValidEmail(editUser.email)) {
+    if (!isValidEmail(editData.email)) {
       setEditEmailError('Por favor, insira um email válido');
       toast.error('E-mail inválido');
       return;
@@ -167,20 +201,21 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
       setUpdating(true);
 
       await usersService.updateUser(selectedUserId, {
-        nome_completo: editUser.name,
-        email: editUser.email,
-        role_id: editUser.role_id,
+        nome_completo: editData.nome_completo,
+        email: editData.email,
+        role_id: editData.role_id,
+        cargo: editData.cargo || undefined,
+        telefone: editData.telefone || undefined,
+        cpf: editData.cpf || undefined,
       });
 
       toast.success('Usuário atualizado com sucesso!');
       setEditDialogOpen(false);
       setSelectedUserId(null);
 
-      // Recarregar lista
       await loadData();
     } catch (error: any) {
       console.error('Erro ao atualizar usuário:', error);
-
       if (error.message?.includes('duplicate') || error.message?.includes('unique')) {
         toast.error('Este e-mail já está em uso');
       } else {
@@ -208,7 +243,6 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
       setDeleteDialogOpen(false);
       setSelectedUserId(null);
 
-      // Recarregar lista
       await loadData();
     } catch (error: any) {
       console.error('Erro ao deletar usuário:', error);
@@ -218,20 +252,52 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
     }
   };
 
+  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      await usersService.toggleUserStatus(userId, !currentStatus);
+      toast.success(currentStatus ? 'Usuário inativado' : 'Usuário ativado');
+      await loadData();
+    } catch (error: any) {
+      console.error('Erro ao alterar status:', error);
+      toast.error('Erro ao alterar status do usuário');
+    }
+  };
+
   const filteredUsers = users.filter(user =>
     user.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.cargo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.roles.some(role => role.nome.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const selectedUser = users.find(u => u.id === selectedUserId);
 
+  // Função para formatar telefone enquanto digita
+  const handlePhoneChange = (value: string, isEdit: boolean) => {
+    const formatted = formatPhone(value);
+    if (isEdit) {
+      setEditData(prev => ({ ...prev, telefone: formatted }));
+    } else {
+      setInviteData(prev => ({ ...prev, telefone: formatted }));
+    }
+  };
+
+  // Função para formatar CPF enquanto digita
+  const handleCpfChange = (value: string, isEdit: boolean) => {
+    const formatted = formatCpf(value);
+    if (isEdit) {
+      setEditData(prev => ({ ...prev, cpf: formatted }));
+    } else {
+      setInviteData(prev => ({ ...prev, cpf: formatted }));
+    }
+  };
+
   return (
     <div className="p-4 lg:p-8">
       <div className="mb-8">
-        <h1 className="text-gray-900 dark:text-white mb-2">Gerenciamento de Usuários</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Gerenciamento de Usuários</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Gerencie os usuários do sistema
+          Gerencie os usuários e suas permissões no sistema
         </p>
       </div>
 
@@ -239,111 +305,153 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
         <div className="relative w-full sm:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
-            placeholder="Buscar usuários..."
+            placeholder="Buscar por nome, email, cargo..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
           />
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2 w-full sm:w-auto">
-              <Plus className="w-4 h-4" />
-              Novo Usuário
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Novo Usuário</DialogTitle>
-              <DialogDescription>
-                Preencha os dados do novo usuário. Após criar, você será redirecionado para configurar as permissões.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo *</Label>
-                <Input
-                  id="name"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Nome do usuário"
-                  disabled={creating}
-                />
-              </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onNavigate('permissions')}
+            className="gap-2"
+          >
+            <Shield className="w-4 h-4" />
+            Permissões
+          </Button>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">E-mail *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => {
-                    const emailValue = e.target.value;
-                    setNewUser(prev => ({ ...prev, email: emailValue }));
-                    if (emailValue && !isValidEmail(emailValue)) {
-                      setEmailError('Por favor, insira um email válido');
-                    } else {
-                      setEmailError('');
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value && !isValidEmail(e.target.value)) {
-                      setEmailError('Por favor, insira um email válido');
-                    }
-                  }}
-                  placeholder="email@exemplo.com"
-                  disabled={creating}
-                  aria-invalid={emailError ? 'true' : 'false'}
-                />
-                {emailError && (
-                  <p className="text-sm text-destructive">{emailError}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Perfil *</Label>
-                <Select
-                  value={newUser.role_id}
-                  onValueChange={(value) => setNewUser(prev => ({ ...prev, role_id: value }))}
-                  disabled={creating}
-                >
-                  <SelectTrigger id="role">
-                    <SelectValue placeholder="Selecione o perfil" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map(role => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha *</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
-                  placeholder="Mínimo 6 caracteres"
-                  disabled={creating}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={creating}>
-                Cancelar
+          <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="w-4 h-4" />
+                Convidar Usuário
               </Button>
-              <Button onClick={handleCreateUser} disabled={creating}>
-                {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Criar Usuário
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[550px]">
+              <DialogHeader>
+                <DialogTitle>Convidar Novo Usuário</DialogTitle>
+                <DialogDescription>
+                  O usuário receberá um e-mail com link para definir sua senha e acessar o sistema.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="invite-name">Nome Completo *</Label>
+                    <Input
+                      id="invite-name"
+                      value={inviteData.nome_completo}
+                      onChange={(e) => setInviteData(prev => ({ ...prev, nome_completo: e.target.value }))}
+                      placeholder="Nome do usuário"
+                      disabled={inviting}
+                    />
+                  </div>
+
+                  <div className="col-span-2 space-y-2">
+                    <Label htmlFor="invite-email">E-mail *</Label>
+                    <Input
+                      id="invite-email"
+                      type="email"
+                      value={inviteData.email}
+                      onChange={(e) => {
+                        const emailValue = e.target.value;
+                        setInviteData(prev => ({ ...prev, email: emailValue }));
+                        if (emailValue && !isValidEmail(emailValue)) {
+                          setEmailError('Por favor, insira um email válido');
+                        } else {
+                          setEmailError('');
+                        }
+                      }}
+                      placeholder="email@exemplo.com"
+                      disabled={inviting}
+                      aria-invalid={emailError ? 'true' : 'false'}
+                    />
+                    {emailError && (
+                      <p className="text-sm text-destructive">{emailError}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-role">Perfil *</Label>
+                    <Select
+                      value={inviteData.role_id}
+                      onValueChange={(value) => setInviteData(prev => ({ ...prev, role_id: value }))}
+                      disabled={inviting}
+                    >
+                      <SelectTrigger id="invite-role">
+                        <SelectValue placeholder="Selecione o perfil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.map(role => (
+                          <SelectItem key={role.id} value={role.id}>
+                            {role.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-cargo">Cargo</Label>
+                    <Select
+                      value={inviteData.cargo}
+                      onValueChange={(value) => setInviteData(prev => ({ ...prev, cargo: value }))}
+                      disabled={inviting}
+                    >
+                      <SelectTrigger id="invite-cargo">
+                        <SelectValue placeholder="Selecione o cargo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CARGOS.map(cargo => (
+                          <SelectItem key={cargo} value={cargo}>
+                            {cargo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-telefone">Telefone</Label>
+                    <Input
+                      id="invite-telefone"
+                      type="tel"
+                      value={inviteData.telefone}
+                      onChange={(e) => handlePhoneChange(e.target.value, false)}
+                      placeholder="(00) 00000-0000"
+                      disabled={inviting}
+                      maxLength={15}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="invite-cpf">CPF</Label>
+                    <Input
+                      id="invite-cpf"
+                      value={inviteData.cpf}
+                      onChange={(e) => handleCpfChange(e.target.value, false)}
+                      placeholder="000.000.000-00"
+                      disabled={inviting}
+                      maxLength={14}
+                    />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsInviteDialogOpen(false)} disabled={inviting}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleInviteUser} disabled={inviting} className="gap-2">
+                  {inviting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <Mail className="w-4 h-4" />
+                  Enviar Convite
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
@@ -351,9 +459,10 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>E-mail</TableHead>
+                <TableHead>Usuário</TableHead>
+                <TableHead>Cargo</TableHead>
                 <TableHead>Perfil</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="w-12">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -361,9 +470,10 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
               {loading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell><Skeleton className="h-8 w-full" /></TableCell>
-                    <TableCell><Skeleton className="h-8 w-full" /></TableCell>
+                    <TableCell><Skeleton className="h-10 w-full" /></TableCell>
+                    <TableCell><Skeleton className="h-8 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-20" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
                     <TableCell><Skeleton className="h-8 w-8" /></TableCell>
                   </TableRow>
                 ))
@@ -371,35 +481,77 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
                 filteredUsers.map(user => (
                   <TableRow key={user.id}>
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                          <User className="w-4 h-4" />
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
+                          {user.avatar_url ? (
+                            <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                          ) : (
+                            <User className="w-5 h-5 text-gray-500" />
+                          )}
                         </div>
-                        <span className="text-gray-900 dark:text-white">{user.nome_completo}</span>
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                            {user.nome_completo}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {user.email}
+                          </div>
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>{user.email}</TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                        {user.cargo || '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1 flex-wrap">
                         {user.roles.map(role => (
                           <Badge key={role.id} variant="outline">{role.nome}</Badge>
                         ))}
                       </div>
                     </TableCell>
                     <TableCell>
+                      <Badge className={USER_STATUS_COLORS[user.status]}>
+                        {user.status === 'PENDENTE' ? 'Pendente' : user.status === 'ATIVO' ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1">
                             <MoreVertical className="w-4 h-4" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleViewUser(user.id)}>Visualizar</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openEditDialog(user.id)}>Editar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleViewUser(user.id)}>
+                            <User className="w-4 h-4 mr-2" />
+                            Visualizar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(user.id)}>
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
+                          </DropdownMenuItem>
+                          {user.status === 'PENDENTE' && (
+                            <DropdownMenuItem
+                              onClick={() => handleResendInvite(user.id)}
+                              disabled={resending}
+                            >
+                              <RefreshCw className="w-4 h-4 mr-2" />
+                              Reenviar Convite
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => handleToggleStatus(user.id, user.ativo)}
+                          >
+                            {user.ativo ? 'Inativar' : 'Ativar'}
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400"
                             onClick={() => handleDeleteClick(user.id)}
                           >
+                            <Trash2 className="w-4 h-4 mr-2" />
                             Excluir
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -423,31 +575,69 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
 
       {/* View Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>Detalhes do Usuário</DialogTitle>
-            <DialogDescription>
-              Visualize as informações do usuário
-            </DialogDescription>
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Nome Completo</Label>
-                <div className="text-sm text-gray-900 dark:text-white">{selectedUser.nome_completo}</div>
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                  {selectedUser.avatar_url ? (
+                    <img src={selectedUser.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+                  ) : (
+                    <User className="w-8 h-8 text-gray-500" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {selectedUser.nome_completo}
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400">{selectedUser.email}</p>
+                  <Badge className={USER_STATUS_COLORS[selectedUser.status]}>
+                    {selectedUser.status === 'PENDENTE' ? 'Pendente' : selectedUser.status === 'ATIVO' ? 'Ativo' : 'Inativo'}
+                  </Badge>
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>E-mail</Label>
-                <div className="text-sm text-gray-900 dark:text-white">{selectedUser.email}</div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Perfil</Label>
-                <div className="flex gap-1">
-                  {selectedUser.roles.map(role => (
-                    <Badge key={role.id} variant="outline">{role.nome}</Badge>
-                  ))}
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                <div>
+                  <Label className="text-xs text-gray-500">Cargo</Label>
+                  <p className="text-sm text-gray-900 dark:text-white">{selectedUser.cargo || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Perfil</Label>
+                  <div className="flex gap-1">
+                    {selectedUser.roles.map(role => (
+                      <Badge key={role.id} variant="outline">{role.nome}</Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Telefone</Label>
+                  <p className="text-sm text-gray-900 dark:text-white">{selectedUser.telefone || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">CPF</Label>
+                  <p className="text-sm text-gray-900 dark:text-white">{selectedUser.cpf || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Último Acesso</Label>
+                  <p className="text-sm text-gray-900 dark:text-white">
+                    {selectedUser.ultimo_acesso
+                      ? new Date(selectedUser.ultimo_acesso).toLocaleString('pt-BR')
+                      : 'Nunca acessou'
+                    }
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Criado em</Label>
+                  <p className="text-sm text-gray-900 dark:text-white">
+                    {selectedUser.created_at
+                      ? new Date(selectedUser.created_at).toLocaleDateString('pt-BR')
+                      : '-'
+                    }
+                  </p>
                 </div>
               </div>
             </div>
@@ -469,72 +659,107 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
 
       {/* Edit Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>
             <DialogTitle>Editar Usuário</DialogTitle>
-            <DialogDescription>
-              Atualize os dados do usuário
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Nome Completo *</Label>
-              <Input
-                id="edit-name"
-                value={editUser.name}
-                onChange={(e) => setEditUser(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="Nome do usuário"
-                disabled={updating}
-              />
-            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="edit-name">Nome Completo *</Label>
+                <Input
+                  id="edit-name"
+                  value={editData.nome_completo}
+                  onChange={(e) => setEditData(prev => ({ ...prev, nome_completo: e.target.value }))}
+                  disabled={updating}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-email">E-mail *</Label>
-              <Input
-                id="edit-email"
-                type="email"
-                value={editUser.email}
-                onChange={(e) => {
-                  const emailValue = e.target.value;
-                  setEditUser(prev => ({ ...prev, email: emailValue }));
-                  if (emailValue && !isValidEmail(emailValue)) {
-                    setEditEmailError('Por favor, insira um email válido');
-                  } else {
-                    setEditEmailError('');
-                  }
-                }}
-                onBlur={(e) => {
-                  if (e.target.value && !isValidEmail(e.target.value)) {
-                    setEditEmailError('Por favor, insira um email válido');
-                  }
-                }}
-                placeholder="email@exemplo.com"
-                disabled={updating}
-                aria-invalid={editEmailError ? 'true' : 'false'}
-              />
-              {editEmailError && (
-                <p className="text-sm text-destructive">{editEmailError}</p>
-              )}
-            </div>
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="edit-email">E-mail *</Label>
+                <Input
+                  id="edit-email"
+                  type="email"
+                  value={editData.email}
+                  onChange={(e) => {
+                    const emailValue = e.target.value;
+                    setEditData(prev => ({ ...prev, email: emailValue }));
+                    if (emailValue && !isValidEmail(emailValue)) {
+                      setEditEmailError('Por favor, insira um email válido');
+                    } else {
+                      setEditEmailError('');
+                    }
+                  }}
+                  disabled={updating}
+                  aria-invalid={editEmailError ? 'true' : 'false'}
+                />
+                {editEmailError && (
+                  <p className="text-sm text-destructive">{editEmailError}</p>
+                )}
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="edit-role">Perfil *</Label>
-              <Select
-                value={editUser.role_id}
-                onValueChange={(value) => setEditUser(prev => ({ ...prev, role_id: value }))}
-                disabled={updating}
-              >
-                <SelectTrigger id="edit-role">
-                  <SelectValue placeholder="Selecione o perfil" />
-                </SelectTrigger>
-                <SelectContent>
-                  {roles.map(role => (
-                    <SelectItem key={role.id} value={role.id}>
-                      {role.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">Perfil *</Label>
+                <Select
+                  value={editData.role_id}
+                  onValueChange={(value) => setEditData(prev => ({ ...prev, role_id: value }))}
+                  disabled={updating}
+                >
+                  <SelectTrigger id="edit-role">
+                    <SelectValue placeholder="Selecione o perfil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map(role => (
+                      <SelectItem key={role.id} value={role.id}>
+                        {role.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-cargo">Cargo</Label>
+                <Select
+                  value={editData.cargo}
+                  onValueChange={(value) => setEditData(prev => ({ ...prev, cargo: value }))}
+                  disabled={updating}
+                >
+                  <SelectTrigger id="edit-cargo">
+                    <SelectValue placeholder="Selecione o cargo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CARGOS.map(cargo => (
+                      <SelectItem key={cargo} value={cargo}>
+                        {cargo}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-telefone">Telefone</Label>
+                <Input
+                  id="edit-telefone"
+                  type="tel"
+                  value={editData.telefone}
+                  onChange={(e) => handlePhoneChange(e.target.value, true)}
+                  disabled={updating}
+                  maxLength={15}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-cpf">CPF</Label>
+                <Input
+                  id="edit-cpf"
+                  value={editData.cpf}
+                  onChange={(e) => handleCpfChange(e.target.value, true)}
+                  disabled={updating}
+                  maxLength={14}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>
