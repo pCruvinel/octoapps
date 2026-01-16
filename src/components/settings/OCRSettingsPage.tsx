@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { OCRSettings, OCRFieldConfig, OCRCategory } from '../../types/ocr.types';
@@ -10,9 +10,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Textarea } from '../ui/textarea';
 import { toast } from 'sonner';
-import { Loader2, Save, Eye, EyeOff, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Loader2, Save, Eye, EyeOff, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Code } from 'lucide-react';
 import { DEFAULT_FIELDS } from '../../types/ocr.types';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 
 export function OCRSettingsPage() {
     const { user } = useAuth();
@@ -26,6 +28,11 @@ export function OCRSettingsPage() {
     });
     const [showGeminiKey, setShowGeminiKey] = useState(false);
     const [showMistralKey, setShowMistralKey] = useState(false);
+    const [openPromptPreviews, setOpenPromptPreviews] = useState<Record<OCRCategory, boolean>>({
+        EMPRESTIMOS_VEICULOS: false,
+        IMOBILIARIO: false,
+        CARTAO_CREDITO: false
+    });
 
     useEffect(() => {
         if (user) {
@@ -77,7 +84,10 @@ export function OCRSettingsPage() {
                         fallback_enabled: settingsData.fallback_enabled ?? true,
                         timeout_seconds: settingsData.timeout_seconds || 60,
                         gemini_model: settingsData.gemini_model || 'gemini-1.5-flash',
-                        mistral_model: settingsData.mistral_model || 'pixtral-12b-2409'
+                        mistral_model: settingsData.mistral_model || 'pixtral-12b-2409',
+                        additional_context_emprestimos: settingsData.additional_context_emprestimos,
+                        additional_context_imobiliario: settingsData.additional_context_imobiliario,
+                        additional_context_cartao: settingsData.additional_context_cartao
                     });
                 }
             } catch (dbError) {
@@ -147,7 +157,10 @@ export function OCRSettingsPage() {
                 mistral_model: settings.mistral_model,
                 mistral_enabled: settings.mistral_enabled,
                 fallback_enabled: settings.fallback_enabled,
-                timeout_seconds: settings.timeout_seconds
+                timeout_seconds: settings.timeout_seconds,
+                additional_context_emprestimos: settings.additional_context_emprestimos,
+                additional_context_imobiliario: settings.additional_context_imobiliario,
+                additional_context_cartao: settings.additional_context_cartao
             };
 
             // If ID is local-default, we need to insert, otherwise update
@@ -209,6 +222,37 @@ export function OCRSettingsPage() {
         } catch (error) {
             console.error(error);
             toast.error('Erro ao atualizar campo');
+        }
+    };
+
+    const handleUpdateHint = async (fieldId: string, hint: string) => {
+        // Find category
+        let category: OCRCategory | null = null;
+        Object.entries(fieldConfigs).forEach(([cat, fields]) => {
+            if (fields.some(f => f.id === fieldId)) category = cat as OCRCategory;
+        });
+
+        if (category) {
+            // Optimistic update
+            setFieldConfigs(prev => ({
+                ...prev,
+                [category!]: prev[category!].map(f => 
+                    f.id === fieldId ? { ...f, extraction_hint: hint } : f
+                )
+            }));
+        }
+
+        // Debounced DB update
+        try {
+            const { error } = await supabase
+                .from('ocr_field_configs')
+                .update({ extraction_hint: hint })
+                .eq('id', fieldId);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error(error);
+            // Don't show error toast for every keystroke
         }
     };
 
@@ -372,51 +416,154 @@ export function OCRSettingsPage() {
                 </TabsContent>
 
                 {/* FIELD CONFIGS TABS */}
-                {(Object.keys(fieldConfigs) as OCRCategory[]).map(category => (
-                    <TabsContent key={category} value={category}>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Campos de Extração - {category.replace('_', ' ')}</CardTitle>
-                                <CardDescription>Defina quais campos a IA deve buscar neste tipo de documento.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="border rounded-lg overflow-hidden">
-                                    <table className="w-full text-sm text-left">
-                                        <thead className="bg-gray-50 text-gray-700 font-medium">
-                                            <tr>
-                                                <th className="p-3">Campo</th>
-                                                <th className="p-3">Chave do Sistema</th>
-                                                <th className="p-3">Obrigatório?</th>
-                                                <th className="p-3 text-right">Ativo</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {fieldConfigs[category].map((field) => (
-                                                <tr key={field.id} className="hover:bg-gray-50">
-                                                    <td className="p-3 font-medium">{field.field_label}</td>
-                                                    <td className="p-3 text-gray-500 font-mono text-xs">{field.field_key}</td>
-                                                    <td className="p-3">
-                                                        {field.is_required ? (
-                                                            <Badge variant="secondary" className="text-xs">Sim</Badge>
-                                                        ) : (
-                                                            <span className="text-gray-400">-</span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-3 text-right">
-                                                        <Switch
-                                                            checked={field.is_enabled}
-                                                            onCheckedChange={(c) => handleToggleField(field.id, c)}
-                                                        />
-                                                    </td>
+                {(Object.keys(fieldConfigs) as OCRCategory[]).map(category => {
+                    const contextKey = category === 'EMPRESTIMOS_VEICULOS' 
+                        ? 'additional_context_emprestimos' 
+                        : category === 'IMOBILIARIO' 
+                            ? 'additional_context_imobiliario' 
+                            : 'additional_context_cartao';
+                    
+                    const activeFields = fieldConfigs[category].filter(f => f.is_enabled);
+                    
+                    // Build prompt preview
+                    const fieldsList = activeFields.map(f =>
+                        `- "${f.field_key}" (${f.field_label}): ${f.extraction_hint || ''} [Type: ${f.field_type}]`
+                    ).join('\n');
+                    
+                    const additionalContext = settings?.[contextKey as keyof OCRSettings] as string | null;
+                    
+                    let promptPreview = `Você é um especialista em OCR e extração de dados de contratos bancários e jurídicos brasileiros.
+
+Analise o documento fornecido e extraia os seguintes campos específicos.
+Retorne APENAS um objeto JSON válido. NÃO inclua formatação markdown.
+
+Categoria: ${category}
+
+Campos para extrair:
+${fieldsList}
+
+Regras:
+1. Se um campo não for encontrado claramente, defina como null. NÃO invente dados.
+2. Para datas, use formato YYYY-MM-DD.
+3. Para números/valores monetários, retorne como números puros (ex: 1500.50).
+4. Remova separadores de milhares (pontos) e substitua vírgula decimal por ponto.
+5. Identifique "Capitalização Diária" vs "Mensal" se aplicável.`;
+
+                    if (additionalContext) {
+                        promptPreview += `\n\nInformações Adicionais / Contexto do Usuário:\n${additionalContext}`;
+                    }
+
+                    return (
+                        <TabsContent key={category} value={category} className="space-y-6">
+                            {/* Context Textarea */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-lg">Contexto Adicional</CardTitle>
+                                    <CardDescription>
+                                        Informações extras para ajudar a IA a entender melhor os documentos desta categoria.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <Textarea
+                                        placeholder="Ex: Contratos antigos deste banco usam formatação diferente para taxas. A taxa mensal geralmente aparece na página 2..."
+                                        className="min-h-[100px]"
+                                        value={(settings?.[contextKey as keyof OCRSettings] as string) || ''}
+                                        onChange={(e) => setSettings(s => s ? { ...s, [contextKey]: e.target.value } : null)}
+                                    />
+                                </CardContent>
+                            </Card>
+
+                            {/* Fields Table */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Campos de Extração - {category.replace(/_/g, ' ')}</CardTitle>
+                                    <CardDescription>Defina quais campos a IA deve buscar e suas descrições de contexto.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="border rounded-lg overflow-hidden">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-gray-50 text-gray-700 font-medium">
+                                                <tr>
+                                                    <th className="p-3">Campo</th>
+                                                    <th className="p-3">Descrição (Dica para IA)</th>
+                                                    <th className="p-3 w-20">Obrig?</th>
+                                                    <th className="p-3 w-20 text-right">Ativo</th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                ))}
+                                            </thead>
+                                            <tbody className="divide-y">
+                                                {fieldConfigs[category].map((field) => (
+                                                    <tr key={field.id} className="hover:bg-gray-50">
+                                                        <td className="p-3">
+                                                            <div className="font-medium">{field.field_label}</div>
+                                                            <div className="text-xs text-gray-400 font-mono">{field.field_key}</div>
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <Input
+                                                                className="text-sm"
+                                                                defaultValue={field.extraction_hint || ''}
+                                                                placeholder="Ex: Nome do banco, financeira..."
+                                                                onBlur={(e) => handleUpdateHint(field.id, e.target.value)}
+                                                            />
+                                                        </td>
+                                    <td className="p-3">
+                                                            {field.is_required ? (
+                                                                <Badge variant="secondary" className="text-xs">Sim</Badge>
+                                                            ) : (
+                                                                <span className="text-gray-400">-</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3 text-right">
+                                                            <Switch
+                                                                checked={field.is_enabled}
+                                                                onCheckedChange={(c) => handleToggleField(field.id, c)}
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Prompt Preview */}
+                            <Collapsible 
+                                open={openPromptPreviews[category]} 
+                                onOpenChange={(open) => setOpenPromptPreviews(prev => ({ ...prev, [category]: open }))}
+                            >
+                                <Card>
+                                    <CollapsibleTrigger asChild>
+                                        <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Code className="h-5 w-5 text-gray-500" />
+                                                    <CardTitle className="text-lg">Preview do Prompt (Read-Only)</CardTitle>
+                                                </div>
+                                                {openPromptPreviews[category] ? (
+                                                    <ChevronUp className="h-5 w-5 text-gray-500" />
+                                                ) : (
+                                                    <ChevronDown className="h-5 w-5 text-gray-500" />
+                                                )}
+                                            </div>
+                                            <CardDescription>
+                                                Clique para visualizar o prompt que será enviado à IA
+                                            </CardDescription>
+                                        </CardHeader>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                        <CardContent>
+                                            <Textarea
+                                                readOnly
+                                                className="font-mono text-xs min-h-[300px] bg-gray-50"
+                                                value={promptPreview}
+                                            />
+                                        </CardContent>
+                                    </CollapsibleContent>
+                                </Card>
+                            </Collapsible>
+                        </TabsContent>
+                    );
+                })}
 
             </Tabs>
         </div>

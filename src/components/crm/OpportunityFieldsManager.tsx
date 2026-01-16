@@ -21,8 +21,10 @@ interface FieldConfig {
 
 const DEFAULT_FIELDS: FieldConfig[] = [
     { id: 'contato', label: 'Nome do Contato', description: 'Nome do cliente/lead vinculado', enabled: true, required: true },
-    { id: 'valor_estimado', label: 'Valor Estimado', description: 'Valor monetário da oportunidade', enabled: true },
-    { id: 'tipo_acao', label: 'Tipo de Operação', description: 'Tipo do produto/serviço (Badge)', enabled: true },
+    { id: 'valor_proposta', label: 'Valor Honorários', description: 'Valor da proposta/honorários', enabled: true },
+    { id: 'valor_causa', label: 'Valor Causa/Dívida', description: 'Valor da causa ou dívida', enabled: true },
+    { id: 'produto_servico', label: 'Produto/Serviço', description: 'Nome do produto ou serviço', enabled: true },
+    { id: 'tipo_acao', label: 'Tipo Operação (Legado)', description: 'Tipo antigo de operação (Badge)', enabled: false },
     { id: 'data_criacao', label: 'Data de Criação', description: 'Quando a oportunidade foi criada', enabled: true },
     { id: 'responsavel', label: 'Responsável', description: 'Avatar do usuário responsável', enabled: true },
     { id: 'origem', label: 'Origem', description: 'Canal de onde veio o lead', enabled: false },

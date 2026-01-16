@@ -171,36 +171,42 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
   };
 
   return (
-    <div className="p-4 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-gray-900 dark:text-white mb-2">Gestão de Contatos</h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Gerencie seus contatos e clientes
-        </p>
-      </div>
+    <div className="h-full flex flex-col">
+      <div className="px-4 pt-4 pb-2 lg:px-6 lg:pt-6 lg:pb-2 border-b border-border mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex flex-col">
+            <h1 className="text-foreground font-bold text-2xl whitespace-nowrap">Gestão de Contatos</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Gerencie seus contatos e clientes
+            </p>
+          </div>
 
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative w-full sm:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar contatos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full xl:w-auto">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar contatos..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 h-9 bg-background shadow-sm border-input font-normal focus:ring-1 focus:ring-primary rounded-md"
+              />
+            </div>
+
+            <Button
+              onClick={openCreateDialog}
+              className="gap-2 w-full sm:w-auto"
+              disabled={!canCreate('contacts')}
+            >
+              <Plus className="w-4 h-4" />
+              Novo Contato
+            </Button>
+          </div>
         </div>
-
-        <Button
-          onClick={openCreateDialog}
-          className="gap-2 w-full sm:w-auto"
-          disabled={!canCreate('contacts')}
-        >
-          <Plus className="w-4 h-4" />
-          Novo Contato
-        </Button>
       </div>
 
-      <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+      <div className="px-4 lg:px-6 pb-6 flex-1 overflow-auto">
+
+      <div className="border border-border rounded-lg overflow-hidden">
         {loadingContacts ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -225,15 +231,15 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                 {filteredContacts.map(contact => (
                   <TableRow
                     key={contact.id}
-                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-800"
+                    className="cursor-pointer hover:bg-muted/50"
                     onClick={() => onNavigate('contact-details', contact.id)}
                   >
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
                           {contact.tipo === 'Pessoa Jurídica' ? <Building2 className="w-4 h-4" /> : <User className="w-4 h-4" />}
                         </div>
-                        <span className="text-gray-900 dark:text-white">{contact.nome_completo}</span>
+                        <span className="text-foreground">{contact.nome_completo}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -261,7 +267,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                          <button className="text-muted-foreground hover:text-foreground">
                             <MoreVertical className="w-4 h-4" />
                           </button>
                         </DropdownMenuTrigger>
@@ -293,7 +299,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
       {!loadingContacts && filteredContacts.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-muted-foreground">
             Nenhum contato encontrado
           </p>
         </div>
@@ -301,8 +307,8 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
 
       {/* Pagination Controls */}
       {!loadingContacts && totalContacts > 0 && (
-        <div className="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-800 pt-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+        <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+          <div className="text-sm text-muted-foreground">
             Mostrando {startItem} a {endItem} de {totalContacts} contatos
           </div>
           <div className="flex items-center gap-2">
@@ -316,7 +322,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
               <ChevronLeft className="w-4 h-4" />
               Anterior
             </Button>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="text-sm text-muted-foreground">
               Página {currentPage} de {totalPages}
             </div>
             <Button
@@ -372,6 +378,7 @@ export function ContactsList({ onNavigate }: ContactsListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   );
 }

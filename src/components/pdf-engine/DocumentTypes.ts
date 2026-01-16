@@ -14,6 +14,17 @@ export interface UserDocumentSettings {
     header_text?: string; // Custom header text
     footer_text?: string | null;
     show_page_numbers?: boolean;
+    
+    // Dados Cadastrais da Empresa (White Label v2)
+    company_name?: string | null; // Razão Social ou Nome Fantasia
+    cnpj?: string | null; // CNPJ formatado (XX.XXX.XXX/XXXX-XX)
+    address_line1?: string | null;
+    address_line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip_code?: string | null;
+    phone?: string | null;
+    company_email?: string | null;
 }
 
 export interface DocumentContextType {

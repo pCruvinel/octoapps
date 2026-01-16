@@ -348,6 +348,9 @@ export type Database = {
                     mistral_enabled: boolean
                     fallback_enabled: boolean
                     timeout_seconds: number
+                    additional_context_emprestimos: string | null
+                    additional_context_imobiliario: string | null
+                    additional_context_cartao: string | null
                     created_at: string
                     updated_at: string
                 }
@@ -362,6 +365,9 @@ export type Database = {
                     mistral_enabled?: boolean
                     fallback_enabled?: boolean
                     timeout_seconds?: number
+                    additional_context_emprestimos?: string | null
+                    additional_context_imobiliario?: string | null
+                    additional_context_cartao?: string | null
                     created_at?: string
                     updated_at?: string
                 }
@@ -376,6 +382,9 @@ export type Database = {
                     mistral_enabled?: boolean
                     fallback_enabled?: boolean
                     timeout_seconds?: number
+                    additional_context_emprestimos?: string | null
+                    additional_context_imobiliario?: string | null
+                    additional_context_cartao?: string | null
                     created_at?: string
                     updated_at?: string
                 }

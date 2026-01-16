@@ -2,80 +2,121 @@
 
 :root {
   --font-size: 16px;
+  
+  /* BASE: Branco para fundo, Slate-950 para textos fortes */
   --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
+  --foreground: hsl(222.2 84% 4.9%);
+
+  /* CARDS: Branco puro com bordas sutis */
   --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #3D96FF;
-  --primary-foreground: #ffffff;
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
+  --card-foreground: hsl(222.2 84% 4.9%);
+  --popover: #ffffff;
+  --popover-foreground: hsl(222.2 84% 4.9%);
+
+  /* PRIMARY: "Octo Blue" - Azul Profundo Corporativo (Baseado no Logo) */
+  --primary: hsl(221.2 83.2% 53.3%); /* #1657FF approx - Deep Royal Blue */
+  --primary-foreground: hsl(210 40% 98%);
+
+  /* SECONDARY: Slate-100 para elementos de apoio */
+  --secondary: hsl(210 40% 96.1%);
+  --secondary-foreground: hsl(222.2 47.4% 11.2%);
+
+  /* MUTED: Para textos de suporte e fundos desabilitados */
+  --muted: hsl(210 40% 96.1%);
+  --muted-foreground: hsl(215.4 16.3% 46.9%);
+
+  /* ACCENT: Hover states */
+  --accent: hsl(210 40% 96.1%);
+  --accent-foreground: hsl(222.2 47.4% 11.2%);
+
+  /* DESTRUCTIVE: Vermelho profissional, menos saturado */
+  --destructive: hsl(0 84.2% 60.2%);
+  --destructive-foreground: hsl(210 40% 98%);
+
+  /* BORDERS & INPUTS */
+  --border: hsl(214.3 31.8% 91.4%);
+  --input: hsl(214.3 31.8% 91.4%);
+  --input-background: hsl(210 40% 96.1%);
+  --switch-background: hsl(215.4 16.3% 76.9%);
+  --ring: hsl(221.2 83.2% 53.3%);
+
+  /* FONT WEIGHTS */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #3D96FF;
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: #DDDDDD;
-  --sidebar-foreground: #030213;
-  --sidebar-primary: #3D96FF;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #CCCCCC;
-  --sidebar-accent-foreground: #030213;
-  --sidebar-border: #CCCCCC;
-  --sidebar-ring: #3D96FF;
+
+  /* RADIUS: 0.5rem (8px) é o "sweet spot" para software B2B */
+  --radius: 0.5rem;
+
+  /* CHART COLORS: Otimizadas para Dashboards Financeiros/CRM */
+  --chart-1: hsl(221.2 83.2% 53.3%); /* Azul Marca (Receita/Total) */
+  --chart-2: hsl(173 58% 39%);       /* Teal/Verde Petróleo (Lucro/Positivo) */
+  --chart-3: hsl(197 37% 24%);       /* Azul Navy Escuro (Histórico) */
+  --chart-4: hsl(43 74% 66%);        /* Âmbar Dourado (Atenção/Pendente) */
+  --chart-5: hsl(27 87% 67%);        /* Laranja Queimado (Churn/Perda) */
+
+  /* SIDEBAR (Light Mode): Limpa, Slate-50 (cinza-azulado muito sutil) */
+  --sidebar: hsl(210 40% 98%);
+  --sidebar-foreground: hsl(222.2 84% 4.9%);
+  --sidebar-primary: hsl(221.2 83.2% 53.3%);
+  --sidebar-primary-foreground: hsl(0 0% 98%);
+  --sidebar-accent: hsl(210 40% 96.1%);
+  --sidebar-accent-foreground: hsl(222.2 84% 4.9%);
+  --sidebar-border: hsl(214.3 31.8% 91.4%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #3D96FF;
-  --primary-foreground: #ffffff;
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: #3D96FF;
+  /* DARK MODE: Baseado em Slate-950 (Azul muito escuro), não preto puro */
+  --background: hsl(222.2 84% 4.9%);
+  --foreground: hsl(210 40% 98%);
+
+  --card: hsl(222.2 84% 4.9%);
+  --card-foreground: hsl(210 40% 98%);
+  --popover: hsl(222.2 84% 4.9%);
+  --popover-foreground: hsl(210 40% 98%);
+
+  /* Primary no Dark Mode fica um pouco mais claro para contraste */
+  --primary: hsl(217.2 91.2% 59.8%);
+  --primary-foreground: hsl(222.2 47.4% 11.2%);
+
+  --secondary: hsl(217.2 32.6% 17.5%);
+  --secondary-foreground: hsl(210 40% 98%);
+
+  --muted: hsl(217.2 32.6% 17.5%);
+  --muted-foreground: hsl(215 20.2% 65.1%);
+
+  --accent: hsl(217.2 32.6% 17.5%);
+  --accent-foreground: hsl(210 40% 98%);
+
+  --destructive: hsl(0 62.8% 30.6%);
+  --destructive-foreground: hsl(210 40% 98%);
+
+  --border: hsl(217.2 32.6% 17.5%);
+  --input: hsl(217.2 32.6% 17.5%);
+  --input-background: hsl(217.2 32.6% 17.5%);
+  --switch-background: hsl(215 20.2% 35.1%);
+  --ring: hsl(212.7 26.8% 83.9%);
+
+  /* FONT WEIGHTS */
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #2a2a2a;
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: #3D96FF;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: #3D96FF;
+
+  /* Chart Colors Dark Mode */
+  --chart-1: hsl(220 70% 50%);
+  --chart-2: hsl(160 60% 45%);
+  --chart-3: hsl(30 80% 55%);
+  --chart-4: hsl(280 65% 60%);
+  --chart-5: hsl(340 75% 55%);
+
+  /* SIDEBAR (Dark Mode): Ligeiramente mais clara que o fundo ou igual */
+  --sidebar: hsl(222.2 84% 4.9%);
+  --sidebar-foreground: hsl(210 40% 98%);
+  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(217.2 32.6% 17.5%);
+  --sidebar-accent-foreground: hsl(210 40% 98%);
+  --sidebar-border: hsl(217.2 32.6% 17.5%);
+  --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
 
 @theme inline {
@@ -188,46 +229,46 @@ html {
   font-size: var(--font-size);
 }
 
-/* Scrollbar Styling - Paleta Cinza e Branco */
+/* Scrollbar Styling - Paleta Slate (Deep Ocean) */
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f5f5f5;
+  background: hsl(210 40% 98%); /* Slate-50 */
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c0c0c0;
+  background: hsl(215.4 16.3% 76.9%); /* Slate-300 */
   border-radius: 4px;
-  border: 2px solid #f5f5f5;
+  border: 2px solid hsl(210 40% 98%);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a0a0a0;
+  background: hsl(215.4 16.3% 56.9%); /* Slate-400 */
 }
 
 .dark ::-webkit-scrollbar-track {
-  background: #1a1a1a;
+  background: hsl(222.2 84% 4.9%); /* Slate-950 */
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #4a4a4a;
-  border: 2px solid #1a1a1a;
+  background: hsl(217.2 32.6% 27.5%); /* Slate-700 */
+  border: 2px solid hsl(222.2 84% 4.9%);
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #5a5a5a;
+  background: hsl(215 20.2% 45.1%); /* Slate-500 */
 }
 
 /* Firefox Scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #c0c0c0 #f5f5f5;
+  scrollbar-color: hsl(215.4 16.3% 76.9%) hsl(210 40% 98%);
 }
 
 .dark * {
-  scrollbar-color: #4a4a4a #1a1a1a;
+  scrollbar-color: hsl(217.2 32.6% 27.5%) hsl(222.2 84% 4.9%);
 }

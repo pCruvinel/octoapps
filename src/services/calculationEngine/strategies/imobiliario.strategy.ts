@@ -138,6 +138,12 @@ export class ImobiliarioStrategy extends BaseStrategy {
             }
         }
 
+        // MOMENTO ZERO (t0): Must exist for XIRR calculation and pro-rata interest
+        // Structure: n=0, date=start_date, closing_balance=+amount_financed (adjusted if tariffs expurgued)
+        const t0Line = this.createMomentoZeroLine(input);
+        t0Line.closing_balance = balance; // Use adjusted balance after Momento Zero expurge
+        table.push(t0Line);
+
         const dates = this.generatePaymentDates(input);
 
         // Get insurance values
@@ -190,16 +196,19 @@ export class ImobiliarioStrategy extends BaseStrategy {
             const interest = calculateMonthlyInterest(correctedBalance, input.contract_rate_monthly);
 
             // 3. AMORTIZATION
+            // v3.3: SAC must use correctedBalance / remainingPeriods (not fixed amortization!)
             let amortization: Decimal;
             let installmentBase: Decimal;
+            const remainingPeriods = input.total_installments - n + 1;
 
             if (input.amortization_method === 'SAC') {
-                amortization = input.amount_financed.div(input.total_installments);
+                // SAC CORRETO: Amortização = Saldo Corrigido / Prazo Remanescente
+                amortization = correctedBalance.div(remainingPeriods);
                 installmentBase = amortization.plus(interest);
             } else if (input.amortization_method === 'SACRE') {
                 // SACRE: Amortization increases over time
                 const factor = new Decimal(n).div(input.total_installments);
-                amortization = input.amount_financed.div(input.total_installments).times(
+                amortization = correctedBalance.div(remainingPeriods).times(
                     new Decimal(1).plus(factor)
                 );
                 installmentBase = amortization.plus(interest);
@@ -208,7 +217,7 @@ export class ImobiliarioStrategy extends BaseStrategy {
                 installmentBase = calculatePMT(
                     correctedBalance,
                     input.contract_rate_monthly,
-                    input.total_installments - n + 1
+                    remainingPeriods
                 );
                 amortization = installmentBase.minus(interest);
             }

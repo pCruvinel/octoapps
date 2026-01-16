@@ -40,6 +40,9 @@ import { useEtapasFunil } from '../../hooks/useEtapasFunil';
 import { useAuth } from '../../hooks/useAuth';
 import type { Contact } from '../../types/contact';
 import { ContactFormDialog } from './ContactFormDialog';
+import { NewLeadDialog } from '../crm/NewLeadDialog';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface ContactDetailsProps {
   contactId: string | null;
@@ -84,13 +87,43 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
 
   const [notes, setNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [contactNotes, setContactNotes] = useState<Array<{ id: string; texto: string; criado_por: string; criado_em: string; autor?: { nome_completo: string } }>>([]);
+  const [newNote, setNewNote] = useState('');
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
 
   useEffect(() => {
     if (contactId) {
       loadContact();
       loadOpportunities();
+      loadProfiles();
+      loadContactsList();
     }
   }, [contactId]);
+
+  const loadProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, nome_completo')
+        .eq('ativo', true);
+      setProfiles(data || []);
+    } catch (e) {
+      console.error('Error loading profiles:', e);
+    }
+  };
+
+  const loadContactsList = async () => {
+    try {
+      const { data } = await supabase
+        .from('contatos')
+        .select('id, nome_completo')
+        .eq('ativo', true);
+      setContacts(data || []);
+    } catch (e) {
+      console.error('Error loading contacts:', e);
+    }
+  };
 
   const loadContact = async () => {
     try {
@@ -555,17 +588,21 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
                     )}
                   </TabsContent>
 
-                  {/* Tab: Histórico */}
+                  {/* Tab: Histórico - Invertido (mais recente primeiro) */}
                   <TabsContent value="historico" className="mt-0">
                     <h3 className="font-semibold text-slate-900 mb-4">Histórico de Atividades</h3>
                     <div className="space-y-4">
-                      <div className="flex gap-4">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 shrink-0" />
-                        <div>
-                          <p className="text-slate-900">Contato criado</p>
-                          <p className="text-sm text-slate-500">{formatDate(contact.data_criacao)}</p>
+                      {/* Oportunidades - mais recentes primeiro */}
+                      {[...opportunities].reverse().map(opp => (
+                        <div key={opp.id} className="flex gap-4">
+                          <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 shrink-0" />
+                          <div>
+                            <p className="text-slate-900">Oportunidade criada: {opp.titulo}</p>
+                            <p className="text-sm text-slate-500">{formatDate(opp.data_criacao)}</p>
+                          </div>
                         </div>
-                      </div>
+                      ))}
+                      {/* Última atualização */}
                       {contact.data_atualizacao && contact.data_atualizacao !== contact.data_criacao && (
                         <div className="flex gap-4">
                           <div className="w-2 h-2 bg-green-500 rounded-full mt-2 shrink-0" />
@@ -575,35 +612,81 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
                           </div>
                         </div>
                       )}
-                      {opportunities.map(opp => (
-                        <div key={opp.id} className="flex gap-4">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 shrink-0" />
-                          <div>
-                            <p className="text-slate-900">Oportunidade criada: {opp.titulo}</p>
-                            <p className="text-sm text-slate-500">{formatDate(opp.data_criacao)}</p>
-                          </div>
+                      {/* Contato criado - sempre por último */}
+                      <div className="flex gap-4">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 shrink-0" />
+                        <div>
+                          <p className="text-slate-900">Contato criado</p>
+                          <p className="text-sm text-slate-500">{formatDate(contact.data_criacao)}</p>
                         </div>
-                      ))}
+                      </div>
                     </div>
                   </TabsContent>
 
-                  {/* Tab: Notas */}
+                  {/* Tab: Notas - Estilo Chat */}
                   <TabsContent value="notas" className="mt-0">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-slate-900">Observações</h3>
-                        <Button size="sm" onClick={handleSaveNotes} disabled={savingNotes}>
-                          {savingNotes ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                          Salvar
-                        </Button>
+                    <div className="flex flex-col h-[400px]">
+                      <h3 className="font-semibold text-slate-900 mb-4">Anotações do Contato</h3>
+                      
+                      {/* Chat Messages Area - Exibe notas SALVAS */}
+                      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 custom-scrollbar">
+                        {/* Observações gerais já salvas no banco */}
+                        {notes && (
+                          <div className="flex gap-3">
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarFallback className="bg-slate-100 text-slate-600 text-xs">
+                                {profile?.nome_completo?.split(' ').map((n: string) => n[0]).slice(0,2).join('').toUpperCase() || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm text-slate-900">{profile?.nome_completo || 'Usuário'}</span>
+                                <span className="text-xs text-slate-400">{contact.data_atualizacao ? format(new Date(contact.data_atualizacao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : ''}</span>
+                              </div>
+                              <div className="bg-slate-100 rounded-lg rounded-tl-none p-3 max-w-[85%]">
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{notes}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {!notes && (
+                          <div className="flex items-center justify-center h-32 text-slate-400">
+                            <MessageSquare className="w-8 h-8 mr-2" />
+                            <span>Nenhuma anotação ainda</span>
+                          </div>
+                        )}
                       </div>
-                      <Textarea
-                        placeholder="Adicione observações sobre este contato..."
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows={8}
-                        className="resize-none"
-                      />
+                      
+                      {/* Input Area - Usa newNote separado */}
+                      <div className="border-t pt-4">
+                        <div className="flex gap-2">
+                          <Textarea
+                            placeholder="Adicione uma anotação..."
+                            value={newNote}
+                            onChange={(e) => setNewNote(e.target.value)}
+                            rows={2}
+                            className="resize-none flex-1"
+                          />
+                          <Button 
+                            onClick={() => {
+                              if (newNote.trim()) {
+                                // Append new note to existing notes
+                                const updatedNotes = notes 
+                                  ? `${notes}\n\n---\n\n${newNote.trim()}`
+                                  : newNote.trim();
+                                setNotes(updatedNotes);
+                                handleSaveNotes();
+                                setNewNote('');
+                              }
+                            }} 
+                            disabled={savingNotes || !newNote.trim()} 
+                            className="shrink-0"
+                          >
+                            {savingNotes ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar'}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </TabsContent>
                 </CardContent>
@@ -758,58 +841,18 @@ export function ContactDetails({ contactId, onNavigate }: ContactDetailsProps) {
         </DialogContent>
       </Dialog>
 
-      {/* New Opportunity Dialog */}
-      <Dialog open={newOppDialogOpen} onOpenChange={setNewOppDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Nova Oportunidade</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Título *</Label>
-              <Input value={newOpportunity.titulo} onChange={(e) => setNewOpportunity({ ...newOpportunity, titulo: e.target.value })} placeholder="Ex: Revisional Bancário" />
-            </div>
-            <div className="space-y-2">
-              <Label>Tipo de Ação</Label>
-              <Select value={newOpportunity.tipo_acao} onValueChange={(v) => setNewOpportunity({ ...newOpportunity, tipo_acao: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Revisional">Revisional</SelectItem>
-                  <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
-                  <SelectItem value="Empréstimo">Empréstimo</SelectItem>
-                  <SelectItem value="Financiamento Imobiliário">Financiamento Imobiliário</SelectItem>
-                  <SelectItem value="Consultoria">Consultoria</SelectItem>
-                  <SelectItem value="Outros">Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Valor Estimado (R$)</Label>
-              <Input type="number" value={newOpportunity.valor_estimado} onChange={(e) => setNewOpportunity({ ...newOpportunity, valor_estimado: e.target.value })} placeholder="0.00" />
-            </div>
-            <div className="space-y-2">
-              <Label>Etapa do Funil *</Label>
-              <Select value={newOpportunity.etapa_funil_id} onValueChange={(v) => setNewOpportunity({ ...newOpportunity, etapa_funil_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  {etapas.map((e) => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Origem</Label>
-              <Input value={newOpportunity.origem} onChange={(e) => setNewOpportunity({ ...newOpportunity, origem: e.target.value })} placeholder="Ex: Indicação, Website" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOppDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateOpportunity} disabled={creatingOpportunity}>
-              {creatingOpportunity && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Criar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* New Opportunity Dialog - Uses the same dialog as Kanban */}
+      <NewLeadDialog
+        open={newOppDialogOpen}
+        onOpenChange={setNewOppDialogOpen}
+        onSuccess={() => {
+          loadOpportunities();
+          setNewOppDialogOpen(false);
+        }}
+        contacts={contacts}
+        profiles={profiles}
+        preselectedContactId={contactId || undefined}
+      />
     </div>
   );
 }

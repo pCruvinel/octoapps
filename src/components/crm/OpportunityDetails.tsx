@@ -24,6 +24,7 @@ import { useEtapasFunil } from '../../hooks/useEtapasFunil';
 import { useTasks } from '../../hooks/useTasks';
 import { useAgendamentos } from '../../hooks/useAgendamentos';
 import { useAuth } from '../../hooks/useAuth';
+import { useProducts } from '../../hooks/useProducts';
 import type { Opportunity } from '../../types/opportunity';
 import type { Contact } from '../../types/contact';
 import type { TipoTarefa } from '../../types/task';
@@ -62,8 +63,11 @@ interface Attachment {
 
 const editFormSchema = z.object({
   contato_id: z.string().min(1, 'Selecione um contato'),
-  tipo_operacao: z.string().min(1, 'Selecione o tipo de operação'),
-  valor_estimado: z.number().optional().default(0),
+  produto_servico_id: z.string().optional(), // v2: produto do catálogo
+  tipo_operacao: z.string().optional(), // legado - mantido para compatibilidade
+  valor_proposta: z.number().optional().default(0),
+  valor_causa: z.number().optional().default(0),
+  valor_estimado: z.number().optional().default(0), // Mantido para compatibilidade
   responsavel_id: z.string().min(1, 'Selecione um responsável'),
   origem: z.string().optional(),
   observacoes: z.string().optional(),
@@ -89,8 +93,9 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
   const { tasks, loading: loadingTasks, createTask, loadTasksByOpportunity } = useTasks();
   const { createAgendamento } = useAgendamentos();
   const { user } = useAuth();
+  const { activeProducts, loading: loadingProducts } = useProducts();
 
-  // Custom Hook for Operation Types (names)
+  // Custom Hook for Operation Types (names) - legado
   const { tiposOperacao, loading: loadingTipos } = useTiposOperacao({
     categoria: ['EMPRESTIMO', 'VEICULO', 'IMOBILIARIO', 'CARTAO', 'OUTROS', 'EMPRESARIAL']
   });
@@ -141,7 +146,10 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
     resolver: zodResolver(editFormSchema),
     defaultValues: {
       contato_id: '',
+      produto_servico_id: '',
       tipo_operacao: '',
+      valor_proposta: 0,
+      valor_causa: 0,
       valor_estimado: 0,
       responsavel_id: '',
       origem: '',
@@ -173,7 +181,10 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
     if (isEditDialogOpen && opportunity) {
       editForm.reset({
         contato_id: opportunity.contato_id || '',
-        tipo_operacao: opportunity.tipo_acao || '', // Here we expect the Name from DB, which matches new Select behavior
+        produto_servico_id: opportunity.produto_servico_id || '',
+        tipo_operacao: opportunity.tipo_acao || '', 
+        valor_proposta: opportunity.valor_proposta || 0,
+        valor_causa: opportunity.valor_causa || 0,
         valor_estimado: opportunity.valor_estimado || 0,
         responsavel_id: opportunity.responsavel_id || '',
         origem: opportunity.origem || '',
@@ -313,8 +324,11 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         .from('oportunidades')
         .update({
           contato_id: values.contato_id,
-          tipo_acao: values.tipo_operacao, // This is now a Name string!
-          valor_estimado: values.valor_estimado,
+          produto_servico_id: values.produto_servico_id || null,
+          tipo_acao: values.tipo_operacao || null, // legado
+          valor_proposta: values.valor_proposta,
+          valor_causa: values.valor_causa,
+          valor_estimado: values.valor_proposta, // Mantém sincronizado com honorários por enquanto
           responsavel_id: values.responsavel_id,
           origem: values.origem,
           observacoes: values.observacoes,
@@ -326,6 +340,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
 
       // Log activity (non-blocking)
       const responsavelNome = profiles.find(p => p.id === values.responsavel_id)?.nome_completo || null;
+      const produtoNome = activeProducts.find(p => p.id === values.produto_servico_id)?.name || null;
       supabase.from('log_atividades').insert({
         user_id: user?.id,
         acao: 'EDITAR_OPORTUNIDADE',
@@ -333,12 +348,16 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         entidade_id: opportunityId,
         dados_anteriores: {
           tipo_acao: opportunity?.tipo_acao,
-          valor_estimado: opportunity?.valor_estimado,
-          responsavel: opportunity?.responsavel?.nome_completo
+          produto_servico_id: opportunity?.produto_servico_id,
+          valor_proposta: opportunity?.valor_proposta,
+          valor_causa: opportunity?.valor_causa
         },
         dados_novos: {
           tipo_acao: values.tipo_operacao,
-          valor_estimado: values.valor_estimado,
+          produto_servico_id: values.produto_servico_id,
+          produto_servico: produtoNome,
+          valor_proposta: values.valor_proposta,
+          valor_causa: values.valor_causa,
           responsavel: responsavelNome
         }
       }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
@@ -605,10 +624,10 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
   const getEtapaLabel = () => etapas.find(e => e.id === opportunity?.etapa_funil_id)?.nome || 'Sem etapa';
 
   const CustomCard = ({ title, icon: Icon, children, className }: any) => (
-    <div className={`bg-card-opacity text-card-foreground flex flex-col gap-6 rounded-xl py-6 shadow-none border border-slate-200 ${className}`}>
-      <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 border-b-2 border-slate-100 bg-slate-50/30 px-6 pb-4 -mt-2">
-        <div className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-          <Icon className="w-4 h-4 text-slate-400" />
+    <div className={`bg-card text-card-foreground flex flex-col gap-6 rounded-xl py-6 shadow-sm border border-border ${className}`}>
+      <div className="grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 border-b border-border bg-muted/30 px-6 pb-4 -mt-2">
+        <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+          <Icon className="w-4 h-4 text-muted-foreground" />
           {title}
         </div>
       </div>
@@ -616,8 +635,8 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
     </div>
   );
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-slate-400" /></div>;
-  if (!opportunity) return <div className="p-8 text-slate-500">Oportunidade não encontrada</div>;
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-muted-foreground" /></div>;
+  if (!opportunity) return <div className="p-8 text-muted-foreground">Oportunidade não encontrada</div>;
 
   return (
     <div className="p-4 lg:p-8 max-w-[1600px] mx-auto">
@@ -640,17 +659,25 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card-opacity dark:bg-gray-900 p-4 rounded-xl border border-slate-200 shadow-none">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-card dark:bg-card p-4 rounded-xl border border-border shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{opportunity.titulo}</h1>
+            <h1 className="text-2xl font-bold text-foreground mb-2">{opportunity.titulo}</h1>
             <div className="flex gap-2 items-center">
-              <Badge variant="outline" className="bg-slate-100 dark:bg-slate-800">{getEtapaLabel()}</Badge>
+              <Badge variant="outline" className="bg-muted text-muted-foreground border-border">{getEtapaLabel()}</Badge>
               {opportunity.tipo_acao && <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 hover:bg-blue-200">{opportunity.tipo_acao}</Badge>}
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-500 dark:text-gray-400">Valor Estimado</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(opportunity.valor_estimado)}</p>
+          <div className="text-right flex flex-col items-end">
+            <div className="mb-1">
+              <p className="text-xs text-muted-foreground">Honorários (Proposta)</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(opportunity.valor_proposta ?? opportunity.valor_estimado)}</p>
+            </div>
+            {opportunity.valor_causa && opportunity.valor_causa > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground">Valor da Causa/Dívida</p>
+                <p className="text-sm font-medium text-foreground">{formatCurrency(opportunity.valor_causa)}</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -661,22 +688,22 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         <div className="lg:col-span-1 space-y-6">
           <CustomCard title="Detalhes do Contato" icon={User}>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
                 <User className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-medium text-gray-900 dark:text-white">{opportunity.contatos?.nome_completo || 'Sem contato'}</p>
-                <p className="text-xs text-gray-500">{opportunity.contatos?.email || 'Sem email'}</p>
+                <p className="font-medium text-foreground">{opportunity.contatos?.nome_completo || 'Sem contato'}</p>
+                <p className="text-xs text-muted-foreground">{opportunity.contatos?.email || 'Sem email'}</p>
               </div>
             </div>
-            <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-gray-800">
+            <div className="space-y-3 pt-4 border-t border-border">
               <div>
-                <span className="text-xs text-slate-500 block">CPF/CNPJ</span>
-                <span className="text-sm text-slate-700">{opportunity.contatos?.cpf_cnpj || '-'}</span>
+                <span className="text-xs text-muted-foreground block">CPF/CNPJ</span>
+                <span className="text-sm text-foreground">{opportunity.contatos?.cpf_cnpj || '-'}</span>
               </div>
               <div>
-                <span className="text-xs text-slate-500 block">Telefone</span>
-                <span className="text-sm text-slate-700">{opportunity.contatos?.telefone_principal || '-'}</span>
+                <span className="text-xs text-muted-foreground block">Telefone</span>
+                <span className="text-sm text-foreground">{opportunity.contatos?.telefone_principal || '-'}</span>
               </div>
             </div>
           </CustomCard>
@@ -684,36 +711,36 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
           <CustomCard title="Descrição da Oportunidade" icon={FileText}>
             <div className="space-y-4">
               <div>
-                <span className="text-xs text-slate-500 block">Etapa Atual</span>
-                <span className="text-sm font-medium text-slate-700">{getEtapaLabel()}</span>
+                <span className="text-xs text-muted-foreground block">Etapa Atual</span>
+                <span className="text-sm font-medium text-foreground">{getEtapaLabel()}</span>
               </div>
               <div>
-                <span className="text-xs text-slate-500 block">Operação de Interesse</span>
-                <span className="text-sm text-slate-700">{opportunity.tipo_acao || '-'}</span>
+                <span className="text-xs text-muted-foreground block">Operação de Interesse</span>
+                <span className="text-sm text-foreground">{opportunity.tipo_acao || '-'}</span>
               </div>
               <div>
-                <span className="text-xs text-slate-500 block">Responsável</span>
+                <span className="text-xs text-muted-foreground block">Responsável</span>
                 <div className="flex items-center gap-2 mt-1">
                   {opportunity.responsavel?.avatar_url ? (
                     <img src={opportunity.responsavel.avatar_url} className="w-5 h-5 rounded-full" alt="Avatar" />
                   ) : (
-                    <div className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-xs">R</div>
+                    <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-xs">R</div>
                   )}
-                  <span className="text-sm text-slate-700">{opportunity.responsavel?.nome_completo || 'Não atribuído'}</span>
+                  <span className="text-sm text-foreground">{opportunity.responsavel?.nome_completo || 'Não atribuído'}</span>
                 </div>
               </div>
               <div>
-                <span className="text-xs text-slate-500 block">Origem</span>
-                <span className="text-sm text-slate-700">{opportunity.origem || '-'}</span>
+                <span className="text-xs text-muted-foreground block">Origem</span>
+                <span className="text-sm text-foreground">{opportunity.origem || '-'}</span>
               </div>
               <div>
-                <span className="text-xs text-slate-500 block">Data de Criação</span>
-                <span className="text-sm text-slate-700">{new Date(opportunity.data_criacao).toLocaleDateString()}</span>
+                <span className="text-xs text-muted-foreground block">Data de Criação</span>
+                <span className="text-sm text-foreground">{new Date(opportunity.data_criacao).toLocaleDateString()}</span>
               </div>
               {opportunity.observacoes && (
                 <div>
-                  <span className="text-xs text-slate-500 block mb-1">Observações</span>
-                  <div className="text-sm bg-slate-50 dark:bg-gray-800 p-2 rounded text-slate-600 dark:text-gray-300">
+                  <span className="text-xs text-muted-foreground block mb-1">Observações</span>
+                  <div className="text-sm bg-muted/50 p-2 rounded text-muted-foreground">
                     {opportunity.observacoes}
                   </div>
                 </div>
@@ -725,43 +752,43 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         {/* Center Column */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-slate-100/50 p-1 rounded-lg">
-              <TabsTrigger value="timeline" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <TabsList className="grid w-full grid-cols-3 bg-muted p-1 rounded-lg">
+              <TabsTrigger value="timeline" className="gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                 <Activity className="w-4 h-4" /> Timeline
               </TabsTrigger>
-              <TabsTrigger value="comments" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <TabsTrigger value="comments" className="gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                 <MessageSquare className="w-4 h-4" /> Comentários
               </TabsTrigger>
-              <TabsTrigger value="attachments" className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <TabsTrigger value="attachments" className="gap-2 data-[state=active]:bg-card data-[state=active]:shadow-sm">
                 <Paperclip className="w-4 h-4" /> Anexos
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="timeline" className="mt-4">
               {/* Timeline Content */}
-              <div className="bg-card-opacity rounded-xl border border-slate-200 shadow-none overflow-hidden">
-                <div className="px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-slate-400" /> Histórico
+              <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
+                <div className="px-4 py-3 bg-muted/30 border-b border-border flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-muted-foreground" /> Histórico
                   </h3>
-                  <span className="text-xs text-slate-400">Pág. {page + 1}</span>
+                  <span className="text-xs text-muted-foreground">Pág. {page + 1}</span>
                 </div>
                 {loadingLogs ? <div className="p-8 text-center"><Loader2 className="animate-spin inline" /></div> :
-                  logs.length === 0 ? <div className="p-8 text-center text-slate-400">Nenhuma atividade.</div> :
+                  logs.length === 0 ? <div className="p-8 text-center text-muted-foreground">Nenhuma atividade.</div> :
                     <div>
-                      <ul className="divide-y divide-slate-100">
+                      <ul className="divide-y divide-border">
                         {logs.map(log => {
                           const displayName = log.profiles?.nome_completo || log.users?.email || 'Sistema';
                           return (
-                            <li key={log.id} className="p-4 hover:bg-slate-50">
+                            <li key={log.id} className="p-4 hover:bg-muted/50">
                               <div className="flex gap-3 items-start">
-                                <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold border border-blue-100">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold border border-primary/20">
                                   {displayName.substring(0, 2).toUpperCase()}
                                 </div>
                                 <div className="flex-1">
                                   <div className="flex justify-between items-start">
-                                    <p className="text-sm text-slate-900"><span className="font-medium">{displayName}</span></p>
-                                    <span className="text-[10px] text-slate-400">{new Date(log.data_criacao).toLocaleString()}</span>
+                                    <p className="text-sm text-foreground"><span className="font-medium">{displayName}</span></p>
+                                    <span className="text-[10px] text-muted-foreground">{new Date(log.data_criacao).toLocaleString()}</span>
                                   </div>
                                   <div className="mt-1">
                                     <LogMessageFormatter log={log} />
@@ -772,7 +799,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                           )
                         })}
                       </ul>
-                      <div className="flex items-center justify-between px-4 py-2 bg-slate-50/30 border-t border-slate-100">
+                      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-t border-border">
                         <Button size="sm" variant="ghost" disabled={page === 0} onClick={() => setPage(p => p - 1)}><ChevronLeft className="w-4 h-4 mr-1" /> Anterior</Button>
                         <Button size="sm" variant="ghost" disabled={!hasMoreLogs} onClick={() => setPage(p => p + 1)}>Próximo <ChevronRight className="w-4 h-4 ml-1" /></Button>
                       </div>
@@ -783,13 +810,13 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
 
             <TabsContent value="comments" className="mt-4">
               <div className="flex gap-4">
-                <div className="w-10 h-10 rounded-full bg-slate-100 flex-shrink-0 flex items-center justify-center text-slate-500">
+                <div className="w-10 h-10 rounded-full bg-muted flex-shrink-0 flex items-center justify-center text-muted-foreground">
                   <User className="w-5 h-5" />
                 </div>
                 <div className="flex-1 space-y-3">
                   <Textarea
                     placeholder="Escreva um comentário..."
-                    className="min-h-[100px] bg-slate-50 border-slate-200 focus:bg-white transition-all"
+                    className="min-h-[100px] bg-background border-input focus:bg-card transition-all"
                     value={newCommentText}
                     onChange={e => setNewCommentText(e.target.value)}
                   />
@@ -803,18 +830,18 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
 
               <div className="mt-6 space-y-4">
                 {loadingComments ? <Loader2 className="mx-auto animate-spin" /> :
-                  comments.length === 0 ? <p className="text-center text-slate-400 py-4">Nenhum comentário.</p> :
+                  comments.length === 0 ? <p className="text-center text-muted-foreground py-4">Nenhum comentário.</p> :
                     comments.map(comment => (
-                      <div key={comment.id} className="flex gap-4 p-4 bg-white border border-slate-100 rounded-xl hover:shadow-sm transition-shadow">
-                        <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs font-bold">
+                      <div key={comment.id} className="flex gap-4 p-4 bg-card border border-border rounded-xl hover:shadow-sm transition-shadow">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
                           {(comment.profiles?.nome_completo || comment.profiles?.email || 'U').substring(0, 2).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <div className="flex justify-between">
-                            <span className="text-xs font-semibold text-slate-700">{comment.profiles?.nome_completo || comment.profiles?.email}</span>
-                            <span className="text-xs text-slate-400">{new Date(comment.data_criacao).toLocaleString()}</span>
+                            <span className="text-xs font-semibold text-foreground">{comment.profiles?.nome_completo || comment.profiles?.email}</span>
+                            <span className="text-xs text-muted-foreground">{new Date(comment.data_criacao).toLocaleString()}</span>
                           </div>
-                          <p className="text-sm text-slate-600 mt-1 whitespace-pre-wrap">{comment.texto}</p>
+                          <p className="text-sm text-foreground/80 mt-1 whitespace-pre-wrap">{comment.texto}</p>
                         </div>
                       </div>
                     ))
@@ -823,8 +850,8 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
             </TabsContent>
 
             <TabsContent value="attachments" className="mt-4">
-              <div className="bg-card-opacity rounded-xl border border-slate-200 p-6 text-center">
-                <label className="border-2 border-dashed border-slate-200 rounded-lg p-8 flex flex-col items-center justify-center hover:bg-slate-50 transition-colors cursor-pointer">
+              <div className="bg-card rounded-xl border border-border p-6 text-center">
+                <label className="border-2 border-dashed border-border rounded-lg p-8 flex flex-col items-center justify-center hover:bg-muted/50 transition-colors cursor-pointer">
                   <input
                     type="file"
                     className="hidden"
@@ -833,34 +860,34 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                     disabled={loadingAttachments}
                   />
                   {loadingAttachments ? (
-                    <Loader2 className="w-10 h-10 text-slate-300 mb-2 animate-spin" />
+                    <Loader2 className="w-10 h-10 text-muted-foreground mb-2 animate-spin" />
                   ) : (
-                    <Upload className="w-10 h-10 text-slate-300 mb-2" />
+                    <Upload className="w-10 h-10 text-muted-foreground mb-2" />
                   )}
-                  <p className="text-sm font-medium text-slate-700">Clique para fazer upload</p>
-                  <p className="text-xs text-slate-500">PDF, Word, Excel, Imagens (máx. 10MB)</p>
+                  <p className="text-sm font-medium text-foreground">Clique para fazer upload</p>
+                  <p className="text-xs text-muted-foreground">PDF, Word, Excel, Imagens (máx. 10MB)</p>
                 </label>
 
                 <div className="mt-6 text-left">
-                  <h3 className="text-sm font-semibold text-slate-700 mb-3 px-2">Arquivos Anexados</h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-3 px-2">Arquivos Anexados</h3>
                   {loadingAttachments ? <Loader2 className="mx-auto animate-spin" /> :
-                    attachments.length === 0 ? <p className="text-sm text-slate-400 px-2">Nenhum anexo encontrado.</p> :
+                    attachments.length === 0 ? <p className="text-sm text-muted-foreground px-2">Nenhum anexo encontrado.</p> :
                       <ul className="space-y-2">
                         {attachments.map(att => (
-                          <li key={att.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-100">
+                          <li key={att.id} className="flex items-center justify-between p-3 bg-card rounded-lg border border-border">
                             <div className="flex items-center gap-3">
-                              <FileText className="w-5 h-5 text-indigo-500" />
+                              <FileText className="w-5 h-5 text-primary" />
                               <div>
-                                <p className="text-sm font-medium text-slate-700">{att.nome_arquivo}</p>
-                                {att.descricao && <p className="text-xs text-slate-500 italic">"{att.descricao}"</p>}
-                                <p className="text-xs text-slate-400">{(att.tamanho_bytes / 1024).toFixed(1)} KB • {new Date(att.data_upload).toLocaleDateString()}</p>
+                                <p className="text-sm font-medium text-foreground">{att.nome_arquivo}</p>
+                                {att.descricao && <p className="text-xs text-muted-foreground italic">"{att.descricao}"</p>}
+                                <p className="text-xs text-muted-foreground">{(att.tamanho_bytes / 1024).toFixed(1)} KB • {new Date(att.data_upload).toLocaleDateString()}</p>
                               </div>
                             </div>
                             <div className="flex gap-1">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-slate-400 hover:text-blue-600"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
                                 onClick={() => window.open(att.url_storage, '_blank')}
                               >
                                 <Download className="w-4 h-4" />
@@ -868,7 +895,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-slate-400 hover:text-indigo-600"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
                                 onClick={() => {
                                   setEditingAttachment(att);
                                   setNewDescription(att.descricao || '');
@@ -879,7 +906,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-slate-400 hover:text-red-600"
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
                                 onClick={() => handleDeleteAttachment(att)}
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -899,11 +926,11 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         <div className="lg:col-span-1 space-y-6">
           <CustomCard title="Próximas Interações" icon={Calendar}>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-xs text-slate-500">Agendamentos futuros</p>
+              <p className="text-xs text-muted-foreground">Agendamentos futuros</p>
               <Dialog open={isScheduleDialogOpen} onOpenChange={setIsScheduleDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-slate-100 rounded-full">
-                    <Edit className="w-3 h-3 text-slate-400" />
+                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-muted rounded-full">
+                    <Edit className="w-3 h-3 text-muted-foreground" />
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[500px]">
@@ -941,21 +968,21 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
             </div>
 
             {loadingTasks ? <Loader2 className="mx-auto animate-spin" /> :
-              tasks.length === 0 ? <div className="text-center py-4 text-xs text-slate-400 border border-dashed rounded-lg">Sem agendamentos.</div> :
+              tasks.length === 0 ? <div className="text-center py-4 text-xs text-muted-foreground border border-dashed rounded-lg">Sem agendamentos.</div> :
                 <div className="space-y-3">
                   {tasks.slice(0, 5).map(task => (
-                    <div key={task.id} className="p-3 bg-white hover:bg-slate-50 border border-slate-100 rounded-lg transition-all">
+                    <div key={task.id} className="p-3 bg-card hover:bg-muted/50 border border-border rounded-lg transition-all">
                       <div className="flex items-center justify-between mb-1">
                         <Badge variant="outline" className={`${getTipoColor(task.tipo)} text-[10px] h-5 border-0 font-medium`}>{task.tipo}</Badge>
-                        <span className="text-[10px] text-slate-400">{new Date(task.data_vencimento!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
+                        <span className="text-[10px] text-muted-foreground">{new Date(task.data_vencimento!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>
                       </div>
-                      <p className="text-sm font-medium text-slate-700">{task.titulo}</p>
+                      <p className="text-sm font-medium text-foreground">{task.titulo}</p>
                     </div>
                   ))}
-                  <Button variant="link" size="sm" className="w-full text-xs text-slate-500 h-6">Ver todas</Button>
+                  <Button variant="link" size="sm" className="w-full text-xs text-muted-foreground h-6">Ver todas</Button>
                 </div>
             }
-            <Button className="w-full mt-4 bg-slate-900 text-white" size="sm" onClick={() => setIsScheduleDialogOpen(true)}>
+            <Button className="w-full mt-4" size="sm" onClick={() => setIsScheduleDialogOpen(true)}>
               Agendar Nova
             </Button>
           </CustomCard>
@@ -993,31 +1020,32 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                   />
                 </div>
 
-                {/* Operation */}
+                {/* Produto/Serviço (v2) */}
                 <div className="col-span-1">
                   <FormField
                     control={editForm.control}
-                    name="tipo_operacao"
+                    name="produto_servico_id"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Produto / Operação</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          value={field.value}
-                        >
+                        <FormLabel>Produto / Serviço</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="w-full" disabled={loadingTipos}>
-                              <SelectValue placeholder="Selecione..." />
+                            <SelectTrigger className="w-full" disabled={loadingProducts}>
+                              <SelectValue placeholder="Selecione o produto" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {/* Fallback option if current value is not in list (legacy data) */}
-                            {field.value && !tiposOperacao.some(t => t.nome === field.value) && (
-                              <SelectItem value={field.value}>{field.value}</SelectItem>
+                            {loadingProducts ? (
+                              <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                            ) : activeProducts.length === 0 ? (
+                              <SelectItem value="empty" disabled>Nenhum produto cadastrado</SelectItem>
+                            ) : (
+                              activeProducts.map(product => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name}
+                                </SelectItem>
+                              ))
                             )}
-                            {tiposOperacao.map(t => (
-                              <SelectItem key={t.codigo} value={t.nome}>{t.nome}</SelectItem>
-                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -1026,14 +1054,29 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                   />
                 </div>
 
-                {/* Value */}
+                {/* Values Group */}
                 <div className="col-span-1">
                   <FormField
                     control={editForm.control}
-                    name="valor_estimado"
+                    name="valor_proposta"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Valor Estimado</FormLabel>
+                        <FormLabel>Valor Honorários (Proposta)</FormLabel>
+                        <FormControl>
+                          <CurrencyInput className="w-full" value={field.value} onChange={(v) => field.onChange(v || 0)} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <div className="col-span-1">
+                  <FormField
+                    control={editForm.control}
+                    name="valor_causa"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Valor da Causa / Dívida</FormLabel>
                         <FormControl>
                           <CurrencyInput className="w-full" value={field.value} onChange={(v) => field.onChange(v || 0)} />
                         </FormControl>
@@ -1111,8 +1154,18 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir?</AlertDialogTitle>
-            <AlertDialogDescription>Ação irreversível.</AlertDialogDescription>
+            <AlertDialogTitle className="text-red-600">Excluir Permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-gray-500">
+                <span>Esta ação não pode ser desfeita. Isso excluirá permanentemente a oportunidade <strong className="text-gray-700">e todos os dados vinculados</strong>:</span>
+                <ul className="list-disc list-inside text-gray-600 dark:text-gray-400 mt-2">
+                  <li>Tarefas e Agendamentos</li>
+                  <li>Histórico de Atividades e Logs</li>
+                  <li>Comentários e Anotações</li>
+                  <li>Anexos e Arquivos</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>

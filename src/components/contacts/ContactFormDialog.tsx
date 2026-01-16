@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Loader2, User, Building2, Mail, Phone, Tag } from 'lucide-react';
+import { Loader2, User, Building2, Mail, Phone, Tag, MapPin } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -44,6 +44,14 @@ const contactFormSchema = z.object({
     cpf_cnpj: z.string().optional(),
     categoria_contato: z.enum(['LEAD', 'CLIENTE', 'EX_CLIENTE']),
     tipo: z.enum(['PF', 'PJ']),
+    // Address fields
+    cep: z.string().optional(),
+    endereco: z.string().optional(),
+    numero: z.string().optional(),
+    complemento: z.string().optional(),
+    bairro: z.string().optional(),
+    cidade: z.string().optional(),
+    estado: z.string().optional(),
 });
 
 type ContactFormData = z.infer<typeof contactFormSchema>;
@@ -108,6 +116,13 @@ export function ContactFormDialog({
             cpf_cnpj: '',
             categoria_contato: 'LEAD',
             tipo: 'PF',
+            cep: '',
+            endereco: '',
+            numero: '',
+            complemento: '',
+            bairro: '',
+            cidade: '',
+            estado: '',
         },
     });
 
@@ -127,6 +142,13 @@ export function ContactFormDialog({
                     cpf_cnpj: contact.cpf_cnpj || '',
                     categoria_contato: (contact.categoria_contato as 'LEAD' | 'CLIENTE' | 'EX_CLIENTE') || 'LEAD',
                     tipo: isPJ ? 'PJ' : 'PF',
+                    cep: contact.cep || '',
+                    endereco: contact.endereco || '',
+                    numero: contact.numero || '',
+                    complemento: contact.complemento || '',
+                    bairro: contact.bairro || '',
+                    cidade: contact.cidade || '',
+                    estado: contact.estado || '',
                 });
             } else {
                 // Create mode
@@ -137,6 +159,13 @@ export function ContactFormDialog({
                     cpf_cnpj: '',
                     categoria_contato: 'LEAD',
                     tipo: 'PF',
+                    cep: '',
+                    endereco: '',
+                    numero: '',
+                    complemento: '',
+                    bairro: '',
+                    cidade: '',
+                    estado: '',
                 });
             }
         }
@@ -152,6 +181,13 @@ export function ContactFormDialog({
                 cpf_cnpj: values.cpf_cnpj || null,
                 categoria_contato: values.categoria_contato,
                 tipo: values.tipo === 'PJ' ? 'Pessoa Jurídica' : 'Pessoa Física',
+                cep: values.cep || null,
+                endereco: values.endereco || null,
+                numero: values.numero || null,
+                complemento: values.complemento || null,
+                bairro: values.bairro || null,
+                cidade: values.cidade || null,
+                estado: values.estado || null,
                 data_atualizacao: new Date().toISOString(),
             };
 
@@ -391,6 +427,121 @@ export function ContactFormDialog({
                                 </FormItem>
                             )}
                         />
+
+                        {/* Address Section */}
+                        <div className="pt-4 border-t border-slate-100">
+                            <div className="flex items-center gap-2 mb-4">
+                                <MapPin className="w-4 h-4 text-slate-500" />
+                                <span className="font-medium text-sm text-slate-700">Endereço</span>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3">
+                                <FormField
+                                    control={form.control}
+                                    name="cep"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">CEP</FormLabel>
+                                            <FormControl>
+                                                <Input
+                                                    {...field}
+                                                    placeholder="00000-000"
+                                                    className="font-mono text-sm"
+                                                    onChange={(e) => {
+                                                        const value = e.target.value.replace(/\D/g, '').slice(0, 8);
+                                                        field.onChange(value.replace(/(\d{5})(\d)/, '$1-$2'));
+                                                    }}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="col-span-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="endereco"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Logradouro</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Rua, Av..." className="text-sm" />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-4 gap-3 mt-3">
+                                <FormField
+                                    control={form.control}
+                                    name="numero"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Número</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="Nº" className="text-sm" />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="complemento"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">Complemento</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="Apto, Sala..." className="text-sm" />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                                <div className="col-span-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="bairro"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Bairro</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Bairro" className="text-sm" />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-3 mt-3">
+                                <div className="col-span-2">
+                                    <FormField
+                                        control={form.control}
+                                        name="cidade"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Cidade</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Cidade" className="text-sm" />
+                                                </FormControl>
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+                                <FormField
+                                    control={form.control}
+                                    name="estado"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel className="text-xs">UF</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="UF" maxLength={2} className="text-sm uppercase" />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        </div>
 
                         <DialogFooter className="pt-4 border-t border-slate-100">
                             <Button

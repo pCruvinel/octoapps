@@ -9,6 +9,7 @@ interface SortableOpportunityCardProps {
     onNavigate: (path: string, id: string) => void;
     onEdit: (opp: Opportunity) => void;
     onDelete: (opp: Opportunity) => void;
+    onArchive?: (id: string) => void;
     canUpdate: boolean;
     canDelete: boolean;
     commentCount?: number;
@@ -20,6 +21,7 @@ export function SortableOpportunityCard({
     onNavigate,
     onEdit,
     onDelete,
+    onArchive,
     canUpdate,
     canDelete,
     commentCount = 0,
@@ -45,8 +47,9 @@ export function SortableOpportunityCard({
             <OpportunityCard
                 opportunity={opportunity}
                 onNavigate={onNavigate}
-                onEdit={onEdit}
-                onDelete={onDelete}
+                onEdit={(id) => onEdit(opportunity)}
+                onDelete={(id) => onDelete(opportunity)}
+                onArchive={onArchive}
                 canUpdate={canUpdate}
                 canDelete={canDelete}
                 commentCount={commentCount}

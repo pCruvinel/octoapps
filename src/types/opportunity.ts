@@ -7,7 +7,15 @@ export interface Opportunity {
   estagio: 'lead' | 'qualification' | 'proposal' | 'negotiation' |
     'closed-won' | 'closed-lost';
   etapa_funil_id?: string | null;
-  valor_estimado?: number | null;
+  
+  // Valores financeiros (v2)
+  valor_estimado?: number | null; // Legado - mantido para compatibilidade
+  valor_causa?: number | null; // Valor da dívida do cliente
+  valor_proposta?: number | null; // Valor dos honorários (receita)
+  
+  // Produto/Serviço (v2)
+  produto_servico_id?: string | null;
+  
   probabilidade?: number | null;
   origem?: string | null;
   responsavel_id?: string | null;
@@ -34,6 +42,11 @@ export interface Opportunity {
     id: string;
     nome_completo: string;
     avatar_url?: string | null;
+  } | null;
+  produto_servico?: {
+    id: string;
+    name: string;
+    default_fee_percentage?: number | null;
   } | null;
 }
 

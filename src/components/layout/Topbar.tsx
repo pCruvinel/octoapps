@@ -43,7 +43,7 @@ export function Topbar({ theme, onThemeToggle, onMobileMenuToggle }: TopbarProps
   };
 
   return (
-    <header className="h-16 border-b border-gray-200 bg-white flex items-center justify-between px-4 lg:px-6">
+    <header className="h-16 border-b border-border bg-white flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-4">
         <button
           onClick={onMobileMenuToggle}

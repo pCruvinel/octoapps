@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
-import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect';
+import { useProducts } from '../../hooks/useProducts';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
@@ -24,6 +24,7 @@ interface NewLeadDialogProps {
     onSuccess: () => void;
     contacts: any[];
     profiles: any[];
+    preselectedContactId?: string; // When set, contact is read-only
 }
 
 const formSchema = z.object({
@@ -31,8 +32,10 @@ const formSchema = z.object({
     responsavel_id: z.string().min(1, 'Selecione um responsável'),
     origem: z.string().optional(),
     etapa_funil_id: z.string().min(1, 'Selecione uma etapa'),
-    tipo_operacao: z.string().min(1, 'Selecione o tipo de operação'),
-    valor_estimado: z.number().optional().default(0),
+    produto_servico_id: z.string().optional(), // v2: produto do catálogo
+    tipo_operacao: z.string().optional(), // legado
+    valor_causa: z.number().optional().default(0), // v2: dívida
+    valor_proposta: z.number().optional().default(0), // v2: honorários
     observacoes: z.string().optional(),
 });
 
@@ -47,9 +50,10 @@ const ORIGEM_OPTIONS = [
     { value: 'Outro', label: 'Outro' },
 ];
 
-export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profiles }: NewLeadDialogProps) {
+export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profiles, preselectedContactId }: NewLeadDialogProps) {
     const { user } = useAuth();
     const { etapas } = useEtapasFunil();
+    const { activeProducts, loading: loadingProducts } = useProducts();
     const [loading, setLoading] = useState(false);
     const [showNewContactForm, setShowNewContactForm] = useState(false);
 
@@ -67,8 +71,10 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
             responsavel_id: '',
             origem: '',
             etapa_funil_id: '',
+            produto_servico_id: '',
             tipo_operacao: '',
-            valor_estimado: 0,
+            valor_causa: 0,
+            valor_proposta: 0,
             observacoes: '',
         },
     });
@@ -77,16 +83,18 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
     useEffect(() => {
         if (open && etapas.length > 0 && user) {
             form.reset({
-                contato_id: '',
+                contato_id: preselectedContactId || '',
                 responsavel_id: user.id,
                 origem: '',
                 etapa_funil_id: etapas[0].id,
+                produto_servico_id: '',
                 tipo_operacao: '',
-                valor_estimado: 0,
+                valor_causa: 0,
+                valor_proposta: 0,
                 observacoes: '',
             });
         }
-    }, [open, etapas, user, form]);
+    }, [open, etapas, user, form, preselectedContactId]);
 
     const handleCreateContact = async () => {
         if (!newContact.nome_completo.trim()) {
@@ -147,6 +155,10 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
 
             const currentTitle = `${contactName}`;
 
+            // Get product name for tipo_acao (legacy)
+            const selectedProduct = activeProducts.find(p => p.id === values.produto_servico_id);
+            const tipoAcaoValue = selectedProduct?.name || values.tipo_operacao || null;
+
             const { data: createdOpp, error } = await supabase
                 .from('oportunidades')
                 .insert([{
@@ -154,9 +166,13 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                     contato_id: contactId || null,
                     responsavel_id: values.responsavel_id || user?.id || null,
                     origem: values.origem || null,
-                    tipo_acao: values.tipo_operacao || null,
+                    tipo_acao: tipoAcaoValue, // legado
                     etapa_funil_id: values.etapa_funil_id || etapas[0]?.id || null,
-                    valor_estimado: values.valor_estimado || 0,
+                    // v2 campos
+                    produto_servico_id: values.produto_servico_id || null,
+                    valor_causa: values.valor_causa || 0,
+                    valor_proposta: values.valor_proposta || 0,
+                    valor_estimado: values.valor_proposta || 0, // mantém compatibilidade
                     observacoes: values.observacoes || null,
                     criado_por: user?.id || null,
                 }])
@@ -178,8 +194,8 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                 dados_novos: {
                     titulo: currentTitle,
                     contato: contactName,
-                    tipo_acao: values.tipo_operacao || null,
-                    valor_estimado: values.valor_estimado || 0,
+                    produto: selectedProduct?.name || values.tipo_operacao || null,
+                    valor_proposta: values.valor_proposta || 0,
                     etapa: etapaNome,
                     responsavel: responsavelNome,
                     origem: values.origem || null
@@ -260,9 +276,13 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                                         name="contato_id"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                <Select 
+                                                    onValueChange={field.onChange} 
+                                                    value={field.value}
+                                                    disabled={!!preselectedContactId}
+                                                >
                                                     <FormControl>
-                                                        <SelectTrigger className="w-full">
+                                                        <SelectTrigger className={`w-full ${preselectedContactId ? 'opacity-70 cursor-not-allowed' : ''}`}>
                                                             <SelectValue placeholder="Selecione um contato" />
                                                         </SelectTrigger>
                                                     </FormControl>
@@ -279,30 +299,69 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                                 )}
                             </div>
 
-                            {/* Tipo de Operação */}
+                            {/* Produto/Serviço (v2) */}
                             <div className="col-span-1">
                                 <FormField
                                     control={form.control}
-                                    name="tipo_operacao"
+                                    name="produto_servico_id"
                                     render={({ field }) => (
-                                        <TipoOperacaoSelect
-                                            field={field}
-                                            categorias={['EMPRESTIMO', 'VEICULO', 'IMOBILIARIO', 'CARTAO', 'OUTROS']}
-                                            placeholder="Selecione o produto"
-                                            label="Produto / Operação"
-                                        />
+                                        <FormItem>
+                                            <FormLabel>Produto / Serviço</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione o produto" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {loadingProducts ? (
+                                                        <SelectItem value="loading" disabled>Carregando...</SelectItem>
+                                                    ) : activeProducts.length === 0 ? (
+                                                        <SelectItem value="empty" disabled>Nenhum produto cadastrado</SelectItem>
+                                                    ) : (
+                                                        activeProducts.map(product => (
+                                                            <SelectItem key={product.id} value={product.id}>
+                                                                {product.name}
+                                                            </SelectItem>
+                                                        ))
+                                                    )}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
                                     )}
                                 />
                             </div>
 
-                            {/* Valor Estimado */}
+                            {/* Valor da Causa (Dívida) */}
                             <div className="col-span-1">
                                 <FormField
                                     control={form.control}
-                                    name="valor_estimado"
+                                    name="valor_causa"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Valor Estimado</FormLabel>
+                                            <FormLabel>Valor da Dívida</FormLabel>
+                                            <FormControl>
+                                                <CurrencyInput
+                                                    className="w-full"
+                                                    value={field.value}
+                                                    onChange={(val) => field.onChange(val || 0)}
+                                                />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            {/* Valor Proposta (Honorários) */}
+                            <div className="col-span-1">
+                                <FormField
+                                    control={form.control}
+                                    name="valor_proposta"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Valor dos Honorários</FormLabel>
                                             <FormControl>
                                                 <CurrencyInput
                                                     className="w-full"

@@ -228,6 +228,10 @@ As seguintes séries são utilizadas pelo sistema:
 | **Índice** | `188` | INPC (Correção de Indébito) |
 | **Índice** | `189` | IGP-M |
 | **Cartão** | `25455` | Rotativo PF (Mensal) |
+| **Imobiliário** | `25497` | Financiamento SFI (% a.m.) |
+
+> [!IMPORTANT]
+> A série **25497 (SFI)** retorna valores em % a.m. (não % a.a. como outras séries de crédito). Isso foi corrigido na Edge Function v6 (Janeiro 2026).
 
 ---
 

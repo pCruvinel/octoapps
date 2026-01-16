@@ -20,9 +20,14 @@ import {
 import {
     calculatePMT,
     calculateCET,
+    calculateXIRR,
+    detectAnatocism,
     monthlyToAnnualRate,
     isTacTecIrregular,
     parseDate,
+    addMonths,
+    formatDate,
+    type XirrCashflow,
 } from '../utils';
 
 export class EmprestimoStrategy extends BaseStrategy {
@@ -49,6 +54,42 @@ export class EmprestimoStrategy extends BaseStrategy {
             marketRate,
             input.total_installments
         );
+
+        // ================================================================
+        // XIRR: Calculate REAL effective rate from cashflows
+        // This is the "engenharia reversa" to discover hidden rates
+        // ================================================================
+        const cashflows: XirrCashflow[] = [
+            // t0: Loan disbursement (negative = outflow from bank to client)
+            { date: input.start_date, value: input.amount_financed.negated() },
+        ];
+
+        // t1..tn: Monthly payments (positive = inflow from client to bank)
+        const firstPaymentDate = parseDate(input.first_payment_date);
+        for (let i = 0; i < input.total_installments; i++) {
+            cashflows.push({
+                date: formatDate(addMonths(firstPaymentDate, i)),
+                value: originalInstallment,
+            });
+        }
+
+        const xirrResult = calculateXIRR(cashflows);
+        let realRateMonthly = input.contract_rate_monthly;
+        let anatocismDetected = false;
+
+        if (xirrResult) {
+            realRateMonthly = xirrResult.rateMonthly;
+            anatocismDetected = detectAnatocism(
+                input.contract_rate_monthly,
+                xirrResult.rateMonthly
+            );
+            
+            console.log('🔍 [EmprestimoStrategy] XIRR Analysis:', {
+                contract_rate: input.contract_rate_monthly.times(100).toFixed(4) + '% a.m.',
+                real_rate_xirr: xirrResult.rateMonthly.times(100).toFixed(4) + '% a.m.',
+                anatocism_detected: anatocismDetected,
+            });
+        }
 
         // DIAGNOSTIC LOG - Remove after debugging
         console.log('🔍 [EmprestimoStrategy] Valores de entrada:', {
@@ -82,13 +123,21 @@ export class EmprestimoStrategy extends BaseStrategy {
                 adjustedInstallment
             );
 
+            // Override anatocism flag with XIRR result
+            preview.flags.anatocism_detected = anatocismDetected;
+
             // Add execution time
             console.log(`Preview calculated in ${Date.now() - startTime}ms`);
 
             return preview;
         }
 
-        return this.buildPreviewResult(input, originalInstallment, recalculatedInstallment);
+        const preview = this.buildPreviewResult(input, originalInstallment, recalculatedInstallment);
+        
+        // Override anatocism flag with XIRR result
+        preview.flags.anatocism_detected = anatocismDetected;
+        
+        return preview;
     }
 
     /**

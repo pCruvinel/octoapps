@@ -48,39 +48,65 @@
 
 @layer base {
   :root {
+    /* ========================================
+       PALETA DEEP OCEAN - OctoApps Design System
+       ======================================== */
+    
+    /* BASE: Branco para fundo, Slate-950 para textos */
     --background: #ffffff;
-    --foreground: #0a0a0a;
+    --foreground: hsl(222.2 84% 4.9%);
+
+    /* CARDS: Branco puro */
     --card: #ffffff;
-    --card-foreground: #0a0a0a;
+    --card-foreground: hsl(222.2 84% 4.9%);
     --popover: #ffffff;
-    --popover-foreground: #0a0a0a;
-    --primary: #171717;
-    --primary-foreground: #fafafa;
-    --secondary: #f5f5f5;
-    --secondary-foreground: #171717;
-    --muted: #f5f5f5;
-    --muted-foreground: #737373;
-    --accent: #f5f5f5;
-    --accent-foreground: #171717;
-    --destructive: #dc2626;
-    --destructive-foreground: #fafafa;
-    --border: #e5e5e5;
-    --input: #e5e5e5;
-    --ring: #a3a3a3;
+    --popover-foreground: hsl(222.2 84% 4.9%);
+
+    /* PRIMARY: "Octo Blue" - Azul Royal Profundo (baseado no logo) */
+    --primary: hsl(221.2 83.2% 53.3%);
+    --primary-foreground: hsl(210 40% 98%);
+
+    /* SECONDARY: Slate-100 para elementos de apoio */
+    --secondary: hsl(210 40% 96.1%);
+    --secondary-foreground: hsl(222.2 47.4% 11.2%);
+
+    /* MUTED: Para textos de suporte e fundos desabilitados */
+    --muted: hsl(210 40% 96.1%);
+    --muted-foreground: hsl(215.4 16.3% 46.9%);
+
+    /* ACCENT: Hover states */
+    --accent: hsl(210 40% 96.1%);
+    --accent-foreground: hsl(222.2 47.4% 11.2%);
+
+    /* DESTRUCTIVE: Vermelho profissional */
+    --destructive: hsl(0 84.2% 60.2%);
+    --destructive-foreground: hsl(210 40% 98%);
+
+    /* BORDERS & INPUTS */
+    --border: hsl(214.3 31.8% 91.4%);
+    --input: hsl(214.3 31.8% 91.4%);
+    --ring: hsl(221.2 83.2% 53.3%);
+
+    /* RADIUS: 0.5rem (8px) - "Enterprise" sweet spot */
     --radius: 0.5rem;
-    --chart-1: #e76e50;
-    --chart-2: #2a9d90;
-    --chart-3: #274754;
-    --chart-4: #e8c468;
-    --chart-5: #f4a462;
-    --sidebar: hsl(0 0% 98%);
-    --sidebar-foreground: hsl(240 5.3% 26.1%);
-    --sidebar-primary: hsl(240 5.9% 10%);
+
+    /* CHART COLORS: Otimizadas para Dashboards Financeiros */
+    --chart-1: hsl(221.2 83.2% 53.3%); /* Octo Blue */
+    --chart-2: hsl(173 58% 39%);       /* Teal */
+    --chart-3: hsl(197 37% 24%);       /* Navy */
+    --chart-4: hsl(43 74% 66%);        /* Âmbar */
+    --chart-5: hsl(27 87% 67%);        /* Laranja */
+
+    /* SIDEBAR: Slate-50 (limpa, sutil) */
+    --sidebar: hsl(210 40% 98%);
+    --sidebar-foreground: hsl(222.2 84% 4.9%);
+    --sidebar-primary: hsl(221.2 83.2% 53.3%);
     --sidebar-primary-foreground: hsl(0 0% 98%);
-    --sidebar-accent: hsl(240 4.8% 95.9%);
-    --sidebar-accent-foreground: hsl(240 5.9% 10%);
-    --sidebar-border: hsl(220 13% 91%);
+    --sidebar-accent: hsl(210 40% 96.1%);
+    --sidebar-accent-foreground: hsl(222.2 84% 4.9%);
+    --sidebar-border: hsl(214.3 31.8% 91.4%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
+
     color-scheme: light;
   }
 }
@@ -121,5 +147,31 @@
 @layer utilities {
   .bg-card-opacity {
     @apply bg-white/[0.07];
+  }
+
+  /* Minimalist Scrollbar - Slate palette */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-200 rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-300;
+  }
+
+  /* Dark mode scrollbar support (if needed in future) */
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-slate-800;
+  }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-700;
   }
 }

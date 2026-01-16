@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MoreVertical, Calendar, DollarSign, User, MessageSquare, Paperclip } from 'lucide-react';
+import { MoreVertical, Calendar, DollarSign, User, MessageSquare, Paperclip, Archive, Trash2, Package } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
 import { Opportunity } from '@/types/opportunity';
@@ -10,6 +10,7 @@ export interface OpportunityCardProps {
     onNavigate: (route: string, id: string) => void;
     onEdit: (id: string) => void;
     onDelete: (id: string) => void;
+    onArchive?: (id: string) => void;
     canUpdate: boolean;
     canDelete: boolean;
     commentCount?: number;
@@ -38,8 +39,10 @@ const getFieldVisibility = (): Record<string, boolean> => {
     // Default visibility
     return {
         contato: true,
-        valor_estimado: true,
-        tipo_acao: true,
+        valor_proposta: true, // Honorários
+        valor_causa: true, // Dívida
+        produto_servico: true,
+        tipo_acao: false, // Legado, padrão false
         data_criacao: true,
         responsavel: true,
         origem: false,
@@ -48,7 +51,7 @@ const getFieldVisibility = (): Record<string, boolean> => {
     };
 };
 
-export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, canUpdate, canDelete, commentCount = 0, attachmentCount = 0 }: OpportunityCardProps) {
+export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, onArchive, canUpdate, canDelete, commentCount = 0, attachmentCount = 0 }: OpportunityCardProps) {
     const [fieldVisibility, setFieldVisibility] = useState<Record<string, boolean>>(getFieldVisibility);
 
     // Listen for storage changes to update visibility in real-time
@@ -94,42 +97,50 @@ export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, can
             className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all cursor-pointer relative group flex flex-col gap-3"
             onClick={() => onNavigate('opportunity-details', opportunity.id)}
         >
-            {/* Header: Operation Type */}
-            <div className="flex items-start justify-between">
-                {fieldVisibility.tipo_acao && (
-                    <Badge variant="outline" className="text-xs font-semibold bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
-                        {opportunity.tipo_acao || 'Geral'}
+            {/* Header: Product & Operation Type */}
+            <div className="flex flex-col gap-1 pr-6">
+                {fieldVisibility.produto_servico && opportunity.produto_servico && (
+                    <Badge variant="secondary" className="text-[10px] font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 w-fit">
+                        {opportunity.produto_servico.name}
                     </Badge>
                 )}
-                {!fieldVisibility.tipo_acao && <div />}
+                {fieldVisibility.tipo_acao && opportunity.tipo_acao && (
+                    <Badge variant="outline" className="text-[10px] font-normal text-gray-500 border-gray-200 w-fit">
+                        {opportunity.tipo_acao}
+                    </Badge>
+                )}
+            </div>
 
-                <div onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                                <MoreVertical className="w-4 h-4" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onNavigate('opportunity-details', opportunity.id)}>
-                                Visualizar
+            {/* Actions Menu - Absolute & Hover only */}
+            <div 
+                onClick={(e) => e.stopPropagation()} 
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            >
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors bg-white/50 backdrop-blur-sm dark:bg-gray-800/50">
+                            <MoreVertical className="w-4 h-4" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                            onClick={() => onArchive?.(opportunity.id)}
+                            className="text-gray-600 dark:text-gray-400 gap-2 cursor-pointer"
+                        >
+                            <Archive className="w-4 h-4" />
+                            Arquivar
+                        </DropdownMenuItem>
+                        {canDelete && (
+                            <DropdownMenuItem
+                                className="text-red-600 dark:text-red-400 gap-2 cursor-pointer"
+                                onClick={() => onDelete(opportunity.id)}
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Excluir
                             </DropdownMenuItem>
-                            {canUpdate && (
-                                <DropdownMenuItem onClick={() => onEdit(opportunity.id)}>
-                                    Editar
-                                </DropdownMenuItem>
-                            )}
-                            {canDelete && (
-                                <DropdownMenuItem
-                                    className="text-red-600 dark:text-red-400"
-                                    onClick={() => onDelete(opportunity.id)}
-                                >
-                                    Excluir
-                                </DropdownMenuItem>
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </div>
+                        )}
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
 
             {/* Center: Details */}
@@ -144,13 +155,24 @@ export function OpportunityCard({ opportunity, onNavigate, onEdit, onDelete, can
                     </div>
                 )}
 
-                {/* Value */}
-                {fieldVisibility.valor_estimado && (
+                {/* Values */}
+                {(fieldVisibility.valor_proposta || fieldVisibility.valor_causa) && (
                     <div className="flex items-center gap-2">
                         <DollarSign className="w-4 h-4 text-gray-500" />
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
-                            {formatCurrency(opportunity.valor_estimado)}
-                        </span>
+                        <div className="flex flex-col">
+                            {/* Valor Proposta (Honorários) */}
+                            {fieldVisibility.valor_proposta && (
+                                <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-sm">
+                                    {formatCurrency(opportunity.valor_proposta ?? opportunity.valor_estimado)}
+                                </span>
+                            )}
+                            {/* Valor Causa (Dívida) */}
+                            {fieldVisibility.valor_causa && opportunity.valor_causa && opportunity.valor_causa > 0 && (
+                                <span className="text-xs text-gray-400" title="Valor da dívida">
+                                    Dívida: {formatCurrency(opportunity.valor_causa)}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 )}
 

@@ -61,6 +61,15 @@ export interface PreviaImobiliariaResultadoType {
         sistema: string;
         indexador: string;
         segurosTotal: number;
+        parcelaOriginal: number | null;
+    };
+
+    // Confronto de Parcelas (Comercial)
+    confrontoParcelas?: {
+        parcelaOriginal: number | null;
+        parcelaRevista: number;
+        diferencaMensal: number | null;
+        diferencaTotal: number | null;
     };
 }
 

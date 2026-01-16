@@ -35,7 +35,13 @@ export class OCRService {
             }
 
             // 2. Prepare Prompt & File
-            const prompt = this.buildSystemPrompt(category, activeFields);
+            // 2. Prepare Prompt & File
+            let additionalContext: string | null = null;
+            if (category === 'EMPRESTIMOS_VEICULOS') additionalContext = settings.additional_context_emprestimos || null;
+            else if (category === 'IMOBILIARIO') additionalContext = settings.additional_context_imobiliario || null;
+            else if (category === 'CARTAO_CREDITO') additionalContext = settings.additional_context_cartao || null;
+
+            const prompt = this.buildSystemPrompt(category, activeFields, additionalContext);
             const base64File = await this.fileToBase64(file);
 
             // 3. Try Primary Provider (Gemini)
@@ -163,7 +169,10 @@ export class OCRService {
             mistral_model: data.mistral_model || 'mistral-ocr-latest',
             mistral_enabled: data.mistral_enabled ?? true,
             fallback_enabled: data.fallback_enabled ?? true,
-            timeout_seconds: data.timeout_seconds || 60
+            timeout_seconds: data.timeout_seconds || 60,
+            additional_context_emprestimos: data.additional_context_emprestimos,
+            additional_context_imobiliario: data.additional_context_imobiliario,
+            additional_context_cartao: data.additional_context_cartao
         };
     }
 
@@ -207,12 +216,12 @@ export class OCRService {
         }));
     }
 
-    private buildSystemPrompt(category: OCRCategory, fields: OCRFieldConfig[]): string {
+    private buildSystemPrompt(category: OCRCategory, fields: OCRFieldConfig[], additionalContext?: string | null): string {
         const fieldsList = fields.map(f =>
             `- "${f.field_key}" (${f.field_label}): ${f.extraction_hint || ''} [Type: ${f.field_type}]`
         ).join('\n');
 
-        return `
+        let prompt = `
 Você é um especialista em OCR e extração de dados de contratos bancários e jurídicos brasileiros.
 
 Analise o documento fornecido e extraia os seguintes campos específicos.
@@ -230,6 +239,12 @@ Regras:
 4. Remova separadores de milhares (pontos) e substitua vírgula decimal por ponto.
 5. Identifique "Capitalização Diária" vs "Mensal" se aplicável.
     `;
+
+        if (additionalContext) {
+            prompt += `\n\nInformações Adicionais / Contexto do Usuário:\n${additionalContext}`;
+        }
+
+        return prompt;
     }
 
     // --- API Providers ---

@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Plus, Loader2, FileText, Zap, MoreHorizontal, Layers, Archive, Settings2 } from 'lucide-react';
+import { Plus, Loader2, FileText, Zap, MoreHorizontal, Layers, Archive, Settings2, LayoutGrid, List } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '../ui/tabs';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -29,6 +30,8 @@ import { DroppableColumn } from './DroppableColumn';
 import { useKanbanDnd } from '../../hooks/useKanbanDnd';
 import { OpportunityCard } from './OpportunityCard';
 import { NewLeadDialog } from './NewLeadDialog';
+import { KanbanFiltersBar, KanbanFilters } from './KanbanFilters';
+import { OpportunitiesDataTable } from './OpportunitiesDataTable';
 
 interface CRMKanbanProps {
   onNavigate: (route: string, id?: string) => void;
@@ -62,6 +65,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const [opportunityCounts, setOpportunityCounts] = useState<Record<string, { comments: number; attachments: number }>>({});
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+
+  // Filtros do Kanban (v2)
+  const [kanbanFilters, setKanbanFilters] = useState<KanbanFilters>({});
+  
+  // View mode: 'kanban' ou 'table'
+  const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
 
   // DND Hook
   const { handleDragEnd, handleDragStart, activeId } = useKanbanDnd(opportunities, setOpportunities);
@@ -289,6 +298,45 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     } catch (error: any) {
       console.error('Error updating opportunity:', error);
       toast.error(error.message || 'Erro ao atualizar oportunidade');
+      setLoading(false);
+    }
+  };
+
+  const handleArchiveOpportunity = async (id: string) => {
+    if (!canUpdate('crm')) {
+      toast.error('Você não tem permissão para arquivar oportunidades');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Find opportunity to log
+      const opp = opportunities.find(o => o.id === id);
+
+      const { error } = await supabase
+        .from('oportunidades')
+        .update({ ativo: false })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      // Log activity
+      if (user?.id) {
+        supabase.from('log_atividades').insert({
+          user_id: user.id,
+          acao: 'ARQUIVAR_OPORTUNIDADE',
+          entidade: 'oportunidades',
+          entidade_id: id,
+          dados_anteriores: { status: 'ativo' },
+          dados_novos: { status: 'arquivado', titulo: opp?.titulo }
+        }).then(() => { }).catch(e => console.warn('Log error:', e));
+      }
+
+      toast.success('Oportunidade arquivada!');
+      await loadOpportunities();
+    } catch (error: any) {
+      console.error('Error archiving:', error);
+      toast.error('Erro ao arquivar oportunidade');
     } finally {
       setLoading(false);
     }
@@ -315,6 +363,19 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
       // Get opportunity data for logging before delete
       const deletedOpp = opportunities.find(o => o.id === selectedOpportunityId);
 
+      // 1. Delete dependent tasks
+      await supabase.from('tarefas').delete().eq('oportunidade_id', selectedOpportunityId);
+      
+      // 2. Delete logs (activity history)
+      await supabase.from('log_atividades').delete().eq('entidade_id', selectedOpportunityId);
+      
+      // 3. Delete comments
+      await supabase.from('comentarios_oportunidade').delete().eq('oportunidade_id', selectedOpportunityId);
+      
+      // 4. Delete attachments metadata (files remain in storage unless handled by trigger, but we delete record)
+      await supabase.from('anexos_oportunidade').delete().eq('oportunidade_id', selectedOpportunityId);
+
+      // 5. Finally delete the opportunity
       const { error } = await supabase
         .from('oportunidades')
         .delete()
@@ -323,20 +384,22 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
       if (error) throw error;
 
       // Log activity (non-blocking) - we log BEFORE clearing the ID
-      supabase.from('log_atividades').insert({
-        user_id: user?.id,
-        acao: 'EXCLUIR_OPORTUNIDADE',
-        entidade: 'oportunidades',
-        entidade_id: selectedOpportunityId,
-        dados_anteriores: {
-          titulo: deletedOpp?.titulo,
-          contato: deletedOpp?.contatos?.nome_completo || null,
-          valor_estimado: deletedOpp?.valor_estimado
-        },
-        dados_novos: null
-      }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
+      if (user?.id) {
+        supabase.from('log_atividades').insert({
+          user_id: user.id,
+          acao: 'EXCLUIR_OPORTUNIDADE',
+          entidade: 'oportunidades',
+          entidade_id: selectedOpportunityId, // ID might not exist anymore, but keeping for log integrity if table allows UUID
+          dados_anteriores: {
+            titulo: deletedOpp?.titulo,
+            contato: deletedOpp?.contatos?.nome_completo || null,
+            valor_estimado: deletedOpp?.valor_estimado
+          },
+          dados_novos: null
+        }).then(() => { }).catch(e => console.warn('Log activity failed:', e));
+      }
 
-      toast.success('Oportunidade excluída com sucesso!');
+      toast.success('Oportunidade excluída permanentemente!');
       setIsDeleteDialogOpen(false);
       setSelectedOpportunityId(null);
       await loadOpportunities();
@@ -349,7 +412,65 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   };
 
   const getStageOpportunities = (etapaId: string) => {
-    return opportunities.filter(opp => opp.etapa_funil_id === etapaId);
+    // Apply filters (v2)
+    let filtered = opportunities.filter(opp => opp.etapa_funil_id === etapaId);
+    
+    // Date filter
+    if (kanbanFilters.dateRange?.from) {
+      const fromDate = kanbanFilters.dateRange.from;
+      const toDate = kanbanFilters.dateRange.to || fromDate;
+      filtered = filtered.filter(opp => {
+        const oppDate = new Date(opp.data_criacao);
+        return oppDate >= fromDate && oppDate <= toDate;
+      });
+    }
+    
+    // Product filter (multi-select)
+    if (kanbanFilters.productIds && kanbanFilters.productIds.length > 0) {
+      filtered = filtered.filter(opp => 
+        opp.produto_servico_id && kanbanFilters.productIds!.includes(opp.produto_servico_id)
+      );
+    }
+    
+    // Responsible filter (multi-select)
+    if (kanbanFilters.responsibleIds && kanbanFilters.responsibleIds.length > 0) {
+      filtered = filtered.filter(opp => 
+        opp.responsavel_id && kanbanFilters.responsibleIds!.includes(opp.responsavel_id)
+      );
+    }
+    
+    return filtered;
+  };
+
+  // Get all filtered opportunities for table view (applies same filters but across all stages)
+  const getFilteredOpportunitiesForTable = () => {
+    let filtered = [...opportunities];
+    
+    // Date filter
+    if (kanbanFilters.dateRange?.from) {
+      const fromDate = kanbanFilters.dateRange.from;
+      const toDate = kanbanFilters.dateRange.to || fromDate;
+      filtered = filtered.filter(opp => {
+        const oppDate = new Date(opp.data_criacao);
+        return oppDate >= fromDate && oppDate <= toDate;
+      });
+    }
+    
+    // Product filter (multi-select)
+    if (kanbanFilters.productIds && kanbanFilters.productIds.length > 0) {
+      filtered = filtered.filter(opp => 
+        opp.produto_servico_id && kanbanFilters.productIds!.includes(opp.produto_servico_id)
+      );
+    }
+    
+    // Responsible filter (multi-select)
+    if (kanbanFilters.responsibleIds && kanbanFilters.responsibleIds.length > 0) {
+      filtered = filtered.filter(opp => 
+        opp.responsavel_id && kanbanFilters.responsibleIds!.includes(opp.responsavel_id)
+      );
+    }
+    
+    return filtered;
   };
 
   // Find the active opportunity for DragOverlay
@@ -357,51 +478,82 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="p-4 lg:p-8 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div>
-            <h1 className="text-gray-900 dark:text-white mb-2 font-bold text-2xl">Pipeline - Kanban</h1>
+      <div className="px-4 pt-4 pb-2 lg:px-6 lg:pt-6 lg:pb-2 border-b border-border">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-foreground font-bold text-2xl whitespace-nowrap">
+              Pipeline de Oportunidades
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Gerencie e acompanhar suas oportunidades de negócio
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button
-              className="gap-2 w-full sm:w-auto"
-              disabled={!canCreate('crm')}
-              onClick={(e) => {
-                if (!canCreate('crm')) {
-                  e.preventDefault();
-                  toast.error('Você não tem permissão para criar oportunidades');
-                } else {
-                  setIsCreateDialogOpen(true);
-                }
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              Nova Oportunidade
-            </Button>
+          <div className="flex items-center gap-3">
+            {/* View Mode Tabs */}
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'table')} className="hidden sm:block">
+              <TabsList className="h-9 bg-muted">
+                <TabsTrigger value="kanban" className="gap-1.5 text-xs">
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Kanban
+                </TabsTrigger>
+                <TabsTrigger value="table" className="gap-1.5 text-xs">
+                  <List className="w-3.5 h-3.5" />
+                  Tabela
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => onNavigate('etapas-funil')}>
-                  <Layers className="w-4 h-4 mr-2" />
-                  Etapas do Funil
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onNavigate('campos-oportunidade')}>
-                  <Settings2 className="w-4 h-4 mr-2" />
-                  Campos
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onNavigate('oportunidades-arquivadas')}>
-                  <Archive className="w-4 h-4 mr-2" />
-                  Arquivados
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full xl:w-auto">
+            <div className="w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+              <KanbanFiltersBar
+                filters={kanbanFilters}
+                onFiltersChange={setKanbanFilters}
+                responsibles={profiles}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                className="gap-2 w-full sm:w-auto"
+                disabled={!canCreate('crm')}
+                onClick={(e) => {
+                  if (!canCreate('crm')) {
+                    e.preventDefault();
+                    toast.error('Você não tem permissão para criar oportunidades');
+                  } else {
+                    setIsCreateDialogOpen(true);
+                  }
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Nova Oportunidade
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" className="shrink-0 bg-background">
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => onNavigate('etapas-funil')}>
+                    <Layers className="w-4 h-4 mr-2" />
+                    Etapas do Funil
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onNavigate('campos-oportunidade')}>
+                    <Settings2 className="w-4 h-4 mr-2" />
+                    Campos do Card
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onNavigate('oportunidades-arquivadas')}>
+                    <Archive className="w-4 h-4 mr-2" />
+                    Arquivados
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
           <NewLeadDialog
@@ -415,19 +567,30 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-4 lg:p-8">
+      <div className="flex-1 overflow-x-auto p-4 lg:p-6">
         {loadingOpportunities || loadingEtapas ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>
+        ) : viewMode === 'table' ? (
+          /* DataTable View */
+          <OpportunitiesDataTable
+            opportunities={getFilteredOpportunitiesForTable()}
+            loading={loadingOpportunities}
+            onNavigate={onNavigate}
+            onDelete={handleOpenDelete}
+            onArchive={handleArchiveOpportunity}
+            etapas={etapas}
+          />
         ) : (
+          /* Kanban View */
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 min-w-max h-full">
+            <div className="flex gap-4 h-full overflow-x-auto pb-2">
               {etapas.map(etapa => {
                 const etapaOpps = getStageOpportunities(etapa.id);
                 return (
@@ -443,6 +606,7 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                         onNavigate={onNavigate}
                         onEdit={handleOpenEdit}
                         onDelete={handleOpenDelete}
+                        onArchive={handleArchiveOpportunity}
                         canUpdate={canUpdate('crm')}
                         canDelete={canDelete('crm')}
                         commentCount={opportunityCounts[opp.id]?.comments || 0}
@@ -461,11 +625,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                 >
                   <OpportunityCard
                     opportunity={activeOpportunity}
-                    onNavigate={() => { }}
-                    onEdit={() => { }}
-                    onDelete={() => { }}
-                    canUpdate={false}
-                    canDelete={false}
+                    onNavigate={() => onNavigate('opportunity-details', activeOpportunity.id)}
+                    onEdit={() => handleOpenEdit(activeOpportunity)}
+                    onDelete={() => handleOpenDelete(activeOpportunity)}
+                    onArchive={() => handleArchiveOpportunity(activeOpportunity.id)}
+                    canUpdate={canUpdate('crm')}
+                    canDelete={canDelete('crm')}
                   />
                 </div>
               ) : null}
@@ -552,8 +717,18 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Oportunidade</AlertDialogTitle>
-            <AlertDialogDescription>Você tem certeza que deseja excluir esta oportunidade?</AlertDialogDescription>
+            <AlertDialogTitle className="text-red-600">Excluir Permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-gray-500">
+                <span>Esta ação não pode ser desfeita. Isso excluirá permanentemente a oportunidade <strong className="text-gray-700">e todos os dados vinculados</strong>:</span>
+                <ul className="list-disc list-inside text-gray-600 dark:text-gray-400 mt-2">
+                  <li>Tarefas e Agendamentos</li>
+                  <li>Histórico de Atividades e Logs</li>
+                  <li>Comentários e Anotações</li>
+                  <li>Anexos e Arquivos</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)} disabled={loading}>Cancelar</AlertDialogCancel>

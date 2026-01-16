@@ -17,12 +17,15 @@ import { Route as AuthenticatedTriagemRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedPermissionsRouteImport } from './routes/_authenticated/permissions'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPeticoesIndexRouteImport } from './routes/_authenticated/peticoes/index'
+import { Route as AuthenticatedSettingsProductsRouteImport } from './routes/_authenticated/settings/products'
 import { Route as AuthenticatedSettingsOcrRouteImport } from './routes/_authenticated/settings/ocr'
 import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_authenticated/settings/general'
 import { Route as AuthenticatedSettingsDocumentsRouteImport } from './routes/_authenticated/settings/documents'
+import { Route as AuthenticatedCrmServicesRouteImport } from './routes/_authenticated/crm/services'
 import { Route as AuthenticatedCrmOportunidadesArquivadasRouteImport } from './routes/_authenticated/crm/oportunidades-arquivadas'
 import { Route as AuthenticatedCrmOportunidadesRouteImport } from './routes/_authenticated/crm/oportunidades'
 import { Route as AuthenticatedCrmEtapasFunilRouteImport } from './routes/_authenticated/crm/etapas-funil'
+import { Route as AuthenticatedCrmDashboardRouteImport } from './routes/_authenticated/crm/dashboard'
 import { Route as AuthenticatedCrmContatosRouteImport } from './routes/_authenticated/crm/contatos'
 import { Route as AuthenticatedCrmCamposOportunidadeRouteImport } from './routes/_authenticated/crm/campos-oportunidade'
 import { Route as AuthenticatedCrmCalendarioRouteImport } from './routes/_authenticated/crm/calendario'
@@ -76,6 +79,12 @@ const AuthenticatedPeticoesIndexRoute =
     path: '/peticoes/',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsProductsRoute =
+  AuthenticatedSettingsProductsRouteImport.update({
+    id: '/settings/products',
+    path: '/settings/products',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsOcrRoute =
   AuthenticatedSettingsOcrRouteImport.update({
     id: '/settings/ocr',
@@ -94,6 +103,12 @@ const AuthenticatedSettingsDocumentsRoute =
     path: '/settings/documents',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCrmServicesRoute =
+  AuthenticatedCrmServicesRouteImport.update({
+    id: '/crm/services',
+    path: '/crm/services',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedCrmOportunidadesArquivadasRoute =
   AuthenticatedCrmOportunidadesArquivadasRouteImport.update({
     id: '/crm/oportunidades-arquivadas',
@@ -110,6 +125,12 @@ const AuthenticatedCrmEtapasFunilRoute =
   AuthenticatedCrmEtapasFunilRouteImport.update({
     id: '/crm/etapas-funil',
     path: '/crm/etapas-funil',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedCrmDashboardRoute =
+  AuthenticatedCrmDashboardRouteImport.update({
+    id: '/crm/dashboard',
+    path: '/crm/dashboard',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCrmContatosRoute =
@@ -191,12 +212,15 @@ export interface FileRoutesByFullPath {
   '/crm/calendario': typeof AuthenticatedCrmCalendarioRoute
   '/crm/campos-oportunidade': typeof AuthenticatedCrmCamposOportunidadeRoute
   '/crm/contatos': typeof AuthenticatedCrmContatosRoute
+  '/crm/dashboard': typeof AuthenticatedCrmDashboardRoute
   '/crm/etapas-funil': typeof AuthenticatedCrmEtapasFunilRoute
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
+  '/crm/services': typeof AuthenticatedCrmServicesRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/settings/ocr': typeof AuthenticatedSettingsOcrRoute
+  '/settings/products': typeof AuthenticatedSettingsProductsRoute
   '/peticoes': typeof AuthenticatedPeticoesIndexRoute
   '/calc/relatorio/$id': typeof AuthenticatedCalcRelatorioIdRoute
   '/crm/oportunidade/$id': typeof AuthenticatedCrmOportunidadeIdRoute
@@ -217,12 +241,15 @@ export interface FileRoutesByTo {
   '/crm/calendario': typeof AuthenticatedCrmCalendarioRoute
   '/crm/campos-oportunidade': typeof AuthenticatedCrmCamposOportunidadeRoute
   '/crm/contatos': typeof AuthenticatedCrmContatosRoute
+  '/crm/dashboard': typeof AuthenticatedCrmDashboardRoute
   '/crm/etapas-funil': typeof AuthenticatedCrmEtapasFunilRoute
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
+  '/crm/services': typeof AuthenticatedCrmServicesRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/settings/ocr': typeof AuthenticatedSettingsOcrRoute
+  '/settings/products': typeof AuthenticatedSettingsProductsRoute
   '/peticoes': typeof AuthenticatedPeticoesIndexRoute
   '/calc/relatorio/$id': typeof AuthenticatedCalcRelatorioIdRoute
   '/crm/oportunidade/$id': typeof AuthenticatedCrmOportunidadeIdRoute
@@ -245,12 +272,15 @@ export interface FileRoutesById {
   '/_authenticated/crm/calendario': typeof AuthenticatedCrmCalendarioRoute
   '/_authenticated/crm/campos-oportunidade': typeof AuthenticatedCrmCamposOportunidadeRoute
   '/_authenticated/crm/contatos': typeof AuthenticatedCrmContatosRoute
+  '/_authenticated/crm/dashboard': typeof AuthenticatedCrmDashboardRoute
   '/_authenticated/crm/etapas-funil': typeof AuthenticatedCrmEtapasFunilRoute
   '/_authenticated/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/_authenticated/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
+  '/_authenticated/crm/services': typeof AuthenticatedCrmServicesRoute
   '/_authenticated/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
   '/_authenticated/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/_authenticated/settings/ocr': typeof AuthenticatedSettingsOcrRoute
+  '/_authenticated/settings/products': typeof AuthenticatedSettingsProductsRoute
   '/_authenticated/peticoes/': typeof AuthenticatedPeticoesIndexRoute
   '/_authenticated/calc/relatorio/$id': typeof AuthenticatedCalcRelatorioIdRoute
   '/_authenticated/crm/oportunidade/$id': typeof AuthenticatedCrmOportunidadeIdRoute
@@ -273,12 +303,15 @@ export interface FileRouteTypes {
     | '/crm/calendario'
     | '/crm/campos-oportunidade'
     | '/crm/contatos'
+    | '/crm/dashboard'
     | '/crm/etapas-funil'
     | '/crm/oportunidades'
     | '/crm/oportunidades-arquivadas'
+    | '/crm/services'
     | '/settings/documents'
     | '/settings/general'
     | '/settings/ocr'
+    | '/settings/products'
     | '/peticoes'
     | '/calc/relatorio/$id'
     | '/crm/oportunidade/$id'
@@ -299,12 +332,15 @@ export interface FileRouteTypes {
     | '/crm/calendario'
     | '/crm/campos-oportunidade'
     | '/crm/contatos'
+    | '/crm/dashboard'
     | '/crm/etapas-funil'
     | '/crm/oportunidades'
     | '/crm/oportunidades-arquivadas'
+    | '/crm/services'
     | '/settings/documents'
     | '/settings/general'
     | '/settings/ocr'
+    | '/settings/products'
     | '/peticoes'
     | '/calc/relatorio/$id'
     | '/crm/oportunidade/$id'
@@ -326,12 +362,15 @@ export interface FileRouteTypes {
     | '/_authenticated/crm/calendario'
     | '/_authenticated/crm/campos-oportunidade'
     | '/_authenticated/crm/contatos'
+    | '/_authenticated/crm/dashboard'
     | '/_authenticated/crm/etapas-funil'
     | '/_authenticated/crm/oportunidades'
     | '/_authenticated/crm/oportunidades-arquivadas'
+    | '/_authenticated/crm/services'
     | '/_authenticated/settings/documents'
     | '/_authenticated/settings/general'
     | '/_authenticated/settings/ocr'
+    | '/_authenticated/settings/products'
     | '/_authenticated/peticoes/'
     | '/_authenticated/calc/relatorio/$id'
     | '/_authenticated/crm/oportunidade/$id'
@@ -401,6 +440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPeticoesIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/products': {
+      id: '/_authenticated/settings/products'
+      path: '/settings/products'
+      fullPath: '/settings/products'
+      preLoaderRoute: typeof AuthenticatedSettingsProductsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/ocr': {
       id: '/_authenticated/settings/ocr'
       path: '/settings/ocr'
@@ -422,6 +468,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsDocumentsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/crm/services': {
+      id: '/_authenticated/crm/services'
+      path: '/crm/services'
+      fullPath: '/crm/services'
+      preLoaderRoute: typeof AuthenticatedCrmServicesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/crm/oportunidades-arquivadas': {
       id: '/_authenticated/crm/oportunidades-arquivadas'
       path: '/crm/oportunidades-arquivadas'
@@ -441,6 +494,13 @@ declare module '@tanstack/react-router' {
       path: '/crm/etapas-funil'
       fullPath: '/crm/etapas-funil'
       preLoaderRoute: typeof AuthenticatedCrmEtapasFunilRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/crm/dashboard': {
+      id: '/_authenticated/crm/dashboard'
+      path: '/crm/dashboard'
+      fullPath: '/crm/dashboard'
+      preLoaderRoute: typeof AuthenticatedCrmDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/crm/contatos': {
@@ -537,12 +597,15 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCrmCalendarioRoute: typeof AuthenticatedCrmCalendarioRoute
   AuthenticatedCrmCamposOportunidadeRoute: typeof AuthenticatedCrmCamposOportunidadeRoute
   AuthenticatedCrmContatosRoute: typeof AuthenticatedCrmContatosRoute
+  AuthenticatedCrmDashboardRoute: typeof AuthenticatedCrmDashboardRoute
   AuthenticatedCrmEtapasFunilRoute: typeof AuthenticatedCrmEtapasFunilRoute
   AuthenticatedCrmOportunidadesRoute: typeof AuthenticatedCrmOportunidadesRoute
   AuthenticatedCrmOportunidadesArquivadasRoute: typeof AuthenticatedCrmOportunidadesArquivadasRoute
+  AuthenticatedCrmServicesRoute: typeof AuthenticatedCrmServicesRoute
   AuthenticatedSettingsDocumentsRoute: typeof AuthenticatedSettingsDocumentsRoute
   AuthenticatedSettingsGeneralRoute: typeof AuthenticatedSettingsGeneralRoute
   AuthenticatedSettingsOcrRoute: typeof AuthenticatedSettingsOcrRoute
+  AuthenticatedSettingsProductsRoute: typeof AuthenticatedSettingsProductsRoute
   AuthenticatedPeticoesIndexRoute: typeof AuthenticatedPeticoesIndexRoute
   AuthenticatedCalcRelatorioIdRoute: typeof AuthenticatedCalcRelatorioIdRoute
   AuthenticatedCrmOportunidadeIdRoute: typeof AuthenticatedCrmOportunidadeIdRoute
@@ -564,13 +627,16 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCrmCamposOportunidadeRoute:
     AuthenticatedCrmCamposOportunidadeRoute,
   AuthenticatedCrmContatosRoute: AuthenticatedCrmContatosRoute,
+  AuthenticatedCrmDashboardRoute: AuthenticatedCrmDashboardRoute,
   AuthenticatedCrmEtapasFunilRoute: AuthenticatedCrmEtapasFunilRoute,
   AuthenticatedCrmOportunidadesRoute: AuthenticatedCrmOportunidadesRoute,
   AuthenticatedCrmOportunidadesArquivadasRoute:
     AuthenticatedCrmOportunidadesArquivadasRoute,
+  AuthenticatedCrmServicesRoute: AuthenticatedCrmServicesRoute,
   AuthenticatedSettingsDocumentsRoute: AuthenticatedSettingsDocumentsRoute,
   AuthenticatedSettingsGeneralRoute: AuthenticatedSettingsGeneralRoute,
   AuthenticatedSettingsOcrRoute: AuthenticatedSettingsOcrRoute,
+  AuthenticatedSettingsProductsRoute: AuthenticatedSettingsProductsRoute,
   AuthenticatedPeticoesIndexRoute: AuthenticatedPeticoesIndexRoute,
   AuthenticatedCalcRelatorioIdRoute: AuthenticatedCalcRelatorioIdRoute,
   AuthenticatedCrmOportunidadeIdRoute: AuthenticatedCrmOportunidadeIdRoute,

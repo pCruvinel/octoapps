@@ -1,17 +1,19 @@
 'use client';
 
 import * as React from 'react';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, File } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { ocrService } from '@/services/ocr.service';
 import { supabase } from '@/lib/supabase';
 import type { OCRCategory } from '@/types/ocr.types';
+import { cn } from '@/lib/utils';
+import { OcrLoadingOverlay } from '@/components/shared/OcrLoadingOverlay';
 
 interface DetalhadaUploadButtonProps {
     category: OCRCategory;
     onDataExtracted: (data: any) => void;
-    variant?: 'default' | 'outline' | 'ghost';
+    variant?: 'default' | 'outline' | 'ghost' | 'secondary';
     className?: string;
 }
 
@@ -35,9 +37,9 @@ export function DetalhadaUploadButton({
             return;
         }
 
-        // Validate file size (max 10MB)
-        if (file.size > 25 * 1024 * 1024) {
-            toast.error('Arquivo muito grande. Máximo 25MB.');
+        // Validate file size (max 50MB)
+        if (file.size > 50 * 1024 * 1024) {
+            toast.error('Arquivo muito grande. Máximo 50MB.');
             return;
         }
 
@@ -51,7 +53,7 @@ export function DetalhadaUploadButton({
                 return;
             }
 
-            toast.info('Processando contrato com IA...');
+            // toast.info('Processando contrato com IA...');
 
             const result = await ocrService.extractFromDocument(file, category, user.id);
 
@@ -75,32 +77,35 @@ export function DetalhadaUploadButton({
 
     return (
         <>
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".pdf,.png,.jpg,.jpeg"
-                className="hidden"
-            />
-            <Button
-                type="button"
-                variant={variant}
-                className={className}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-            >
-                {isUploading ? (
-                    <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Processando...
-                    </>
-                ) : (
-                    <>
-                        <Upload className="w-4 h-4 mr-2" />
-                        Importar Contrato
-                    </>
-                )}
-            </Button>
+            <OcrLoadingOverlay isOpen={isUploading} />
+            <div className={className}>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    className="hidden"
+                />
+                
+                <Button 
+                    variant={variant} 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="w-full gap-2"
+                >
+                    {isUploading ? (
+                        <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Processando...
+                        </>
+                    ) : (
+                        <>
+                            <Upload className="h-4 w-4" />
+                            Upload Contrato
+                        </>
+                    )}
+                </Button>
+            </div>
         </>
     );
 }

@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { UserDocumentSettings, DEFAULT_SETTINGS } from '../pdf-engine/DocumentTypes';
-import { Loader2, Palette, Image as ImageIcon, LayoutTemplate, X, Save } from 'lucide-react';
+import { Loader2, Palette, Image as ImageIcon, LayoutTemplate, X, Save, Building } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from '@/components/ui/separator';
 import { PdfPreviewPanel } from './PdfPreviewPanel';
@@ -122,7 +122,17 @@ export const DocumentSettingsPage = () => {
                     watermark_scale: formData.watermark_scale,
                     // Misc
                     footer_text: formData.footer_text,
-                    show_page_numbers: formData.show_page_numbers
+                    show_page_numbers: formData.show_page_numbers,
+                    // Dados Cadastrais (v2)
+                    company_name: formData.company_name,
+                    cnpj: formData.cnpj,
+                    address_line1: formData.address_line1,
+                    address_line2: formData.address_line2,
+                    city: formData.city,
+                    state: formData.state,
+                    zip_code: formData.zip_code,
+                    phone: formData.phone,
+                    company_email: formData.company_email,
                 });
 
             if (error) throw error;
@@ -185,7 +195,7 @@ export const DocumentSettingsPage = () => {
                 {/* Left Column: Settings Forms */}
                 <div className="lg:col-span-2">
                     <Tabs defaultValue="visual" className="space-y-6">
-                        <TabsList className="grid w-full grid-cols-3 h-auto p-1 bg-muted/50 rounded-xl">
+                        <TabsList className="grid w-full grid-cols-4 h-auto p-1 bg-muted/50 rounded-xl">
                             <TabsTrigger value="visual" className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5 rounded-lg">
                                 <Palette className="w-4 h-4 mr-2" />
                                 Identidade
@@ -193,6 +203,10 @@ export const DocumentSettingsPage = () => {
                             <TabsTrigger value="branding" className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5 rounded-lg">
                                 <ImageIcon className="w-4 h-4 mr-2" />
                                 Branding
+                            </TabsTrigger>
+                            <TabsTrigger value="company" className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5 rounded-lg">
+                                <Building className="w-4 h-4 mr-2" />
+                                Empresa
                             </TabsTrigger>
                             <TabsTrigger value="structure" className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2.5 rounded-lg">
                                 <LayoutTemplate className="w-4 h-4 mr-2" />
@@ -365,6 +379,112 @@ export const DocumentSettingsPage = () => {
                                                 />
                                             </div>
                                         </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        {/* TAB 3: COMPANY DATA (v2) */}
+                        <TabsContent value="company" className="space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Dados Cadastrais</CardTitle>
+                                    <CardDescription>Informações da empresa que aparecerão nos documentos.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="grid md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label>Razão Social / Nome Fantasia</Label>
+                                        <Input
+                                            value={formData.company_name || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
+                                            placeholder="Ex: Escritório ABC Advogados LTDA"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>CNPJ</Label>
+                                        <Input
+                                            value={formData.cnpj || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, cnpj: e.target.value }))}
+                                            placeholder="00.000.000/0001-00"
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Endereço</CardTitle>
+                                    <CardDescription>Endereço comercial para exibição em documentos.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>Endereço (Linha 1)</Label>
+                                        <Input
+                                            value={formData.address_line1 || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, address_line1: e.target.value }))}
+                                            placeholder="Rua, número, complemento"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Endereço (Linha 2)</Label>
+                                        <Input
+                                            value={formData.address_line2 || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, address_line2: e.target.value }))}
+                                            placeholder="Bairro, sala, etc."
+                                        />
+                                    </div>
+                                    <div className="grid md:grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Cidade</Label>
+                                            <Input
+                                                value={formData.city || ''}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                                                placeholder="São Paulo"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Estado</Label>
+                                            <Input
+                                                value={formData.state || ''}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, state: e.target.value }))}
+                                                placeholder="SP"
+                                                maxLength={2}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>CEP</Label>
+                                            <Input
+                                                value={formData.zip_code || ''}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, zip_code: e.target.value }))}
+                                                placeholder="00000-000"
+                                            />
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Contato</CardTitle>
+                                    <CardDescription>Informações de contato comercial.</CardDescription>
+                                </CardHeader>
+                                <CardContent className="grid md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label>Telefone</Label>
+                                        <Input
+                                            value={formData.phone || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                                            placeholder="(11) 99999-9999"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>E-mail</Label>
+                                        <Input
+                                            type="email"
+                                            value={formData.company_email || ''}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, company_email: e.target.value }))}
+                                            placeholder="contato@empresa.com.br"
+                                        />
                                     </div>
                                 </CardContent>
                             </Card>

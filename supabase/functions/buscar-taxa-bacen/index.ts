@@ -104,9 +104,8 @@ serve(async (req) => {
         //   20749 - Aquisição de Veículos PF
         //   20728 - Aquisição de Veículos PJ
         // Imobiliário:
-        //   20773 - Financiamento Imobiliário SFH
-        //   25497 - Financiamento Imobiliário SFI
-        //   432   - Mercado não referenciadas
+        //   20773 - Financiamento Imobiliário SFH (ANUAL)
+        //   432   - Mercado não referenciadas (ANUAL)
         // Cartão:
         //   25482 - Cartão Rotativo PF (Anual)
         //
@@ -116,6 +115,7 @@ serve(async (req) => {
         //   188   - INPC
         //   189   - IGP-M
         //   25455 - Cartão Rotativo PF (Mensal)
+        //   25497 - Financiamento Imobiliário SFI (MENSAL - retorna % a.m.)
 
         const seriesAnuais = [
           // Empréstimos PF
@@ -124,8 +124,8 @@ serve(async (req) => {
           20739, 20722, 20723,
           // Veículos
           20749, 20728,
-          // Imobiliário
-          20773, 25497, 432,
+          // Imobiliário (nota: 25497 SFI é MENSAL, não está nesta lista)
+          20773, 432,
           // Cartão (Anual)
           25482
         ];

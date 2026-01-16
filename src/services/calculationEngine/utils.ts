@@ -193,6 +193,127 @@ export function calculateCET(
 }
 
 // ============================================================================
+// XIRR Calculation (Internal Rate of Return for irregular cashflows)
+// ============================================================================
+
+/**
+ * Cashflow entry for XIRR calculation
+ */
+export interface XirrCashflow {
+    date: string;     // YYYY-MM-DD
+    value: Decimal;   // Negative = outflow (disbursement), Positive = inflow (payment)
+}
+
+/**
+ * Calculate XIRR (Extended Internal Rate of Return) using Newton-Raphson method.
+ * 
+ * This is the definitive way to discover the REAL effective rate of a loan,
+ * ignoring the nominal rate stated in the contract.
+ * 
+ * Required structure:
+ * - t0: date = start_date, value = -amount_financed (bank lends = outflow)
+ * - t1..tn: date = payment_date, value = +payment (client pays = inflow)
+ * 
+ * @param cashflows Array of dated cashflows
+ * @returns Monthly and annual rates, or null if convergence fails
+ */
+export function calculateXIRR(
+    cashflows: XirrCashflow[]
+): { rateMonthly: Decimal; rateAnnual: Decimal } | null {
+    if (cashflows.length < 2) {
+        console.warn('[XIRR] Insufficient cashflows for calculation');
+        return null;
+    }
+
+    // Validate t0 exists (must be negative - loan disbursement)
+    const t0 = cashflows[0];
+    if (!t0.value.isNegative()) {
+        console.warn('[XIRR] First cashflow (t0) must be negative (loan disbursement)');
+        // Try to continue anyway - user may have structured differently
+    }
+
+    let rate = new Decimal('0.01'); // Initial guess: 1% a.m.
+    const baseDate = parseDate(cashflows[0].date);
+
+    for (let iteration = 0; iteration < MAX_NEWTON_ITERATIONS; iteration++) {
+        let npv = new Decimal(0);
+        let derivative = new Decimal(0);
+
+        for (const cf of cashflows) {
+            const days = daysBetween(baseDate, parseDate(cf.date));
+            const t = new Decimal(days).div(DAYS_IN_MONTH); // Fractional months
+
+            // NPV = Σ (CFi / (1+r)^ti)
+            const discountFactor = new Decimal(1).plus(rate).pow(t);
+            
+            if (discountFactor.isZero()) continue; // Avoid division by zero
+            
+            npv = npv.plus(cf.value.div(discountFactor));
+
+            // Derivative for Newton-Raphson: d(NPV)/dr
+            // = -Σ (CFi * ti / (1+r)^(ti+1))
+            derivative = derivative.minus(
+                cf.value.times(t).div(discountFactor.times(new Decimal(1).plus(rate)))
+            );
+        }
+
+        // Check convergence
+        if (npv.abs().lessThan(NEWTON_TOLERANCE)) {
+            console.log(`[XIRR] ✅ Converged in ${iteration + 1} iterations: ${rate.times(100).toFixed(4)}% a.m.`);
+            return {
+                rateMonthly: rate,
+                rateAnnual: monthlyToAnnualRate(rate),
+            };
+        }
+
+        // Newton-Raphson step: r_new = r_old - f(r)/f'(r)
+        if (derivative.isZero()) {
+            console.warn('[XIRR] Derivative is zero, cannot continue');
+            break;
+        }
+
+        rate = rate.minus(npv.div(derivative));
+
+        // Safety bounds to prevent divergence
+        if (rate.lessThan(new Decimal('-0.99')) || rate.greaterThan(new Decimal('10'))) {
+            console.warn(`[XIRR] Rate out of bounds (${rate.toString()}), resetting`);
+            rate = new Decimal('0.05'); // Reset to 5%
+        }
+    }
+
+    console.warn('[XIRR] ❌ Failed to converge after maximum iterations');
+    return null;
+}
+
+/**
+ * Detect anatocism (hidden compound interest) by comparing contract rate with XIRR rate.
+ * 
+ * If XIRR rate > contract rate × threshold, there's likely hidden capitalization.
+ * 
+ * @param contractRateMonthly Rate stated in contract (decimal, e.g., 0.0249 for 2.49%)
+ * @param xirrRateMonthly Rate calculated via XIRR
+ * @param threshold Multiplier threshold (default 1.05 = 5% tolerance)
+ * @returns true if anatocism detected
+ */
+export function detectAnatocism(
+    contractRateMonthly: Decimal,
+    xirrRateMonthly: Decimal,
+    threshold: Decimal = new Decimal('1.05')
+): boolean {
+    const maxAcceptable = contractRateMonthly.times(threshold);
+    const isAnatocism = xirrRateMonthly.greaterThan(maxAcceptable);
+    
+    if (isAnatocism) {
+        console.warn(
+            `[ANATOCISM] ⚠️ Detected! Contract: ${contractRateMonthly.times(100).toFixed(4)}% a.m., ` +
+            `Real: ${xirrRateMonthly.times(100).toFixed(4)}% a.m.`
+        );
+    }
+    
+    return isAnatocism;
+}
+
+// ============================================================================
 // Date Utilities
 // ============================================================================
 

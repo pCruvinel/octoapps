@@ -1,8 +1,9 @@
 # Módulo de Cálculo Revisional - Financiamento Imobiliário (SFH/SFI)
 
 > **Documentação Técnica para Validação**
-> Versão: 3.2.0 | Data: 2025-12-22
+> Versão: 3.3.0 | Data: 2026-01-15
 > Status: ✅ Implementado e Testado
+> 🆕 **v3.3.0**: Momento Zero, SAC corrigido, XIRR integrado
 
 ---
 
@@ -424,22 +425,25 @@ dfiMensal = valorFixoDFI;
 
 ## 6. Fórmulas de Cálculo
 
-### 6.1 Sistema SAC (Amortização Constante)
+### 6.1 Sistema SAC (Amortização com Saldo Corrigido)
 
 **Mais comum em SFH/SFI** - Prestações decrescentes
 
+> ⚠️ **v3.3.0**: A amortização SAC agora é calculada sobre o **saldo corrigido dividido pelo prazo remanescente**, não mais como valor fixo.
+
 ```typescript
-// Amortização fixa
-amortizacao = valorFinanciado / prazoMeses;
+// CORRETO (v3.3.0): Amortização varia conforme correção monetária
+const remainingPeriods = prazoMeses - n + 1;
+amortizacao[k] = saldoCorrigido[k] / remainingPeriods;
 
 // Para cada mês k:
 saldoCorrigido[k] = saldoAbertura[k] + correcaoMonetaria[k];
 juros[k] = saldoCorrigido[k] × taxaMensal;
-prestacaoBase[k] = amortizacao + juros[k];
+prestacaoBase[k] = amortizacao[k] + juros[k];
 seguros[k] = mip[k] + dfi[k];
 taxaAdm[k] = 25.00; // fixo
 prestacaoTotal[k] = prestacaoBase[k] + seguros[k] + taxaAdm[k];
-saldoFechamento[k] = saldoCorrigido[k] - amortizacao;
+saldoFechamento[k] = saldoCorrigido[k] - amortizacao[k];
 ```
 
 **Exemplo Numérico** (R$ 250.000, 360 meses, 0.8% a.m., TR=0.05%):

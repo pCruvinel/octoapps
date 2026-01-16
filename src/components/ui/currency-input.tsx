@@ -63,9 +63,10 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
         };
 
         const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-            if (!displayValue) {
-                // Optional: set to 0,00 on focus if empty? 
-                // Currently leaving empty to match placeholder behavior
+            // Clear field if value is 0 to make typing easier
+            const numValue = typeof value === 'string' ? parseFloat(value) : value;
+            if (numValue === 0 || numValue === undefined || numValue === null) {
+                setDisplayValue('');
             }
             props.onFocus?.(e);
         };

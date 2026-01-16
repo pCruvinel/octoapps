@@ -1,12 +1,14 @@
 'use client';
 
 import * as React from 'react';
-import { Upload, Loader2 } from 'lucide-react';
+import { Upload, Loader2, UploadCloud } from 'lucide-react';
 import { toast } from 'sonner';
 import { ocrService } from '@/services/ocr.service';
 import { supabase } from '@/lib/supabase';
 import type { OCRCategory } from '@/types/ocr.types';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { OcrLoadingOverlay } from './OcrLoadingOverlay';
 
 interface OcrUploadCardProps {
     category: OCRCategory;
@@ -29,15 +31,14 @@ export function OcrUploadCard({
 
     const handleFileProcess = async (file: File) => {
         // Validate file type
-        const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-        if (!allowedTypes.includes(file.type)) {
-            toast.error('Formato não suportado. Use PDF, PNG ou JPG.');
+        if (!file.type.match('application/pdf') && !file.type.match('image.*')) {
+            toast.error('Formato inválido. Use PDF ou Imagem.');
             return;
         }
 
-        // Validate file size (max 25MB)
-        if (file.size > 25 * 1024 * 1024) {
-            toast.error('Arquivo muito grande. Máximo 25MB.');
+        // Validate file size (max 50MB)
+        if (file.size > 50 * 1024 * 1024) { 
+            toast.error('Arquivo muito grande. Máximo 50MB.');
             return;
         }
 
@@ -51,11 +52,10 @@ export function OcrUploadCard({
                 return;
             }
 
-            toast.info('Processando contrato com IA...');
-
             const result = await ocrService.extractFromDocument(file, category, user.id);
 
             if (result.success && result.data) {
+                console.log('[OcrUploadCard] Extracted Data:', result.data);
                 toast.success('Dados extraídos com sucesso!');
                 onDataExtracted(result.data);
             } else {
@@ -91,61 +91,62 @@ export function OcrUploadCard({
         e.preventDefault();
         setIsDragging(false);
 
-        const file = e.dataTransfer.files?.[0];
+        const file = e.dataTransfer.files[0]; 
         if (file) handleFileProcess(file);
     };
 
     return (
-        <div
-            className={cn(
-                "relative group border-2 border-dashed rounded-lg transition-all duration-200 cursor-pointer",
-                isDragging
-                    ? "border-blue-400 bg-blue-50/50"
-                    : "border-slate-300 bg-slate-50/30 hover:border-slate-400 hover:bg-slate-100/50",
-                className
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-        >
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".pdf,.png,.jpg,.jpeg"
-                className="hidden"
-            />
-            <div className="flex items-center gap-3 px-4 py-3">
-                {isUploading ? (
-                    <>
-                        <div className="p-2 rounded-md bg-blue-100">
-                            <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700">Processando contrato...</p>
-                            <p className="text-xs text-slate-500">Extração automática com IA</p>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        <div className={cn(
-                            "p-2 rounded-md transition-colors",
-                            isDragging ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
-                        )}>
-                            <Upload className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700">
-                                {isDragging ? "Solte o arquivo" : "Importar contrato"}
-                            </p>
-                            <p className="text-xs text-slate-500">
-                                Arraste ou clique • PDF, PNG, JPG
-                            </p>
-                        </div>
-                    </>
+        <>
+            <OcrLoadingOverlay isOpen={isUploading} />
+            
+            <div
+                className={cn(
+                    "relative border-2 border-dashed rounded-lg p-6 text-center transition-colors",
+                    isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50",
+                    isUploading && "opacity-50 pointer-events-none",
+                    className
                 )}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
+                <div className="flex flex-col items-center gap-2">
+                    <div className="p-3 bg-muted rounded-full">
+                        <UploadCloud className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                            Arraste seu arquivo aqui ou clique para selecionar
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                            Suporta PDF, PNG, JPG (Máx. 50MB)
+                        </p>
+                    </div>
+                    <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        disabled={isUploading}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        {isUploading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Processando...
+                            </>
+                        ) : (
+                            'Selecionar Arquivo'
+                        )}
+                    </Button>
+                </div>
+
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.png,.jpg,.jpeg"
+                    onChange={handleFileChange}
+                />
             </div>
-        </div>
+        </>
     );
 }

@@ -16,8 +16,8 @@ import { Calculator, Loader2, ChevronDown, Home, Info, Shield } from 'lucide-rea
 import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { fetchMarketRate, getEstimatedMarketRate, calculateEconomia, calculatePMT } from '@/utils/financialCalculations';
 import { calcularFluxoSAC, calcularFluxoPRICE, calcularJurosSimplesDetalhado } from '@/utils/imobiliarioCalculations'; // Imported new utils
-import type { PreviaImobiliariaResultadoType as PreviaImobiliariaResultadoTypeALIAS } from '@/schemas/triagemRapida.schema'; // Note: This might be from schema or componente, verifying grep showed schema? No, wait. Grep showed import type { ResultadoImobiliario as ... } from '@/schemas/triagemRapida.schema'.. WAIT.
-import { cn } from '@/lib/utils';
+import type { PreviaImobiliariaResultadoType } from './previa-imobiliaria-resultado';
+import { cn, parseOcrNumber } from '@/lib/utils';
 import { toast } from 'sonner';
 
 import { useTiposOperacao } from '@/hooks/useTiposOperacao';
@@ -38,7 +38,7 @@ const moduloImobiliarioSchema = z.object({
     valorParcela: z.number().min(1, 'Valor da parcela inválido').nullable(),
 
     // Específicos Imobiliário
-    tipoFinanciamento: z.string({ required_error: 'Selecione o tipo de financiamento' }).min(1, 'Selecione o tipo'),
+    tipoFinanciamento: z.string().min(1, 'Selecione o tipo de financiamento'),
     sistemaAmortizacao: z.enum(['SAC', 'PRICE', 'SACRE']).default('SAC'),
     indexador: z.enum(['TR', 'IPCA', 'INPC', 'IGPM']).default('TR'),
 
@@ -78,7 +78,7 @@ function getOcrFieldClass(fieldName: string, ocrFilledFields: Set<string>): stri
 // ============================================================================
 
 interface ModuloImobiliarioFormProps {
-    onResultado: (resultado: ResultadoImobiliarioType, formData?: ModuloImobiliarioFormData) => void;
+    onResultado: (resultado: PreviaImobiliariaResultadoType, formData?: ModuloImobiliarioFormData) => void;
 }
 
 export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProps) {
@@ -94,7 +94,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
     });
 
     const form = useForm<ModuloImobiliarioFormData>({
-        resolver: zodResolver(moduloImobiliarioSchema),
+        resolver: zodResolver(moduloImobiliarioSchema) as any,
         defaultValues: {
             valorFinanciado: null,
             prazoMeses: null,
@@ -102,8 +102,8 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
             valorParcela: null,
             dataContrato: '',
             tipoFinanciamento: 'IMOBILIARIO_SFH', // Default (corresponde à série 20773)
-            sistemaAmortizacao: 'SAC',
-            indexador: 'TR',
+            sistemaAmortizacao: 'SAC' as 'SAC' | 'PRICE' | 'SACRE',
+            indexador: 'TR' as 'TR' | 'IPCA' | 'INPC' | 'IGPM',
             seguroMIP: null,
             seguroDFI: null,
             taxaAdministracao: null,
@@ -160,19 +160,25 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
         console.log('[Imobiliário] Dados OCR recebidos:', data);
         const filledFields = new Set<string>();
 
-        if (data.valor_financiado) {
-            form.setValue('valorFinanciado', Number(data.valor_financiado), { shouldValidate: true });
+        const valorFinanciado = parseOcrNumber(data.valor_financiado);
+        if (valorFinanciado) {
+            form.setValue('valorFinanciado', valorFinanciado, { shouldValidate: true });
             filledFields.add('valorFinanciado');
         }
-        if (data.prazo_meses) {
-            form.setValue('prazoMeses', Number(data.prazo_meses), { shouldValidate: true });
+        
+        const prazoMeses = parseOcrNumber(data.prazo_meses);
+        if (prazoMeses) {
+            form.setValue('prazoMeses', prazoMeses, { shouldValidate: true });
             filledFields.add('prazoMeses');
         }
-        if (data.taxa_juros_anual) {
-            form.setValue('taxaAnualContrato', Number(data.taxa_juros_anual), { shouldValidate: true });
+        
+        const taxaAnual = parseOcrNumber(data.taxa_juros_anual);
+        if (taxaAnual) {
+            form.setValue('taxaAnualContrato', taxaAnual, { shouldValidate: true });
             filledFields.add('taxaAnualContrato');
-            toast.success(`Taxa de juros anual detectada: ${data.taxa_juros_anual}%`);
+            toast.success(`Taxa de juros anual detectada: ${taxaAnual}%`);
         }
+        
         if (data.data_contrato) {
             form.setValue('dataContrato', data.data_contrato, { shouldValidate: true });
             filledFields.add('dataContrato');
@@ -184,21 +190,27 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                 filledFields.add('sistemaAmortizacao');
             }
         }
-        if (data.seguro_mip) {
-            form.setValue('seguroMIP', Number(data.seguro_mip));
+        
+        const seguroMIP = parseOcrNumber(data.seguro_mip);
+        if (seguroMIP) {
+            form.setValue('seguroMIP', seguroMIP);
             filledFields.add('seguroMIP');
             setSegurosExpanded(true);
         }
-        if (data.seguro_dfi) {
-            form.setValue('seguroDFI', Number(data.seguro_dfi));
+        
+        const seguroDFI = parseOcrNumber(data.seguro_dfi);
+        if (seguroDFI) {
+            form.setValue('seguroDFI', seguroDFI);
             filledFields.add('seguroDFI');
             setSegurosExpanded(true);
         }
+        
         // NOVO: Valor da parcela (essencial para confronto)
-        if (data.valor_parcela) {
-            form.setValue('valorParcela', Number(data.valor_parcela), { shouldValidate: true });
+        const valorParcela = parseOcrNumber(data.valor_parcela);
+        if (valorParcela) {
+            form.setValue('valorParcela', valorParcela, { shouldValidate: true });
             filledFields.add('valorParcela');
-            toast.success(`Valor parcela detectado: R$ ${Number(data.valor_parcela).toLocaleString('pt-BR')}`);
+            toast.success(`Valor parcela detectado: R$ ${valorParcela.toLocaleString('pt-BR')}`);
         }
 
         setOcrFilledFields(filledFields);
@@ -328,7 +340,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
             }
             console.log('[Imobiliário] Classificação:', classificacao);
 
-            const resultado: ResultadoImobiliarioType = {
+            const resultado: PreviaImobiliariaResultadoType = {
                 classificacao,
                 isAbusivo,
 
@@ -421,7 +433,7 @@ export function PreviaImobiliariaForm({ onResultado }: ModuloImobiliarioFormProp
                 </CardHeader>
                 <CardContent>
                     <Form {...form}>
-                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-4">
                             {/* Linha 1: Valor e Prazo */}
                             <div className="grid grid-cols-2 gap-4">
                                 <FormField

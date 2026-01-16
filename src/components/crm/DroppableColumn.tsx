@@ -28,11 +28,31 @@ export function DroppableColumn({
 }: DroppableColumnProps) {
     const { setNodeRef } = useDroppable({ id: etapa.id });
 
+    // Calculate total value for this column (prioritize valor_proposta, fallback to valor_estimado)
+    const totalValor = opportunities.reduce((sum, opp) => {
+        const valor = opp.valor_proposta ?? opp.valor_estimado ?? 0;
+        return sum + valor;
+    }, 0);
+
+    // Format currency
+    const formatCurrency = (value: number) => {
+        if (value >= 1_000_000) {
+            return `R$ ${(value / 1_000_000).toFixed(1)}M`;
+        } else if (value >= 1_000) {
+            return `R$ ${(value / 1_000).toFixed(0)}K`;
+        }
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+            maximumFractionDigits: 0
+        }).format(value);
+    };
+
     // White background with 50% opacity
     const columnBgColor = 'rgba(255, 255, 255, 0.1)';
 
     return (
-        <div className="w-80 flex-shrink-0 flex flex-col h-full max-h-full">
+        <div className="flex-1 min-w-[280px] max-w-[350px] flex flex-col h-full max-h-full">
             <div
                 className="mb-4 flex-shrink-0 rounded-lg px-3 py-2 border"
                 style={{
@@ -40,13 +60,21 @@ export function DroppableColumn({
                     borderColor: etapa.cor ? hexToRgba(etapa.cor, 0.3) : 'rgba(203, 213, 225, 0.3)'
                 }}
             >
-                <div className="flex items-center gap-2">
-                    <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: etapa.cor }}
-                    />
-                    <h3 className="text-gray-900 font-semibold">{etapa.nome}</h3>
-                    <span className="text-sm text-gray-500">({opportunities.length})</span>
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                        <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: etapa.cor }}
+                        />
+                        <h3 className="text-gray-900 font-semibold">{etapa.nome}</h3>
+                        <span className="text-sm text-gray-500">({opportunities.length})</span>
+                    </div>
+                    {/* Total Value */}
+                    {totalValor > 0 && (
+                        <span className="text-sm font-medium text-emerald-600" title="Total de propostas">
+                            {formatCurrency(totalValor)}
+                        </span>
+                    )}
                 </div>
             </div>
 

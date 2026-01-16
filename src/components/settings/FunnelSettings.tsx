@@ -64,7 +64,7 @@ function SortableStageItem({ etapa, onDelete, onEdit }: SortableStageItemProps) 
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800"
+      className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg border border-border"
     >
       {/* Drag Handle */}
       <div
@@ -72,7 +72,7 @@ function SortableStageItem({ etapa, onDelete, onEdit }: SortableStageItemProps) 
         {...listeners}
         className="cursor-grab active:cursor-grabbing"
       >
-        <GripVertical className="w-5 h-5 text-gray-400" />
+        <GripVertical className="w-5 h-5 text-muted-foreground" />
       </div>
 
       {/* Cor Indicadora */}
@@ -83,7 +83,7 @@ function SortableStageItem({ etapa, onDelete, onEdit }: SortableStageItemProps) 
 
       {/* Nome da Etapa */}
       <div className="flex-1">
-        <span className="text-gray-900 dark:text-white font-medium">{etapa.nome}</span>
+        <span className="text-foreground font-medium">{etapa.nome}</span>
       </div>
 
       {/* Botões de Ação */}
@@ -91,7 +91,7 @@ function SortableStageItem({ etapa, onDelete, onEdit }: SortableStageItemProps) 
         variant="ghost"
         size="icon"
         onClick={() => onEdit(etapa)}
-        className="text-gray-600 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+        className="text-muted-foreground hover:text-foreground"
       >
         <Edit className="w-4 h-4" />
       </Button>
@@ -312,10 +312,10 @@ export function FunnelSettings() {
     <div className="h-full flex flex-col p-4 lg:p-8">
       <div className="flex-1">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+          <h1 className="text-2xl font-bold text-foreground mb-2">
             Funil e Cards do Pipeline
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-muted-foreground">
             Personalize as etapas do funil e a exibição dos cards
           </p>
         </div>

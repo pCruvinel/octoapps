@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { geralStep1Schema, type GeralStep1Data } from '@/schemas/moduloGeral.schema';
 import { OcrUploadCard } from '@/components/shared/OcrUploadCard';
 import { fetchMarketRate, getEstimatedMarketRate } from '@/utils/financialCalculations';
+import { parseOcrNumber } from '@/lib/utils';
 
 
 interface Step1_GeralProps {
@@ -171,14 +172,19 @@ export function DetalhadaEmprestimoVeiculoStep1({
             setValue('numeroContrato', data.numero_contrato);
             filledFields.add('numeroContrato');
         }
-        if (data.valor_financiado) {
-            setValue('valorFinanciado', Number(data.valor_financiado), { shouldValidate: true });
+        
+        const valorFinanciado = parseOcrNumber(data.valor_financiado);
+        if (valorFinanciado) {
+            setValue('valorFinanciado', valorFinanciado, { shouldValidate: true });
             filledFields.add('valorFinanciado');
         }
-        if (data.prazo_meses) {
-            setValue('prazoMeses', Number(data.prazo_meses), { shouldValidate: true });
+
+        const prazoMeses = parseOcrNumber(data.prazo_meses);
+        if (prazoMeses) {
+            setValue('prazoMeses', prazoMeses, { shouldValidate: true });
             filledFields.add('prazoMeses');
         }
+
         if (data.data_contrato) {
             setValue('dataContrato', data.data_contrato, { shouldValidate: true });
             filledFields.add('dataContrato');
@@ -194,26 +200,30 @@ export function DetalhadaEmprestimoVeiculoStep1({
         setTimeout(() => setOcrFilledFields(new Set()), 5000);
 
         // Handle OCR extracted taxa
-        if (data.taxa_juros_mensal) {
-            const taxaMensal = Number(data.taxa_juros_mensal);
+        const taxaMensal = parseOcrNumber(data.taxa_juros_mensal);
+        if (taxaMensal) {
             setValue('taxaMensalContrato', taxaMensal, { shouldValidate: true });
             const taxaAnual = (Math.pow(1 + taxaMensal / 100, 12) - 1) * 100;
             setValue('taxaAnualContrato', taxaAnual, { shouldValidate: true });
             filledFields.add('taxaMensalContrato');
             toast.success(`Taxa de juros mensal detectada: ${taxaMensal}%`);
         }
-        if (data.valor_parcela) {
-            setValue('valorPrestacao', Number(data.valor_parcela), { shouldValidate: true });
+        
+        const valorParcela = parseOcrNumber(data.valor_parcela);
+        if (valorParcela) {
+            setValue('valorPrestacao', valorParcela, { shouldValidate: true });
             filledFields.add('valorPrestacao');
         }
         // Handle tarifas from OCR
         if (data.tac || data.seguro_prestamista) {
             setTarifasOpen(true);
-            if (data.tac) {
-                setValue('tarifas.tac', Number(data.tac));
+            const tac = parseOcrNumber(data.tac);
+            if (tac) {
+                setValue('tarifas.tac', { valor: tac, expurgar: false });
             }
-            if (data.seguro_prestamista) {
-                setValue('tarifas.seguroPrestamista', Number(data.seguro_prestamista));
+            const seguroPrestamista = parseOcrNumber(data.seguro_prestamista);
+            if (seguroPrestamista) {
+                setValue('tarifas.seguroPrestamista', { valor: seguroPrestamista, expurgar: false });
             }
         }
     };

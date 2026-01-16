@@ -242,7 +242,23 @@ Isso permitirá:
 
 ## Limitações
 
-- **Tamanho máximo:** 20MB por arquivo
+- **Tamanho máximo:** 50MB por arquivo (Atualizado de 20MB)
 - **Formatos:** PDF, JPG, PNG
 - **Performance:** ~5-15 segundos para PDFs complexos
 - **Precisão:** Depende da qualidade do scan e clareza do contrato
+
+---
+
+## Novas Funcionalidades (v2.0)
+
+### 1. Overlay de Carregamento Imersivo
+- **Componente:** `OcrLoadingOverlay.tsx`
+- **Comportamento:** Bloqueia a tela inteira com backdrop blur, exibe logo animada e mensagens contextuais rotativas para manter o usuário engajado durante o processamento.
+
+### 2. Contexto Adicional
+- **Configuração:** `OCRSettingsPage` > Aba da Categoria
+- **Funcionalidade:** Permite adicionar instruções livres ao prompt (ex: "Considere que contratos deste banco costumam usar taxa anual em vez de mensal").
+- **Backend:** Salvo em colunas `additional_context_*` na tabela `ocr_settings` e injetado dinamicamente no prompt do sistema.
+
+### 3. Edição de Dicas (Hints)
+- Usuários podem editar a coluna "Descrição" na tabela de configurações para refinar como a IA deve buscar cada campo, sem depender de alterações no código.

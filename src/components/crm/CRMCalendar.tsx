@@ -265,8 +265,8 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
             <div
                 key={day.toISOString()}
                 className={`min-h-[100px] border-b border-r p-2 transition-colors
-                  ${feriado || isSunday ? 'bg-red-50/60 dark:bg-red-950/30 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}
-                  ${!isCurrentMonth ? 'bg-gray-50/50 dark:bg-gray-900/50 text-gray-400' : ''}
+                  ${feriado || isSunday ? 'bg-red-50/60 dark:bg-red-950/30 cursor-not-allowed' : 'hover:bg-accent/50'}
+                  ${!isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''}
                   ${isToday ? 'ring-2 ring-inset ring-blue-500' : ''}
                 `}
                 onClick={() => {
@@ -331,7 +331,7 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
         return (
             <div className="border rounded-lg bg-white dark:bg-gray-950 shadow-sm overflow-hidden">
                 {/* Header Row */}
-                <div className="grid grid-cols-7 border-b bg-gray-50 dark:bg-gray-900">
+                <div className="grid grid-cols-7 border-b bg-muted/50">
                     {weekDays.map(d => (
                         <div key={d} className="py-2 text-center text-sm font-semibold text-gray-600 dark:text-gray-400">
                             {d}
@@ -368,7 +368,7 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                     <div
                         key={event.id}
                         onClick={() => setSelectedEvent(event)}
-                        className="flex items-center p-3 bg-white dark:bg-gray-900 border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
+                        className="flex items-center p-3 bg-card border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
                     >
                         <div className="w-1.5 self-stretch rounded-full mr-4" style={{ backgroundColor: event.color }}></div>
                         <div className="flex-1">
@@ -386,70 +386,79 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
     }
 
     return (
-        <div className="p-4 lg:p-8 h-screen-minus-header flex flex-col">
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <div className="flex items-center gap-2 flex-wrap">
-                    {/* Month Selector */}
-                    <Select
-                        value={String(currentDate.getMonth())}
-                        onValueChange={(v) => setCurrentDate(new Date(currentDate.getFullYear(), parseInt(v), 1))}
-                    >
-                        <SelectTrigger className="w-[140px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-                                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
-                                    <SelectItem key={i} value={String(i)}>{m}</SelectItem>
-                                ))}
-                        </SelectContent>
-                    </Select>
-
-                    {/* Year Selector */}
-                    <Select
-                        value={String(currentDate.getFullYear())}
-                        onValueChange={(v) => setCurrentDate(new Date(parseInt(v), currentDate.getMonth(), 1))}
-                    >
-                        <SelectTrigger className="w-[100px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Array.from({ length: 10 }, (_, i) => {
-                                const year = new Date().getFullYear() - 2 + i;
-                                return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
-                            })}
-                        </SelectContent>
-                    </Select>
-
-                    <div className="flex items-center border rounded-md ml-2 bg-white dark:bg-gray-900">
-                        <Button variant="ghost" size="icon" onClick={prev}>
-                            <ChevronLeft className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={today}>
-                            Hoje
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={next}>
-                            <ChevronRight className="w-4 h-4" />
-                        </Button>
+        <div className="h-full flex flex-col">
+            <div className="px-4 pt-4 pb-2 lg:px-6 lg:pt-6 lg:pb-2 border-b border-border mb-6">
+                <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                    <div className="flex flex-col">
+                        <h1 className="text-foreground font-bold text-2xl whitespace-nowrap">Calendário</h1>
+                        <p className="text-muted-foreground text-sm mt-1">
+                            Gerencie sua agenda e tarefas
+                        </p>
                     </div>
-                </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full sm:w-auto">
-                        <TabsList>
-                            <TabsTrigger value="month">Mês</TabsTrigger>
-                            <TabsTrigger value="week">Semana</TabsTrigger>
-                            <TabsTrigger value="day">Dia</TabsTrigger>
-                        </TabsList>
-                    </Tabs>
-                    <Dialog open={newEventOpen} onOpenChange={setNewEventOpen}>
-                        <DialogTrigger asChild>
-                            <Button className="gap-2">
-                                <Plus className="w-4 h-4" />
-                                Novo Agendamento
-                            </Button>
-                        </DialogTrigger>
+                    <div className="flex flex-col xl:flex-row items-start xl:items-center gap-3 w-full xl:w-auto">
+                        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                            {/* Month Selector */}
+                            <Select
+                                value={String(currentDate.getMonth())}
+                                onValueChange={(v) => setCurrentDate(new Date(currentDate.getFullYear(), parseInt(v), 1))}
+                            >
+                                <SelectTrigger className="w-[130px] h-9 bg-white dark:bg-gray-800 text-sm font-normal border-gray-200 shadow-sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                                        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'].map((m, i) => (
+                                            <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+
+                            {/* Year Selector */}
+                            <Select
+                                value={String(currentDate.getFullYear())}
+                                onValueChange={(v) => setCurrentDate(new Date(parseInt(v), currentDate.getMonth(), 1))}
+                            >
+                                <SelectTrigger className="w-[90px] h-9 bg-white dark:bg-gray-800 text-sm font-normal border-gray-200 shadow-sm">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Array.from({ length: 10 }, (_, i) => {
+                                        const year = new Date().getFullYear() - 2 + i;
+                                        return <SelectItem key={year} value={String(year)}>{year}</SelectItem>;
+                                    })}
+                                </SelectContent>
+                            </Select>
+
+                            <div className="flex items-center border border-input rounded-md bg-background shadow-sm h-9">
+                                <Button variant="ghost" size="icon" onClick={prev} className="h-8 w-8">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={today} className="h-8 px-2 text-xs font-normal">
+                                    Hoje
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={next} className="h-8 w-8">
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)} className="w-full sm:w-auto">
+                                <TabsList className="h-9 bg-muted p-0.5">
+                                    <TabsTrigger value="month" className="h-8 text-xs px-3">Mês</TabsTrigger>
+                                    <TabsTrigger value="week" className="h-8 text-xs px-3">Semana</TabsTrigger>
+                                    <TabsTrigger value="day" className="h-8 text-xs px-3">Dia</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                            <Dialog open={newEventOpen} onOpenChange={setNewEventOpen}>
+                                <DialogTrigger asChild>
+                                    <Button className="gap-2 h-9">
+                                        <Plus className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Novo Agendamento</span>
+                                        <span className="sm:hidden">Novo</span>
+                                    </Button>
+                                </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>Novo Agendamento</DialogTitle>
@@ -531,9 +540,11 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                     </Dialog>
                 </div>
             </div>
+          </div>
+        </div>
 
             {/* Calendar Content */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto px-4 lg:px-6 pb-6">
                 {viewMode === 'month' ? <MonthView /> : <ListView />}
             </div>
 

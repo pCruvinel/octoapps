@@ -54,6 +54,63 @@ export abstract class BaseStrategy implements ICalculationStrategy {
     }
 
     // ============================================================================
+    // Momento Zero (t0) - Required for XIRR/TIR Calculations
+    // ============================================================================
+
+    /**
+     * Create "Momento Zero" line (t0) for the amortization table.
+     * 
+     * This is MANDATORY for all modules because:
+     * 1. XIRR/TIR requires negative cashflow at t0 (loan disbursement)
+     * 2. Pro-rata interest calculation depends on days between t0 and t1
+     * 3. Mathematical correctness of the flow
+     * 
+     * Structure:
+     * - n: 0
+     * - date: Contract/disbursement date
+     * - opening_balance: 0 (no balance before loan)
+     * - closing_balance: +amount_financed (positive = debt created)
+     * - payment: 0 (no payment at t0)
+     */
+    protected createMomentoZeroLine(input: CalculationInputV3): AmortizationLineV3 {
+        return {
+            n: 0,
+            date: input.start_date,
+            opening_balance: new Decimal(0),
+            interest: new Decimal(0),
+            amortization: new Decimal(0),
+            closing_balance: input.amount_financed,
+            installment_value: new Decimal(0),
+            total_installment: new Decimal(0),
+            payment_status: 'PAID', // t0 is always "complete"
+        };
+    }
+
+    /**
+     * Validate that the amortization table ends with balance ≈ 0
+     * (Prova Real / Balance Zeroing)
+     */
+    protected validateBalanceZeroing(table: AmortizationLineV3[], tolerance: Decimal = new Decimal('0.01')): void {
+        if (table.length === 0) return;
+        
+        // Skip t0 line (n=0) when finding last payment line
+        const paymentLines = table.filter(line => line.n > 0);
+        if (paymentLines.length === 0) return;
+        
+        const lastLine = paymentLines[paymentLines.length - 1];
+        
+        if (lastLine.closing_balance.abs().greaterThan(tolerance)) {
+            console.warn(
+                `[PROVA REAL] Saldo final não zerou: R$ ${lastLine.closing_balance.toFixed(2)}`,
+                `Esperado: R$ 0.00 ± ${tolerance.toFixed(2)}.`,
+                `Verifique precisão da taxa ou Momento Zero.`
+            );
+        } else {
+            console.log(`[PROVA REAL] ✅ Saldo final zerado corretamente: R$ ${lastLine.closing_balance.toFixed(2)}`);
+        }
+    }
+
+    // ============================================================================
     // Protected Helper Methods
     // ============================================================================
 
@@ -179,6 +236,10 @@ export abstract class BaseStrategy implements ICalculationStrategy {
         input: CalculationInputV3
     ): ScenarioResult {
         const table: AmortizationLineV3[] = [];
+        
+        // MOMENTO ZERO (t0): Add disbursement line
+        table.push(this.createMomentoZeroLine(input));
+        
         let balance = input.amount_financed;
         const dates = this.generatePaymentDates(input);
 
@@ -277,6 +338,11 @@ export abstract class BaseStrategy implements ICalculationStrategy {
             const tariffs = this.getTotalTariffs(input.specific_data);
             balance = balance.minus(tariffs);
         }
+        
+        // MOMENTO ZERO (t0): Add disbursement line with adjusted balance
+        const t0Line = this.createMomentoZeroLine(input);
+        t0Line.closing_balance = balance; // Use adjusted balance if tariffs excluded
+        table.push(t0Line);
 
         const dates = this.generatePaymentDates(input);
 

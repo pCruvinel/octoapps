@@ -1,7 +1,8 @@
 # Módulo de Cálculo Revisional - Veículos
 
 > **Documentação Técnica para Validação**  
-> Versão: 3.1.0 | Data: 2025-12-22
+> Versão: 3.3.0 | Data: 2026-01-15
+> 🆕 **v3.3.0**: XIRR para engenharia reversa de taxa, Momento Zero obrigatório
 
 ---
 
@@ -272,16 +273,37 @@ Para VINCENDAS:
   Nova Prestação = Saldo Atual × [i × (1+i)^restante] / [(1+i)^restante - 1]
 ```
 
-### 3.7 XTIR (Detecção de Capitalização Diária)
+### 3.7 XIRR - Engenharia Reversa da Taxa (Novo v3.3.0)
 
-```
-Dias Entre Parcelas[k] = Data[k] - Data[k-1]
-Fator Não Periódico[k] = (1 + i)^(dias/30)
-Quociente XTIR[k] = Parcela Total[k] / Saldo Abertura[k]
+> 🆕 **Funcionalidade Crítica**: Descobrir a taxa REAL efetiva do contrato
 
-Se Dias ≠ 30, indica capitalização diária.
-Se XTIR > Taxa Pactuada, há capitalização composta indevida.
+O XIRR (Extended Internal Rate of Return) permite calcular a taxa real cobrada,
+ignorandoa taxa nominal escrita no contrato.
+
+```typescript
+// Estrutura do fluxo de caixa para XIRR:
+cashflows = [
+    { date: data_liberacao, value: -valor_financiado }, // t0: banco empresta (negativo)
+    { date: vencimento_1, value: +parcela },           // t1: cliente paga (positivo)
+    { date: vencimento_2, value: +parcela },           // t2: cliente paga
+    // ... até tn
+];
+
+// Resultado:
+const result = calculateXIRR(cashflows);
+// result.rateMonthly = taxa real mensal
+// result.rateAnnual = taxa real anual
+
+// Detecção de anatocismo:
+if (taxa_real > taxa_contrato * 1.05) {
+    // Há capitalização oculta!
+    flags.anatocism_detected = true;
+}
 ```
+
+**Momento Zero (t0) Obrigatório:**
+- Linha 0: Data do Contrato | Saldo = +Valor Financiado | Pagamento = 0
+- Sem t0, o algoritmo Newton-Raphson não converge
 
 ---
 
