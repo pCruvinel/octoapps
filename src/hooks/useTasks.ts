@@ -22,6 +22,12 @@ export function useTasks() {
         .from('tarefas')
         .select(`
           *,
+          category:category_id (
+            id,
+            name,
+            color,
+            icon
+          ),
           responsavel:responsavel_id (
             id,
             nome_completo,
@@ -34,16 +40,127 @@ export function useTasks() {
         `)
         .eq('oportunidade_id', opportunityId)
         .eq('ativo', true)
-        .order('data_vencimento', { ascending: false });
+        .order('data_inicio', { ascending: false, nullsFirst: false });
 
       if (fetchError) throw fetchError;
 
-      setTasks(data || []);
+      setTasks((data as unknown as Task[]) || []);
       return { data, error: null };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar tarefas';
       setError(errorMessage);
       console.error('Erro ao buscar tarefas:', err);
+      return { data: null, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * V2: Buscar tarefas em um intervalo de datas (substitui agendamentos)
+   */
+  const loadTasksByRange = useCallback(async (startDate: string, endDate: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Buscar tarefas onde data_inicio ou data_fim estão no intervalo
+      const { data, error: fetchError } = await supabase
+        .from('tarefas')
+        .select(`
+          *,
+          category:category_id (
+            id,
+            name,
+            color,
+            icon
+          ),
+          responsavel:responsavel_id (
+            id,
+            nome_completo,
+            avatar_url
+          ),
+          contato:contato_id (
+            id,
+            nome_completo,
+            email,
+            telefone:telefone_principal,
+            categoria:categoria_contato
+          ),
+          oportunidade:oportunidade_id (
+            id,
+            titulo,
+            valor:valor_estimado,
+            contato:contato_id (
+              id,
+              nome_completo
+            ),
+            etapa:etapa_funil_id (
+              id,
+              nome
+            ),
+            produto:produto_servico_id (
+              id,
+              nome:name
+            )
+          )
+        `)
+        // Filtro de interseção de datas (evento deve começar antes do fim da janela E terminar depois do início)
+        .lte('data_inicio', endDate)
+        .gte('data_fim', startDate)
+        .eq('ativo', true)
+        .order('data_inicio', { ascending: true });
+
+      if (fetchError) throw fetchError;
+
+      setTasks((data as unknown as Task[]) || []);
+      return { data, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar tarefas por período';
+      setError(errorMessage);
+      console.error('Erro ao buscar tarefas por período:', err);
+      return { data: null, error: errorMessage };
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  /**
+   * V2: Buscar tarefas de um contato específico
+   */
+  const loadTasksByContact = useCallback(async (contactId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: fetchError } = await supabase
+        .from('tarefas')
+        .select(`
+          *,
+          category:category_id (
+            id,
+            name,
+            color,
+            icon
+          ),
+          responsavel:responsavel_id (
+            id,
+            nome_completo,
+            avatar_url
+          )
+        `)
+        .eq('contato_id', contactId)
+        .eq('ativo', true)
+        .order('data_inicio', { ascending: false, nullsFirst: false });
+
+      if (fetchError) throw fetchError;
+
+      setTasks((data as unknown as Task[]) || []);
+      return { data, error: null };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar tarefas do contato';
+      setError(errorMessage);
+      console.error('Erro ao buscar tarefas do contato:', err);
       return { data: null, error: errorMessage };
     } finally {
       setLoading(false);
@@ -219,6 +336,8 @@ export function useTasks() {
 
     // Funções de leitura
     loadTasksByOpportunity,
+    loadTasksByRange,
+    loadTasksByContact,
     getTaskById,
 
     // Funções de escrita

@@ -2,7 +2,7 @@
 // HOOK DE PERMISSÕES - usePermissions
 // ==================================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import type { UserPermissionsMap, ModuleCode, PermissionAction } from '../types/permissions';
@@ -17,23 +17,35 @@ export function usePermissions() {
   const [permissions, setPermissions] = useState<UserPermissionsMap>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // Refs para evitar carregamento duplicado
+  const lastUserIdRef = useRef<string | null>(null);
+  const isLoadingRef = useRef(false);
 
   /**
    * Carrega as permissões efetivas do usuário atual
    */
   const loadPermissions = useCallback(async () => {
-    if (!user) {
+    const userId = user?.id;
+    
+    if (!userId) {
       setPermissions({});
       setLoading(false);
       return;
     }
 
+    // Evitar carregamento duplicado
+    if (isLoadingRef.current) {
+      return;
+    }
+
     try {
+      isLoadingRef.current = true;
       setLoading(true);
       setError(null);
 
       // Buscar permissões efetivas do usuário
-      const effectivePerms = await permissionsService.getUserEffectivePermissions(user.id);
+      const effectivePerms = await permissionsService.getUserEffectivePermissions(userId);
 
       // Converter array de permissões em mapa estruturado
       const permissionsMap: UserPermissionsMap = {};
@@ -51,17 +63,28 @@ export function usePermissions() {
       setError(error);
       console.error('Erro ao carregar permissões:', error);
     } finally {
+      isLoadingRef.current = false;
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id]); // Usar user?.id em vez de user
 
   /**
    * Efeito para carregar permissões ao montar e configurar Realtime
    */
   useEffect(() => {
-    loadPermissions();
+    const userId = user?.id;
+    
+    if (!userId) {
+      setPermissions({});
+      setLoading(false);
+      return;
+    }
 
-    if (!user) return;
+    // Só recarrega se o usuário mudou
+    if (lastUserIdRef.current !== userId) {
+      lastUserIdRef.current = userId;
+      loadPermissions();
+    }
 
     // Configurar listener Realtime para mudanças de permissões
     const channel = supabase
@@ -72,7 +95,7 @@ export function usePermissions() {
           event: '*',
           schema: 'public',
           table: 'user_permissions',
-          filter: `user_id=eq.${user.id}`
+          filter: `user_id=eq.${userId}`
         },
         () => {
           console.log('Permissões atualizadas via Realtime');
@@ -93,7 +116,7 @@ export function usePermissions() {
       channel.unsubscribe();
       window.removeEventListener('permissions-updated', handleForceReload);
     };
-  }, [loadPermissions, user]);
+  }, [user?.id, loadPermissions]); // Usar user?.id em vez de user
 
   /**
    * Verificação genérica de permissão

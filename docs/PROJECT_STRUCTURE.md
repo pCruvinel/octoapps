@@ -13,6 +13,7 @@ OctoApp/
 │   ├── components/     # Componentes React (Organizados por Features)
 │   │   ├── auth/       # Login, registro, recuperação de senha
 │   │   ├── calculations/ # Módulos de cálculos financeiros (Wizards, Listas)
+│   │   ├── dashboard/    # Dashboards e Paineis Executivos
 │   │   ├── layout/     # Sidebar, Header, Steppers
 │   │   ├── ui/         # Componentes base (Shadcn/Radix)
 │   │   └── ...         # Outras features (CRM, Contatos, Petições)

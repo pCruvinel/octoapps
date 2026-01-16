@@ -15,6 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
 import { useProducts } from '../../hooks/useProducts';
+import { ContactCombobox } from '../shared/ContactCombobox';
+import { ProductMultiSelect } from '../shared/ProductMultiSelect';
 import { CurrencyInput } from '@/components/ui/currency-input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 
@@ -22,9 +24,10 @@ interface NewLeadDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onSuccess: () => void;
-    contacts: any[];
+    contacts?: any[];
     profiles: any[];
     preselectedContactId?: string; // When set, contact is read-only
+    funilId?: string | null;
 }
 
 const formSchema = z.object({
@@ -32,7 +35,7 @@ const formSchema = z.object({
     responsavel_id: z.string().min(1, 'Selecione um responsável'),
     origem: z.string().optional(),
     etapa_funil_id: z.string().min(1, 'Selecione uma etapa'),
-    produto_servico_id: z.string().optional(), // v2: produto do catálogo
+    produto_servico_ids: z.array(z.string()).optional().default([]), // v2: produtos do catálogo (N:N)
     tipo_operacao: z.string().optional(), // legado
     valor_causa: z.number().optional().default(0), // v2: dívida
     valor_proposta: z.number().optional().default(0), // v2: honorários
@@ -50,9 +53,9 @@ const ORIGEM_OPTIONS = [
     { value: 'Outro', label: 'Outro' },
 ];
 
-export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profiles, preselectedContactId }: NewLeadDialogProps) {
+export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profiles, preselectedContactId, funilId }: NewLeadDialogProps) {
     const { user } = useAuth();
-    const { etapas } = useEtapasFunil();
+    const { etapas } = useEtapasFunil({ funilId: funilId || undefined });
     const { activeProducts, loading: loadingProducts } = useProducts();
     const [loading, setLoading] = useState(false);
     const [showNewContactForm, setShowNewContactForm] = useState(false);
@@ -71,7 +74,7 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
             responsavel_id: '',
             origem: '',
             etapa_funil_id: '',
-            produto_servico_id: '',
+            produto_servico_ids: [],
             tipo_operacao: '',
             valor_causa: 0,
             valor_proposta: 0,
@@ -87,7 +90,7 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                 responsavel_id: user.id,
                 origem: '',
                 etapa_funil_id: etapas[0].id,
-                produto_servico_id: '',
+                produto_servico_ids: [],
                 tipo_operacao: '',
                 valor_causa: 0,
                 valor_proposta: 0,
@@ -149,15 +152,26 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
             }
 
             // Get contact name for title generation
-            const contactName = showNewContactForm
-                ? newContact.nome_completo
-                : contacts.find(c => c.id === contactId)?.nome_completo || 'Sem Nome';
+            let contactName = 'Sem Nome';
+            if (showNewContactForm) {
+                contactName = newContact.nome_completo;
+            } else {
+                const found = contacts?.find(c => c.id === contactId);
+                if (found) {
+                   contactName = found.nome_completo;
+                } else if (contactId) {
+                   const { data: cData } = await supabase.from('contatos').select('nome_completo').eq('id', contactId).single();
+                   if (cData) contactName = cData.nome_completo;
+                }
+            }
 
             const currentTitle = `${contactName}`;
 
-            // Get product name for tipo_acao (legacy)
-            const selectedProduct = activeProducts.find(p => p.id === values.produto_servico_id);
-            const tipoAcaoValue = selectedProduct?.name || values.tipo_operacao || null;
+            // Get product names for tipo_acao legacy and logging
+            const selectedProductIds = values.produto_servico_ids || [];
+            const selectedProductsDetails = activeProducts.filter(p => selectedProductIds.includes(p.id));
+            const productsNames = selectedProductsDetails.map(p => p.name).join(', ');
+            const tipoAcaoValue = productsNames || values.tipo_operacao || null;
 
             const { data: createdOpp, error } = await supabase
                 .from('oportunidades')
@@ -166,10 +180,10 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                     contato_id: contactId || null,
                     responsavel_id: values.responsavel_id || user?.id || null,
                     origem: values.origem || null,
-                    tipo_acao: tipoAcaoValue, // legado
+                    tipo_acao: tipoAcaoValue, // legado (nome concatenado ou tipo manual)
                     etapa_funil_id: values.etapa_funil_id || etapas[0]?.id || null,
                     // v2 campos
-                    produto_servico_id: values.produto_servico_id || null,
+                    produto_servico_id: selectedProductIds[0] || null, // Manteve singular para compatibilidade com queries antigas
                     valor_causa: values.valor_causa || 0,
                     valor_proposta: values.valor_proposta || 0,
                     valor_estimado: values.valor_proposta || 0, // mantém compatibilidade
@@ -180,6 +194,22 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                 .single();
 
             if (error) throw error;
+
+            // Inserir relacionamentos N:N na tabela oportunidade_produtos
+            if (selectedProductIds.length > 0) {
+                const productsInsert = selectedProductIds.map(pid => ({
+                    oportunidade_id: createdOpp.id,
+                    produto_servico_id: pid
+                }));
+                const { error: prodError } = await supabase
+                    .from('oportunidade_produtos')
+                    .insert(productsInsert);
+                
+                if (prodError) {
+                    console.error('Erro ao vincular produtos:', prodError);
+                    toast.error('Oportunidade criada, mas houve erro ao vincular alguns produtos.');
+                }
+            }
 
             // Log activity (non-blocking)
             const responsavelNome = profiles.find(p => p.id === values.responsavel_id)?.nome_completo || 'Não definido';
@@ -194,7 +224,7 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                 dados_novos: {
                     titulo: currentTitle,
                     contato: contactName,
-                    produto: selectedProduct?.name || values.tipo_operacao || null,
+                    produto: productsNames || values.tipo_operacao || null,
                     valor_proposta: values.valor_proposta || 0,
                     etapa: etapaNome,
                     responsavel: responsavelNome,
@@ -276,22 +306,14 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                                         name="contato_id"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <Select 
-                                                    onValueChange={field.onChange} 
-                                                    value={field.value}
-                                                    disabled={!!preselectedContactId}
-                                                >
-                                                    <FormControl>
-                                                        <SelectTrigger className={`w-full ${preselectedContactId ? 'opacity-70 cursor-not-allowed' : ''}`}>
-                                                            <SelectValue placeholder="Selecione um contato" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        {contacts.map(c => (
-                                                            <SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                                <FormControl>
+                                                    <ContactCombobox
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                        disabled={!!preselectedContactId}
+                                                        placeholder="Selecione um contato..."
+                                                    />
+                                                </FormControl>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
@@ -299,34 +321,21 @@ export function NewLeadDialog({ open, onOpenChange, onSuccess, contacts, profile
                                 )}
                             </div>
 
-                            {/* Produto/Serviço (v2) */}
                             <div className="col-span-1">
                                 <FormField
                                     control={form.control}
-                                    name="produto_servico_id"
+                                    name="produto_servico_ids"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Produto / Serviço</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Selecione o produto" />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {loadingProducts ? (
-                                                        <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                                                    ) : activeProducts.length === 0 ? (
-                                                        <SelectItem value="empty" disabled>Nenhum produto cadastrado</SelectItem>
-                                                    ) : (
-                                                        activeProducts.map(product => (
-                                                            <SelectItem key={product.id} value={product.id}>
-                                                                {product.name}
-                                                            </SelectItem>
-                                                        ))
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
+                                            <FormLabel>Produtos / Serviços</FormLabel>
+                                            <FormControl>
+                                                <ProductMultiSelect
+                                                    products={activeProducts}
+                                                    selectedValues={field.value}
+                                                    onChange={field.onChange}
+                                                    placeholder="Selecione os serviços..."
+                                                />
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}

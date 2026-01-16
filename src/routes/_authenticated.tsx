@@ -16,7 +16,11 @@ export const Route = createFileRoute('/_authenticated')({
 
     // Check admin-only routes
     const isAdminRoute = ADMIN_ROUTES.some(r => location.pathname.startsWith(r));
-    const isAdmin = context.auth.profile?.roles?.includes('Administrador');
+    const userRole = context.auth.profile?.roles?.[0] || context.auth.profile?.role; // Support both array (legacy) and string (new)
+    
+    // Roles that have admin access
+    const ADMIN_ROLES = ['Administrador', 'Gestor', 'Admin Master'];
+    const isAdmin = ADMIN_ROLES.includes(userRole as string) || (Array.isArray(context.auth.profile?.roles) && context.auth.profile?.roles.some((r: string) => ADMIN_ROLES.includes(r)));
 
     if (isAdminRoute && !isAdmin) {
       toast.error('Acesso restrito a administradores');

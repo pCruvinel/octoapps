@@ -180,6 +180,8 @@ export async function calcularEvolucaoDetalhada(
         multaMoratoria: request.multaMoratoria,
         // NOVO: Data de liberação para cálculo de dias acumulados (capitalização diária)
         dataLiberacao: request.dataLiberacao,
+        // NOVO: Data do contrato para cálculo pro-rata da 1ª parcela
+        dataContrato: request.dataContrato,
     });
     const ap01EndTime = performance.now();
 
@@ -272,6 +274,8 @@ export async function calcularEvolucaoDetalhada(
         },
         // NOVO: Conciliação para amortização extra
         conciliacao: request.conciliacao,
+        // NOVO: Data do contrato para cálculo pro-rata da 1ª parcela
+        dataContrato: request.dataContrato,
     });
     const ap02EndTime = performance.now();
 
@@ -488,6 +492,8 @@ interface GerarAPParams {
     multaMoratoria?: number;   // % (padrão 2%)
     // NOVO: Data de liberação para cálculo de dias acumulados (capitalização diária)
     dataLiberacao?: string;     // YYYY-MM-DD
+    // NOVO: Data do contrato para cálculo pro-rata da 1ª parcela
+    dataContrato?: string;      // YYYY-MM-DD
 }
 
 /**
@@ -523,6 +529,34 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
     let totalPago = 0;
     let diferencaAcumulada = 0;
 
+    // ========================================
+    // MOMENTO ZERO (t=0): Linha inicial do empréstimo
+    // Mostra o saldo devedor inicial antes de qualquer pagamento
+    // Essencial para cálculo XTIR e visualização completa
+    // ========================================
+    tabela.push({
+        mes: 0,
+        data: params.dataInicio,
+        saldoAbertura: 0,
+        indiceCorrecao: 0,
+        correcaoMonetaria: 0,
+        saldoCorrigido: 0,
+        juros: 0,
+        amortizacao: 0,
+        saldoDevedor: params.principal.toNumber(),
+        seguroMIP: 0,
+        seguroDFI: 0,
+        taxaAdm: 0,
+        parcelaBase: 0,
+        parcelaTotal: 0,
+        diferenca: 0,
+        diferencaAcumulada: 0,
+        diasEntreParcelas: 0,
+        fatorNaoPeriodico: 1,
+        quocienteXTIR: 0,
+        status: 'PAGO', // t=0 é sempre "executado" (o empréstimo foi concedido)
+    });
+
     for (let mes = 1; mes <= params.prazo; mes++) {
         const dataVencimento = adicionarMeses(params.dataInicio, mes - 1);
         const saldoAbertura = saldoDevedor.toNumber();
@@ -535,7 +569,17 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
         );
 
         // 2. Aplicar correção monetária
-        const correcaoMonetaria = saldoDevedor.times(indiceCorrecao).toNumber();
+        // NOVO: Pro-rata na 1ª parcela (dias corridos entre contrato e 1º vencimento)
+        let fatorProRata = 1;
+        if (mes === 1 && params.dataContrato && params.dataInicio) {
+            const diasDecorridos = calcularDiasEntre(params.dataContrato, dataVencimento);
+            fatorProRata = diasDecorridos / 30;
+            // Log apenas na 1ª parcela
+            if (fatorProRata !== 1) {
+                console.log(`  [Pro-rata] 1ª parcela: ${diasDecorridos} dias → fator ${fatorProRata.toFixed(4)}`);
+            }
+        }
+        const correcaoMonetaria = saldoDevedor.times(indiceCorrecao * fatorProRata).toNumber();
         const saldoCorrigido = saldoDevedor.plus(correcaoMonetaria);
 
         // 3. Calcular juros
@@ -550,14 +594,19 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
         // 4. Calcular amortização
         let amortizacao: Decimal;
         let parcelaBase: Decimal;
+        const prazoRemanescente = params.prazo - mes + 1;
 
         if (params.sistema === 'SAC') {
-            amortizacao = amortizacaoConstante;
+            // SAC: Amortização = Saldo Corrigido / Prazo Remanescente
+            amortizacao = saldoCorrigido.div(prazoRemanescente);
             parcelaBase = amortizacao.plus(juros);
         } else {
-            // PRICE
-            parcelaBase = pmt;
-            amortizacao = pmt.minus(juros);
+            // PRICE com correção monetária:
+            // Recalcular PMT a cada mês sobre saldo CORRIGIDO e prazo remanescente
+            // Isso garante que o saldo zera exatamente no último mês
+            const pmtAtualizado = calcularPMT(saldoCorrigido, taxaDecimal, prazoRemanescente);
+            parcelaBase = pmtAtualizado;
+            amortizacao = pmtAtualizado.minus(juros);
         }
 
         // 5. Calcular seguros
@@ -683,10 +732,6 @@ function gerarAP01_EvolucaoOriginal(params: GerarAPParams): ApendiceResult {
             // Campos específicos para Capitalização Diária
             diasAcumulados,
             quocienteDiario,
-            // NOVO: Campos de mora
-            diasAtraso,
-            encargosMora,
-            principalPago,
             status,
             override,
         });
@@ -735,6 +780,30 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
     let totalTarifas = 0;
     let totalPago = 0;
 
+    // ========================================
+    // MOMENTO ZERO (t=0): Linha inicial do empréstimo
+    // Mostra o saldo devedor inicial antes de qualquer pagamento
+    // ========================================
+    tabela.push({
+        mes: 0,
+        data: params.dataInicio,
+        saldoAbertura: 0,
+        indiceCorrecao: 0,
+        correcaoMonetaria: 0,
+        saldoCorrigido: 0,
+        juros: 0,
+        amortizacao: 0,
+        saldoDevedor: params.principal.toNumber(),
+        seguroMIP: 0,
+        seguroDFI: 0,
+        taxaAdm: 0,
+        parcelaBase: 0,
+        parcelaTotal: 0,
+        diferenca: 0,
+        diferencaAcumulada: 0,
+        status: 'PAGO',
+    });
+
     for (let mes = 1; mes <= params.prazo; mes++) {
         const dataVencimento = adicionarMeses(params.dataInicio, mes - 1);
         const saldoAbertura = saldoDevedor.toNumber();
@@ -751,7 +820,13 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
         );
 
         // 2. Correção monetária
-        const correcaoMonetaria = saldoDevedor.times(indiceCorrecao).toNumber();
+        // NOVO: Pro-rata na 1ª parcela (dias corridos entre contrato e 1º vencimento)
+        let fatorProRata = 1;
+        if (mes === 1 && params.dataContrato && params.dataInicio) {
+            const diasDecorridos = calcularDiasEntre(params.dataContrato, dataVencimento);
+            fatorProRata = diasDecorridos / 30;
+        }
+        const correcaoMonetaria = saldoDevedor.times(indiceCorrecao * fatorProRata).toNumber();
         const saldoCorrigido = saldoDevedor.plus(correcaoMonetaria);
 
         // 3. Juros (sempre capitalização mensal no recálculo)
@@ -766,13 +841,18 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
         // 4. Amortização
         let amortizacao: Decimal;
         let parcelaBase: Decimal;
+        const prazoRemanescente = params.prazo - mes + 1;
 
         if (params.sistema === 'SAC' || params.usarJurosSimples) {
-            amortizacao = amortizacaoConstante;
+            // SAC: Amortização = Saldo Corrigido / Prazo Remanescente
+            amortizacao = saldoCorrigido.div(prazoRemanescente);
             parcelaBase = amortizacao.plus(juros);
         } else {
-            parcelaBase = pmt;
-            amortizacao = pmt.minus(juros);
+            // PRICE com correção monetária:
+            // Recalcular PMT a cada mês sobre saldo CORRIGIDO e prazo remanescente
+            const pmtAtualizado = calcularPMT(saldoCorrigido, taxaDecimal, prazoRemanescente);
+            parcelaBase = pmtAtualizado;
+            amortizacao = pmtAtualizado.minus(juros);
         }
 
         // 5. Seguros (se não expurgados)
@@ -828,7 +908,6 @@ function gerarAP02_Recalculo(params: GerarAPParams): ApendiceResult {
             saldoCorrigido: saldoCorrigido.toNumber(),
             juros: juros.toNumber(),
             amortizacao: amortizacao.toNumber(),
-            amortizacaoExtra: amortExtra.toNumber(), // NOVO
             saldoDevedor: saldoDevedor.toNumber(),
             seguroMIP,
             seguroDFI,

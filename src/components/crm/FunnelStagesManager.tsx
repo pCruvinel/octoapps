@@ -13,6 +13,8 @@ import {
     Loader2,
     Check,
     Layers,
+    ChevronDown,
+    Settings2,
 } from 'lucide-react';
 import {
     Dialog,
@@ -39,9 +41,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from '../ui/select';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
+import { useFunis, type Funil, type FunilInsert } from '../../hooks/useFunis';
 import { useAuth } from '../../hooks/useAuth';
 import type { EtapaFunil, TipoEtapaFunil } from '../../types/funnel';
 import { LISTA_CORES_ETAPA, TIPOS_ETAPA } from '../../types/funnel';
@@ -70,6 +80,17 @@ interface SortableStageItemProps {
     onEdit: (etapa: EtapaFunil) => void;
     onDelete: (etapa: EtapaFunil) => void;
 }
+
+const CORES_FUNIL = [
+    '#6366f1', // Indigo
+    '#8b5cf6', // Violet
+    '#ec4899', // Pink
+    '#ef4444', // Red
+    '#f97316', // Orange
+    '#22c55e', // Green
+    '#3b82f6', // Blue
+    '#14b8a6', // Teal
+];
 
 function SortableStageItem({ etapa, onEdit, onDelete }: SortableStageItemProps) {
     const {
@@ -148,28 +169,59 @@ function SortableStageItem({ etapa, onEdit, onDelete }: SortableStageItemProps) 
 
 export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
     const { user } = useAuth();
+    
+    // Gerenciamento de funis
+    const {
+        funis,
+        funilAtivo,
+        setFunilAtivo,
+        createFunil,
+        updateFunil,
+        deleteFunil,
+        loading: loadingFunis,
+        ensureDefaultFunil,
+    } = useFunis();
+
+    // Gerenciamento de etapas - filtrado pelo funil ativo
     const {
         etapas,
-        loading,
+        loading: loadingEtapas,
         createEtapa,
         updateEtapa,
         deleteEtapa,
         reordenarEtapas,
         reordenarEtapasLocal,
-    } = useEtapasFunil();
+    } = useEtapasFunil({ funilId: funilAtivo });
 
-    const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    // Estados de dialogs
+    const [isCreateStageDialogOpen, setIsCreateStageDialogOpen] = useState(false);
+    const [isEditStageDialogOpen, setIsEditStageDialogOpen] = useState(false);
+    const [isDeleteStageDialogOpen, setIsDeleteStageDialogOpen] = useState(false);
     const [selectedEtapa, setSelectedEtapa] = useState<EtapaFunil | null>(null);
+
+    // Dialogs de funil
+    const [isCreateFunilDialogOpen, setIsCreateFunilDialogOpen] = useState(false);
+    const [isEditFunilDialogOpen, setIsEditFunilDialogOpen] = useState(false);
+    const [isDeleteFunilDialogOpen, setIsDeleteFunilDialogOpen] = useState(false);
+    
     const [actionLoading, setActionLoading] = useState(false);
 
-    // Form state
-    const [formData, setFormData] = useState({
+    // Form state para etapa
+    const [stageFormData, setStageFormData] = useState({
         nome: '',
         cor: LISTA_CORES_ETAPA[0].valor,
         tipo: 'aberta' as TipoEtapaFunil,
     });
+
+    // Form state para funil
+    const [funilFormData, setFunilFormData] = useState<FunilInsert>({
+        nome: '',
+        descricao: '',
+        cor: CORES_FUNIL[0],
+    });
+
+    // Funil ativo selecionado
+    const selectedFunil = funis.find(f => f.id === funilAtivo);
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -177,20 +229,23 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
         })
     );
 
+    // Garantir funil padrão ao montar
+    useEffect(() => {
+        ensureDefaultFunil();
+    }, [ensureDefaultFunil]);
+
+    // O hook useEtapasFunil já recarrega automaticamente quando funilId muda
+
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
 
         if (over && active.id !== over.id) {
             const oldIndex = etapas.findIndex((e) => e.id === active.id);
             const newIndex = etapas.findIndex((e) => e.id === over.id);
-
-            // Local update (optimistic)
-            const newEtapas = arrayMove(etapas, oldIndex, newIndex);
             const newOrder = newIndex + 1;
 
             reordenarEtapasLocal(active.id as string, newOrder);
 
-            // Persist to database
             const { error } = await reordenarEtapas(active.id as string, newOrder);
 
             if (error) {
@@ -201,55 +256,63 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
         }
     };
 
-    const resetForm = () => {
-        setFormData({
+    // ================== HANDLERS DE ETAPA ==================
+
+    const resetStageForm = () => {
+        setStageFormData({
             nome: '',
             cor: LISTA_CORES_ETAPA[0].valor,
             tipo: 'aberta',
         });
     };
 
-    const handleOpenCreate = () => {
-        resetForm();
-        setIsCreateDialogOpen(true);
+    const handleOpenCreateStage = () => {
+        resetStageForm();
+        setIsCreateStageDialogOpen(true);
     };
 
-    const handleOpenEdit = (etapa: EtapaFunil) => {
+    const handleOpenEditStage = (etapa: EtapaFunil) => {
         setSelectedEtapa(etapa);
-        setFormData({
+        setStageFormData({
             nome: etapa.nome,
             cor: etapa.cor,
             tipo: etapa.tipo,
         });
-        setIsEditDialogOpen(true);
+        setIsEditStageDialogOpen(true);
     };
 
-    const handleOpenDelete = (etapa: EtapaFunil) => {
+    const handleOpenDeleteStage = (etapa: EtapaFunil) => {
         setSelectedEtapa(etapa);
-        setIsDeleteDialogOpen(true);
+        setIsDeleteStageDialogOpen(true);
     };
 
-    const handleCreate = async () => {
-        if (!formData.nome.trim()) {
+    const handleCreateStage = async () => {
+        if (!stageFormData.nome.trim()) {
             toast.error('Informe o nome da etapa');
+            return;
+        }
+
+        if (!funilAtivo) {
+            toast.error('Selecione um funil primeiro');
             return;
         }
 
         setActionLoading(true);
         try {
             const { error } = await createEtapa({
-                nome: formData.nome.trim(),
-                cor: formData.cor,
-                tipo: formData.tipo,
+                nome: stageFormData.nome.trim(),
+                cor: stageFormData.cor,
+                tipo: stageFormData.tipo,
                 ordem: etapas.length + 1,
                 criado_por: user?.id,
+                funil_id: funilAtivo,
             });
 
             if (error) throw new Error(error);
 
             toast.success('Etapa criada com sucesso!');
-            setIsCreateDialogOpen(false);
-            resetForm();
+            setIsCreateStageDialogOpen(false);
+            resetStageForm();
         } catch (error: any) {
             toast.error(error.message || 'Erro ao criar etapa');
         } finally {
@@ -257,8 +320,8 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
         }
     };
 
-    const handleUpdate = async () => {
-        if (!selectedEtapa || !formData.nome.trim()) {
+    const handleUpdateStage = async () => {
+        if (!selectedEtapa || !stageFormData.nome.trim()) {
             toast.error('Informe o nome da etapa');
             return;
         }
@@ -266,17 +329,17 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
         setActionLoading(true);
         try {
             const { error } = await updateEtapa(selectedEtapa.id, {
-                nome: formData.nome.trim(),
-                cor: formData.cor,
-                tipo: formData.tipo,
+                nome: stageFormData.nome.trim(),
+                cor: stageFormData.cor,
+                tipo: stageFormData.tipo,
             });
 
             if (error) throw new Error(error);
 
             toast.success('Etapa atualizada com sucesso!');
-            setIsEditDialogOpen(false);
+            setIsEditStageDialogOpen(false);
             setSelectedEtapa(null);
-            resetForm();
+            resetStageForm();
         } catch (error: any) {
             toast.error(error.message || 'Erro ao atualizar etapa');
         } finally {
@@ -284,7 +347,7 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
         }
     };
 
-    const handleDelete = async () => {
+    const handleDeleteStage = async () => {
         if (!selectedEtapa) return;
 
         setActionLoading(true);
@@ -294,7 +357,7 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
             if (error) throw new Error(error);
 
             toast.success('Etapa excluída com sucesso!');
-            setIsDeleteDialogOpen(false);
+            setIsDeleteStageDialogOpen(false);
             setSelectedEtapa(null);
         } catch (error: any) {
             toast.error(error.message || 'Erro ao excluir etapa');
@@ -303,30 +366,130 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
         }
     };
 
-    const StageFormContent = () => (
+    // ================== HANDLERS DE FUNIL ==================
+
+    const resetFunilForm = () => {
+        setFunilFormData({
+            nome: '',
+            descricao: '',
+            cor: CORES_FUNIL[0],
+        });
+    };
+
+    const handleOpenCreateFunil = () => {
+        resetFunilForm();
+        setIsCreateFunilDialogOpen(true);
+    };
+
+    const handleOpenEditFunil = () => {
+        if (!selectedFunil) return;
+        setFunilFormData({
+            nome: selectedFunil.nome,
+            descricao: selectedFunil.descricao || '',
+            cor: selectedFunil.cor,
+        });
+        setIsEditFunilDialogOpen(true);
+    };
+
+    const handleOpenDeleteFunil = () => {
+        if (funis.length <= 1) {
+            toast.error('Não é possível excluir o único funil');
+            return;
+        }
+        setIsDeleteFunilDialogOpen(true);
+    };
+
+    const handleCreateFunil = async () => {
+        if (!funilFormData.nome.trim()) {
+            toast.error('Informe o nome do funil');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            const { data, error } = await createFunil(funilFormData);
+            if (error) throw new Error(error);
+
+            // Selecionar o novo funil
+            if (data) {
+                setFunilAtivo(data.id);
+            }
+
+            toast.success('Funil criado com sucesso!');
+            setIsCreateFunilDialogOpen(false);
+            resetFunilForm();
+        } catch (error: any) {
+            toast.error(error.message || 'Erro ao criar funil');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleUpdateFunil = async () => {
+        if (!selectedFunil || !funilFormData.nome.trim()) {
+            toast.error('Informe o nome do funil');
+            return;
+        }
+
+        setActionLoading(true);
+        try {
+            const { error } = await updateFunil(selectedFunil.id, funilFormData);
+            if (error) throw new Error(error);
+
+            toast.success('Funil atualizado com sucesso!');
+            setIsEditFunilDialogOpen(false);
+        } catch (error: any) {
+            toast.error(error.message || 'Erro ao atualizar funil');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDeleteFunil = async () => {
+        if (!selectedFunil) return;
+
+        setActionLoading(true);
+        try {
+            const { error } = await deleteFunil(selectedFunil.id);
+            if (error) throw new Error(error);
+
+            toast.success('Funil excluído com sucesso!');
+            setIsDeleteFunilDialogOpen(false);
+        } catch (error: any) {
+            toast.error(error.message || 'Erro ao excluir funil');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    // ================== COMPONENTES DE FORMULÁRIO ==================
+
+    // JSX do formulário de etapa (variável em vez de função para evitar re-render)
+    const stageFormJSX = (
         <div className="space-y-4 py-4">
             <div className="space-y-2">
-                <Label htmlFor="nome">Nome da Etapa *</Label>
+                <Label htmlFor="stage-nome">Nome da Etapa *</Label>
                 <Input
-                    id="nome"
-                    value={formData.nome}
+                    id="stage-nome"
+                    value={stageFormData.nome}
                     onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, nome: e.target.value }))
+                        setStageFormData((prev) => ({ ...prev, nome: e.target.value }))
                     }
                     placeholder="Ex: Qualificação"
                     className="w-full"
+                    autoComplete="off"
                 />
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="tipo">Tipo de Etapa *</Label>
+                <Label htmlFor="stage-tipo">Tipo de Etapa *</Label>
                 <Select
-                    value={formData.tipo}
+                    value={stageFormData.tipo}
                     onValueChange={(value: TipoEtapaFunil) =>
-                        setFormData((prev) => ({ ...prev, tipo: value }))
+                        setStageFormData((prev) => ({ ...prev, tipo: value }))
                     }
                 >
-                    <SelectTrigger id="tipo" className="w-full">
+                    <SelectTrigger id="stage-tipo" className="w-full">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -347,16 +510,16 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                             key={cor.valor}
                             type="button"
                             onClick={() =>
-                                setFormData((prev) => ({ ...prev, cor: cor.valor }))
+                                setStageFormData((prev) => ({ ...prev, cor: cor.valor }))
                             }
-                            className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${formData.cor === cor.valor
+                            className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${stageFormData.cor === cor.valor
                                     ? 'border-slate-900 scale-110'
                                     : 'border-transparent hover:scale-105'
                                 }`}
                             style={{ backgroundColor: cor.valor }}
                             title={cor.nome}
                         >
-                            {formData.cor === cor.valor && (
+                            {stageFormData.cor === cor.valor && (
                                 <Check className="w-4 h-4 text-white drop-shadow-md" />
                             )}
                         </button>
@@ -365,6 +528,65 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
             </div>
         </div>
     );
+
+    // JSX do formulário de funil (variável em vez de função para evitar re-render)
+    const funilFormJSX = (
+        <div className="space-y-4 py-4">
+            <div className="space-y-2">
+                <Label htmlFor="funil-nome">Nome do Funil *</Label>
+                <Input
+                    id="funil-nome"
+                    value={funilFormData.nome}
+                    onChange={(e) =>
+                        setFunilFormData((prev) => ({ ...prev, nome: e.target.value }))
+                    }
+                    placeholder="Ex: Pipeline de Vendas"
+                    className="w-full"
+                    autoComplete="off"
+                />
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="funil-descricao">Descrição</Label>
+                <Input
+                    id="funil-descricao"
+                    value={funilFormData.descricao || ''}
+                    onChange={(e) =>
+                        setFunilFormData((prev) => ({ ...prev, descricao: e.target.value }))
+                    }
+                    placeholder="Descrição opcional"
+                    className="w-full"
+                    autoComplete="off"
+                />
+            </div>
+
+            <div className="space-y-2">
+                <Label>Cor</Label>
+                <div className="flex flex-wrap gap-2">
+                    {CORES_FUNIL.map((cor) => (
+                        <button
+                            key={cor}
+                            type="button"
+                            onClick={() =>
+                                setFunilFormData((prev) => ({ ...prev, cor }))
+                            }
+                            className={`w-8 h-8 rounded-full border-2 transition-all flex items-center justify-center ${funilFormData.cor === cor
+                                    ? 'border-slate-900 scale-110'
+                                    : 'border-transparent hover:scale-105'
+                                }`}
+                            style={{ backgroundColor: cor }}
+                        >
+                            {funilFormData.cor === cor && (
+                                <Check className="w-4 h-4 text-white drop-shadow-md" />
+                            )}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
+    const loading = loadingFunis || loadingEtapas;
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -384,39 +606,118 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                         <div>
                             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
                                 <Layers className="w-7 h-7 text-slate-600" />
-                                Etapas do Funil
+                                Gerenciar Funis e Etapas
                             </h1>
                             <p className="text-slate-500 mt-1">
-                                Configure as etapas do seu pipeline de vendas
+                                Configure seus pipelines e etapas de vendas
                             </p>
                         </div>
-                        <Button onClick={handleOpenCreate} className="gap-2">
-                            <Plus className="w-4 h-4" />
-                            Nova Etapa
-                        </Button>
                     </div>
                 </div>
 
-                {/* Content */}
+                {/* Seletor de Funil */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 flex-1">
+                            <Label className="text-slate-500 whitespace-nowrap">Funil:</Label>
+                            <Select value={funilAtivo || ''} onValueChange={setFunilAtivo}>
+                                <SelectTrigger className="w-full max-w-xs">
+                                    <SelectValue placeholder="Selecione um funil" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {funis.map((funil) => (
+                                        <SelectItem key={funil.id} value={funil.id}>
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className="w-3 h-3 rounded-full"
+                                                    style={{ backgroundColor: funil.cor }}
+                                                />
+                                                {funil.nome}
+                                            </div>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleOpenCreateFunil}
+                                className="gap-2"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Novo Funil
+                            </Button>
+
+                            {selectedFunil && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="icon">
+                                            <Settings2 className="w-4 h-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={handleOpenEditFunil}>
+                                            <Pencil className="w-4 h-4 mr-2" />
+                                            Editar Funil
+                                        </DropdownMenuItem>
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem
+                                            onClick={handleOpenDeleteFunil}
+                                            className="text-red-600"
+                                            disabled={funis.length <= 1}
+                                        >
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Excluir Funil
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Etapas do Funil */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
-                        <p className="text-sm text-slate-600">
-                            Arraste as etapas para reordenar. Etapas do tipo "Fechada" aparecem
-                            no final do funil.
-                        </p>
+                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <div>
+                            <h2 className="font-medium text-slate-800">
+                                Etapas do Funil {selectedFunil ? `"${selectedFunil.nome}"` : ''}
+                            </h2>
+                            <p className="text-sm text-slate-500">
+                                Arraste para reordenar. Etapas "Fechada" aparecem no final.
+                            </p>
+                        </div>
+                        <Button onClick={handleOpenCreateStage} size="sm" className="gap-2" disabled={!funilAtivo}>
+                            <Plus className="w-4 h-4" />
+                            Nova Etapa
+                        </Button>
                     </div>
 
                     {loading ? (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
                         </div>
+                    ) : !funilAtivo ? (
+                        <div className="text-center py-12">
+                            <Layers className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                            <p className="text-slate-500 mb-4">
+                                Selecione ou crie um funil para gerenciar suas etapas
+                            </p>
+                            <Button onClick={handleOpenCreateFunil} variant="outline" className="gap-2">
+                                <Plus className="w-4 h-4" />
+                                Criar primeiro funil
+                            </Button>
+                        </div>
                     ) : etapas.length === 0 ? (
                         <div className="text-center py-12">
                             <Layers className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                             <p className="text-slate-500 mb-4">
-                                Nenhuma etapa cadastrada ainda
+                                Nenhuma etapa cadastrada neste funil
                             </p>
-                            <Button onClick={handleOpenCreate} variant="outline" className="gap-2">
+                            <Button onClick={handleOpenCreateStage} variant="outline" className="gap-2">
                                 <Plus className="w-4 h-4" />
                                 Criar primeira etapa
                             </Button>
@@ -436,8 +737,8 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                                         <SortableStageItem
                                             key={etapa.id}
                                             etapa={etapa}
-                                            onEdit={handleOpenEdit}
-                                            onDelete={handleOpenDelete}
+                                            onEdit={handleOpenEditStage}
+                                            onDelete={handleOpenDeleteStage}
                                         />
                                     ))}
                                 </SortableContext>
@@ -474,25 +775,27 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                 )}
             </div>
 
-            {/* Create Dialog */}
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            {/* ========== DIALOGS DE ETAPA ========== */}
+
+            {/* Create Stage Dialog */}
+            <Dialog open={isCreateStageDialogOpen} onOpenChange={setIsCreateStageDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Nova Etapa</DialogTitle>
                         <DialogDescription>
-                            Adicione uma nova etapa ao seu funil de vendas
+                            Adicione uma nova etapa ao funil "{selectedFunil?.nome}"
                         </DialogDescription>
                     </DialogHeader>
-                    <StageFormContent />
+                    {stageFormJSX}
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsCreateDialogOpen(false)}
+                            onClick={() => setIsCreateStageDialogOpen(false)}
                             disabled={actionLoading}
                         >
                             Cancelar
                         </Button>
-                        <Button onClick={handleCreate} disabled={actionLoading}>
+                        <Button onClick={handleCreateStage} disabled={actionLoading}>
                             {actionLoading ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : null}
@@ -502,8 +805,8 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Dialog */}
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            {/* Edit Stage Dialog */}
+            <Dialog open={isEditStageDialogOpen} onOpenChange={setIsEditStageDialogOpen}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>Editar Etapa</DialogTitle>
@@ -511,16 +814,16 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                             Atualize as informações da etapa
                         </DialogDescription>
                     </DialogHeader>
-                    <StageFormContent />
+                    {stageFormJSX}
                     <DialogFooter>
                         <Button
                             variant="outline"
-                            onClick={() => setIsEditDialogOpen(false)}
+                            onClick={() => setIsEditStageDialogOpen(false)}
                             disabled={actionLoading}
                         >
                             Cancelar
                         </Button>
-                        <Button onClick={handleUpdate} disabled={actionLoading}>
+                        <Button onClick={handleUpdateStage} disabled={actionLoading}>
                             {actionLoading ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : null}
@@ -530,8 +833,8 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Dialog */}
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            {/* Delete Stage Dialog */}
+            <AlertDialog open={isDeleteStageDialogOpen} onOpenChange={setIsDeleteStageDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Excluir Etapa</AlertDialogTitle>
@@ -549,7 +852,97 @@ export function FunnelStagesManager({ onBack }: FunnelStagesManagerProps) {
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={actionLoading}>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={handleDelete}
+                            onClick={handleDeleteStage}
+                            disabled={actionLoading}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {actionLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Excluir
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* ========== DIALOGS DE FUNIL ========== */}
+
+            {/* Create Funil Dialog */}
+            <Dialog open={isCreateFunilDialogOpen} onOpenChange={setIsCreateFunilDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Novo Funil</DialogTitle>
+                        <DialogDescription>
+                            Crie um novo pipeline de vendas
+                        </DialogDescription>
+                    </DialogHeader>
+                    {funilFormJSX}
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsCreateFunilDialogOpen(false)}
+                            disabled={actionLoading}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleCreateFunil} disabled={actionLoading}>
+                            {actionLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Criar Funil
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Funil Dialog */}
+            <Dialog open={isEditFunilDialogOpen} onOpenChange={setIsEditFunilDialogOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Editar Funil</DialogTitle>
+                        <DialogDescription>
+                            Atualize as informações do funil
+                        </DialogDescription>
+                    </DialogHeader>
+                    {funilFormJSX}
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsEditFunilDialogOpen(false)}
+                            disabled={actionLoading}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleUpdateFunil} disabled={actionLoading}>
+                            {actionLoading ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : null}
+                            Salvar Alterações
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Funil Dialog */}
+            <AlertDialog open={isDeleteFunilDialogOpen} onOpenChange={setIsDeleteFunilDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir Funil</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Tem certeza que deseja excluir o funil{' '}
+                            <strong>"{selectedFunil?.nome}"</strong>?
+                            <br />
+                            <br />
+                            <span className="text-amber-600">
+                                ⚠️ Todas as etapas deste funil também serão excluídas.
+                                Oportunidades precisarão ser movidas para outro funil.
+                            </span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={actionLoading}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteFunil}
                             disabled={actionLoading}
                             className="bg-red-600 hover:bg-red-700"
                         >

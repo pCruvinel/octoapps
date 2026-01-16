@@ -31,9 +31,17 @@ import {
     MapPin,
     AlignLeft,
     User,
+    X,
+    Filter,
     Trash2,
-    X
+    Mail,
+    Phone,
+    Briefcase,
+    DollarSign,
+    Tag
 } from 'lucide-react';
+import { Checkbox } from '../ui/checkbox';
+import { ScrollArea } from '../ui/scroll-area';
 
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -48,12 +56,12 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { toast } from 'sonner';
 
 import { useTasks } from '../../hooks/useTasks';
-import { useAgendamentos } from '../../hooks/useAgendamentos';
 import { useAuth } from '../../hooks/useAuth';
 import { useFeriados } from '../../hooks/useFeriados';
 import { supabase } from '../../lib/supabase';
 import type { Task } from '../../types/task';
-import type { Agendamento, AgendamentoInsert } from '../../types/agendamento';
+import { UnifiedTaskDialog } from './UnifiedTaskDialog';
+import { useEventCategories } from '../../hooks/useEventCategories';
 
 interface CRMCalendarProps {
     onNavigate: (route: string, id?: string) => void;
@@ -69,8 +77,8 @@ interface CalendarEvent {
     end: Date;
     allDay: boolean;
     color: string;
-    type: 'tarefa' | 'agendamento';
-    original: Task | Agendamento;
+    type: 'tarefa';
+    original: Task;
 }
 
 export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
@@ -81,43 +89,38 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
     const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
     // Data Fetching
-    const { loadTasksByOpportunity } = useTasks();
-    const { loadAgendamentosByRange, createAgendamento, deleteAgendamento } = useAgendamentos();
+    const { loadTasksByRange, deleteTask } = useTasks();
     const { user } = useAuth();
     const { feriados, loadFeriadosPorAno, checkIsFeriado } = useFeriados();
 
-    // Form State
+    // Dialog State
     const [newEventOpen, setNewEventOpen] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [formData, setFormData] = useState({
-        titulo: '',
-        descricao: '',
-        data_inicio: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        data_fim: format(addDays(new Date(), 1), "yyyy-MM-dd'T'HH:mm"),
-        cor: '#3D96FF',
-        dia_inteiro: false,
-        contato_id: '',
-        oportunidade_id: '' // Not implementing select for now to save time/complexity in this iteration
-    });
 
-    // Contacts for select (simple load)
-    const [contacts, setContacts] = useState<any[]>([]);
-
-    useEffect(() => {
-        loadContacts();
-    }, []);
-
-    const loadContacts = async () => {
-        const { data } = await supabase.from('contatos').select('id, nome_completo').limit(50);
-        if (data) setContacts(data);
-    }
+    // Filter State
+    const { categories, loadCategories } = useEventCategories();
+    const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
     // Load Events on Date/View Change
     useEffect(() => {
+        loadCategories();
         fetchEvents();
         // Load feriados for viewing year(s)
         loadFeriadosPorAno(currentDate.getFullYear());
     }, [currentDate, viewMode]);
+
+    // Toggle category filter
+    const toggleCategory = (id: string) => {
+        setSelectedCategoryIds(prev => 
+            prev.includes(id) 
+                ? prev.filter(c => c !== id)
+                : [...prev, id]
+        );
+    };
+
+    // Filter events based on selection
+    const filteredEvents = selectedCategoryIds.length > 0 
+        ? events.filter(e => e.original.category_id && selectedCategoryIds.includes(e.original.category_id))
+        : events;
 
     const fetchEvents = async () => {
         let start, end;
@@ -139,46 +142,32 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
         const startStr = start.toISOString();
         const endStr = end.toISOString();
 
-        // 1. Fetch Agendamentos
-        const { data: agendamentosData } = await loadAgendamentosByRange(startStr, endStr);
-
-        // 2. Fetch Tarefas (We need a way to fetch ALL tasks in range, defaulting to direct supabase query here as the hook is limited)
-        const { data: tasksData, error } = await supabase
-            .from('tarefas')
-            .select('*')
-            .gte('data_vencimento', startStr)
-            .lte('data_vencimento', endStr)
-            .eq('ativo', true);
+        // V2: Fetch all tasks using the new unified approach
+        const { data: tasksData } = await loadTasksByRange(startStr, endStr);
 
         const mergedEvents: CalendarEvent[] = [];
 
-        // Map Agendamentos
-        if (agendamentosData) {
-            agendamentosData.forEach(a => {
-                mergedEvents.push({
-                    id: a.id,
-                    title: a.titulo,
-                    start: new Date(a.data_inicio),
-                    end: new Date(a.data_fim),
-                    allDay: a.dia_inteiro,
-                    color: a.cor || '#3D96FF',
-                    type: 'agendamento',
-                    original: a
-                });
-            });
-        }
-
-        // Map Tarefas
+        // Map Tasks (V2 - includes migrated agendamentos)
         if (tasksData) {
-            tasksData.forEach((t: Task) => {
-                const date = t.data_vencimento ? new Date(t.data_vencimento) : new Date();
+            tasksData.forEach((t: any) => {
+                // Use data_inicio/data_fim if available, fallback to data_vencimento
+                const startDate = t.data_inicio 
+                    ? new Date(t.data_inicio) 
+                    : (t.data_vencimento ? new Date(t.data_vencimento) : new Date());
+                const endDate = t.data_fim 
+                    ? new Date(t.data_fim) 
+                    : (t.data_inicio ? new Date(new Date(t.data_inicio).getTime() + 60*60*1000) : startDate);
+                
+                // Color from category or task override
+                const color = t.cor || (t.category as any)?.color || '#1e3a8a';
+                
                 mergedEvents.push({
                     id: t.id,
                     title: t.titulo,
-                    start: date,
-                    end: addDays(date, 0), // Tasks are points in time usually, assume 1 hour or just point
-                    allDay: false,
-                    color: '#10B981', // Green for tasks
+                    start: startDate,
+                    end: endDate,
+                    allDay: t.is_all_day || false,
+                    color,
                     type: 'tarefa',
                     original: t
                 });
@@ -188,51 +177,20 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
         setEvents(mergedEvents);
     };
 
-    const handleCreateEvent = async () => {
-        if (!formData.titulo) {
-            toast.error('Título é obrigatório');
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            await createAgendamento({
-                titulo: formData.titulo,
-                descricao: formData.descricao,
-                cor: formData.cor,
-                data_inicio: new Date(formData.data_inicio).toISOString(),
-                data_fim: new Date(formData.data_fim).toISOString(),
-                dia_inteiro: formData.dia_inteiro,
-                contato_id: formData.contato_id || null,
-                user_id: user?.id
-            });
-            toast.success('Agendamento criado!');
-            setNewEventOpen(false);
-            fetchEvents();
-            // Reset form
-            setFormData({
-                titulo: '',
-                descricao: '',
-                data_inicio: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-                data_fim: format(addDays(new Date(), 1), "yyyy-MM-dd'T'HH:mm"),
-                cor: '#3D96FF',
-                dia_inteiro: false,
-                contato_id: '',
-                oportunidade_id: ''
-            });
-        } catch (e) {
-            toast.error('Erro ao criar agendamento');
-        } finally {
-            setIsSubmitting(false);
-        }
+    // V2: Create event is now handled by UnifiedTaskDialog
+    // Success callback refreshes the events list
+    const handleTaskCreated = async () => {
+        // Pequeno delay para garantir propagação no banco
+        await new Promise(resolve => setTimeout(resolve, 500));
+        fetchEvents();
     };
 
     const handleDeleteEvent = async () => {
-        if (!selectedEvent || selectedEvent.type === 'tarefa') return;
+        if (!selectedEvent) return;
 
-        if (confirm('Tem certeza que deseja excluir este agendamento?')) {
-            await deleteAgendamento(selectedEvent.id);
-            toast.success('Agendamento excluído');
+        if (confirm('Tem certeza que deseja excluir este evento?')) {
+            await deleteTask(selectedEvent.id);
+            toast.success('Evento excluído');
             setSelectedEvent(null);
             fetchEvents();
         }
@@ -254,8 +212,10 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
     const today = () => setCurrentDate(new Date());
 
     // RENDER HELPERS
+    // RENDER HELPERS
     const renderMonthCell = (day: Date) => {
-        const dayEvents = events.filter(e => isSameDay(e.start, day));
+        // Use filteredEvents instead of events
+        const dayEvents = filteredEvents.filter(e => isSameDay(e.start, day));
         const isToday = isSameDay(day, new Date());
         const isCurrentMonth = isSameMonth(day, currentDate);
         const feriado = checkIsFeriado(day);
@@ -264,21 +224,15 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
         return (
             <div
                 key={day.toISOString()}
-                className={`min-h-[100px] border-b border-r p-2 transition-colors
+                className={`border-b border-r p-2 transition-colors flex flex-col
                   ${feriado || isSunday ? 'bg-red-50/60 dark:bg-red-950/30 cursor-not-allowed' : 'hover:bg-accent/50'}
                   ${!isCurrentMonth ? 'bg-muted/30 text-muted-foreground' : ''}
                   ${isToday ? 'ring-2 ring-inset ring-blue-500' : ''}
                 `}
                 onClick={() => {
                     if (feriado || isSunday) {
-                        // Don't open create dialog on holidays/sundays
                         return;
                     }
-                    setFormData(prev => ({
-                        ...prev,
-                        data_inicio: format(setHours(day, 9), "yyyy-MM-dd'T'HH:mm"),
-                        data_fim: format(setHours(day, 10), "yyyy-MM-dd'T'HH:mm")
-                    }));
                     setNewEventOpen(true);
                 }}
             >
@@ -294,8 +248,8 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                         </span>
                     )}
                 </div>
-                <div className="space-y-1">
-                    {dayEvents.slice(0, 3).map(event => (
+                <div className="space-y-1 flex-1">
+                    {dayEvents.slice(0, 5).map(event => (
                         <div
                             key={event.id}
                             onClick={(e) => {
@@ -308,9 +262,9 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                             {event.title}
                         </div>
                     ))}
-                    {dayEvents.length > 3 && (
+                    {dayEvents.length > 5 && (
                         <div className="text-xs text-gray-500 pl-1">
-                            + {dayEvents.length - 3} mais
+                            + {dayEvents.length - 5} mais
                         </div>
                     )}
                 </div>
@@ -325,21 +279,24 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
         const startDate = startOfWeek(monthStart);
         const endDate = endOfWeek(monthEnd);
         const days = eachDayOfInterval({ start: startDate, end: endDate });
+        
+        // Calculate number of weeks to distribute height evenly
+        const weeks = days.length / 7;
 
         const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
         return (
-            <div className="border rounded-lg bg-white dark:bg-gray-950 shadow-sm overflow-hidden">
+            <div className="flex flex-col h-full bg-white dark:bg-card">
                 {/* Header Row */}
-                <div className="grid grid-cols-7 border-b bg-muted/50">
+                <div className="grid grid-cols-7 border-b bg-muted/30">
                     {weekDays.map(d => (
-                        <div key={d} className="py-2 text-center text-sm font-semibold text-gray-600 dark:text-gray-400">
+                        <div key={d} className="py-3 text-center text-sm font-semibold text-muted-foreground tracking-wide">
                             {d}
                         </div>
                     ))}
                 </div>
                 {/* Days Grid */}
-                <div className="grid grid-cols-7">
+                <div className="grid grid-cols-7 flex-1" style={{ gridTemplateRows: `repeat(${weeks}, 1fr)` }}>
                     {days.map(day => renderMonthCell(day))}
                 </div>
             </div>
@@ -347,40 +304,121 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
     };
 
     // Simplified Week/Day Views for MVP (can be expanded with true time grid later)
-    const ListView = () => {
+    const DayView = () => {
         // Filter events for the view range
-        let start = viewMode === 'week' ? startOfWeek(currentDate) : startOfDay(currentDate);
-        let end = viewMode === 'week' ? endOfWeek(currentDate) : endOfDay(currentDate);
+        let start = startOfDay(currentDate);
+        let end = endOfDay(currentDate);
 
         // Sort events
-        const sortedEvents = events
+        const sortedEvents = filteredEvents
             .filter(e => e.start >= start && e.start <= end)
             .sort((a, b) => a.start.getTime() - b.start.getTime());
 
         return (
-            <div className="space-y-2">
+            <div className="p-4 space-y-3">
                 {sortedEvents.length === 0 && (
-                    <div className="p-8 text-center text-gray-500 border rounded-lg bg-white">
-                        Nenhum evento para este período.
+                    <div className="p-8 text-center text-gray-500 border rounded-lg bg-white dark:bg-slate-800 dark:border-slate-700">
+                        Nenhum evento para este dia.
                     </div>
                 )}
-                {sortedEvents.map(event => (
-                    <div
-                        key={event.id}
-                        onClick={() => setSelectedEvent(event)}
-                        className="flex items-center p-3 bg-card border rounded-lg hover:shadow-md transition-shadow cursor-pointer"
-                    >
-                        <div className="w-1.5 self-stretch rounded-full mr-4" style={{ backgroundColor: event.color }}></div>
-                        <div className="flex-1">
-                            <h4 className="font-medium text-gray-900 dark:text-white">{event.title}</h4>
-                            <div className="text-sm text-gray-500 flex items-center gap-2">
-                                <Clock className="w-3 h-3" />
-                                {format(event.start, "dd/MM HH:mm", { locale: ptBR })} - {format(event.end, "HH:mm")}
+                {sortedEvents.map(event => {
+                    const task = event.original as Task;
+                    const contato = (task as any).contato;
+                    const oportunidade = (task as any).oportunidade;
+                    
+                    return (
+                        <div
+                            key={event.id}
+                            onClick={() => setSelectedEvent(event)}
+                            className="bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-lg hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
+                        >
+                            {/* Header com cor */}
+                            <div className="h-1.5 w-full" style={{ backgroundColor: event.color }} />
+                            
+                            <div className="p-4">
+                                {/* Título e horário */}
+                                <div className="flex items-start justify-between mb-3">
+                                    <div>
+                                        <h4 className="font-semibold text-gray-900 dark:text-white">{event.title}</h4>
+                                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            {format(event.start, "HH:mm", { locale: ptBR })} - {format(event.end, "HH:mm")}
+                                        </div>
+                                    </div>
+                                    <Badge 
+                                        variant="outline" 
+                                        className="text-xs"
+                                        style={{ borderColor: event.color, color: event.color }}
+                                    >
+                                        {(task as any).category?.name || 'Evento'}
+                                    </Badge>
+                                </div>
+
+                                {/* Contato vinculado */}
+                                {contato && (
+                                    <div className="mb-3 p-3 bg-blue-50/50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <User className="w-4 h-4 text-blue-600" />
+                                            <span className="font-medium text-gray-900 dark:text-white">{contato.nome_completo}</span>
+                                            {contato.categoria && (
+                                                <Badge variant="secondary" className="text-xs">{contato.categoria}</Badge>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                            {contato.email && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <Mail className="w-3.5 h-3.5" />
+                                                    <span className="truncate">{contato.email}</span>
+                                                </div>
+                                            )}
+                                            {contato.telefone && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <Phone className="w-3.5 h-3.5" />
+                                                    <span>{contato.telefone}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Oportunidade vinculada */}
+                                {oportunidade && (
+                                    <div className="p-3 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Briefcase className="w-4 h-4 text-emerald-600" />
+                                            <span className="font-medium text-gray-900 dark:text-white">{oportunidade.titulo}</span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                            {oportunidade.contato?.nome_completo && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <User className="w-3.5 h-3.5" />
+                                                    <span>{oportunidade.contato.nome_completo}</span>
+                                                </div>
+                                            )}
+                                            {oportunidade.produto?.nome && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <Tag className="w-3.5 h-3.5" />
+                                                    <span>{oportunidade.produto.nome}</span>
+                                                </div>
+                                            )}
+                                            {oportunidade.valor && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <DollarSign className="w-3.5 h-3.5" />
+                                                    <span>R$ {Number(oportunidade.valor).toLocaleString('pt-BR')}</span>
+                                                </div>
+                                            )}
+                                            {oportunidade.etapa?.nome && (
+                                                <div className="flex items-center gap-1.5">
+                                                    <Badge variant="outline" className="text-xs">{oportunidade.etapa.nome}</Badge>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        <Badge variant="outline">{event.type === 'tarefa' ? 'Tarefa' : 'Evento'}</Badge>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         )
     }
@@ -451,169 +489,308 @@ export function CRMCalendar({ onNavigate }: CRMCalendarProps) {
                                     <TabsTrigger value="day" className="h-8 text-xs px-3">Dia</TabsTrigger>
                                 </TabsList>
                             </Tabs>
-                            <Dialog open={newEventOpen} onOpenChange={setNewEventOpen}>
-                                <DialogTrigger asChild>
-                                    <Button className="gap-2 h-9">
+                            <Button className="gap-2 h-9" onClick={() => setNewEventOpen(true)}>
                                         <Plus className="w-4 h-4" />
-                                        <span className="hidden sm:inline">Novo Agendamento</span>
+                                        <span className="hidden sm:inline">Novo Evento</span>
                                         <span className="sm:hidden">Novo</span>
                                     </Button>
-                                </DialogTrigger>
-                        <DialogContent>
-                            <DialogHeader>
-                                <DialogTitle>Novo Agendamento</DialogTitle>
-                                <DialogDescription>Crie um novo evento no calendário.</DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="title">Título</Label>
-                                    <Input
-                                        id="title"
-                                        value={formData.titulo}
-                                        onChange={e => setFormData({ ...formData, titulo: e.target.value })}
-                                        placeholder="Reunião com cliente..."
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="start">Início</Label>
-                                        <Input
-                                            id="start"
-                                            type="datetime-local"
-                                            value={formData.data_inicio}
-                                            onChange={e => setFormData({ ...formData, data_inicio: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="end">Fim</Label>
-                                        <Input
-                                            id="end"
-                                            type="datetime-local"
-                                            value={formData.data_fim}
-                                            onChange={e => setFormData({ ...formData, data_fim: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Contato (Opcional)</Label>
-                                    <Select
-                                        value={formData.contato_id}
-                                        onValueChange={v => setFormData({ ...formData, contato_id: v })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione um contato" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {contacts.map(c => (
-                                                <SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Cor</Label>
-                                    <div className="flex gap-2">
-                                        {['#3D96FF', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'].map(c => (
-                                            <div
-                                                key={c}
-                                                className={`w-6 h-6 rounded-full cursor-pointer ring-2 ring-offset-2 ${formData.cor === c ? 'ring-gray-400' : 'ring-transparent'}`}
-                                                style={{ backgroundColor: c }}
-                                                onClick={() => setFormData({ ...formData, cor: c })}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="desc">Descrição</Label>
-                                    <Textarea
-                                        id="desc"
-                                        value={formData.descricao}
-                                        onChange={e => setFormData({ ...formData, descricao: e.target.value })}
-                                    />
                                 </div>
                             </div>
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setNewEventOpen(false)}>Cancelar</Button>
-                                <Button onClick={handleCreateEvent} disabled={isSubmitting}>Criar</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            </div>
-          </div>
-        </div>
+                          </div>
+                        </div>
 
-            {/* Calendar Content */}
-            <div className="flex-1 overflow-y-auto px-4 lg:px-6 pb-6">
-                {viewMode === 'month' ? <MonthView /> : <ListView />}
+                        {/* V2: UnifiedTaskDialog */}
+                        <UnifiedTaskDialog
+                            open={newEventOpen}
+                            onOpenChange={setNewEventOpen}
+                            defaultDate={currentDate}
+                            onSuccess={handleTaskCreated}
+                        />
+
+            {/* Main Content with Sidebar */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 px-4 lg:px-6 pb-6 overflow-hidden min-h-0">
+                
+                {/* Sidebar Filters */}
+                <div className="hidden lg:flex flex-col gap-6 bg-white dark:bg-card border border-border rounded-xl p-4 h-full overflow-hidden">
+                    <div className="flex items-center gap-2 font-medium text-foreground pb-2 border-b border-border">
+                        <Filter className="w-4 h-4" />
+                        Filtros
+                    </div>
+                    
+                    <ScrollArea className="flex-1 -mx-4 px-4">
+                        <div className="space-y-4">
+                            <div>
+                                <h3 className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">Categorias</h3>
+                                <div className="space-y-2">
+                                    {categories.map(category => (
+                                        <div key={category.id} className="flex items-center space-x-2">
+                                            <Checkbox 
+                                                id={`cat-${category.id}`} 
+                                                checked={selectedCategoryIds.includes(category.id)}
+                                                onCheckedChange={() => toggleCategory(category.id)}
+                                                className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                                style={selectedCategoryIds.includes(category.id) ? { backgroundColor: category.color, borderColor: category.color } : {}}
+                                            />
+                                            <label
+                                                htmlFor={`cat-${category.id}`}
+                                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2 cursor-pointer w-full"
+                                            >
+                                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
+                                                <span className="truncate">{category.name}</span>
+                                            </label>
+                                        </div>
+                                    ))}
+                                    {categories.length === 0 && (
+                                        <p className="text-xs text-muted-foreground italic">Nenhuma categoria encontrada.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </ScrollArea>
+                </div>
+
+                {/* Calendar Content */}
+                <div className="flex-1 bg-white dark:bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col h-full min-h-0">
+                    <div className="flex-1 flex flex-col h-full">
+                        {viewMode === 'month' && <MonthView />}
+                        {viewMode === 'week' && (
+                            <div className="flex flex-col h-full min-h-0">
+                                {/* Week Header */}
+                                <div className="grid grid-cols-7 border-b bg-muted/30 flex-none">
+                                    {eachDayOfInterval({
+                                        start: startOfWeek(currentDate),
+                                        end: endOfWeek(currentDate)
+                                    }).map(day => (
+                                        <div key={day.toISOString()} className={`py-2 text-center text-sm font-semibold border-r ${isSameDay(day, new Date()) ? 'text-blue-600' : 'text-muted-foreground'}`}>
+                                            <div className="uppercase text-xs mb-1">{format(day, 'EEE', { locale: ptBR })}</div>
+                                            <div className={`w-7 h-7 mx-auto flex items-center justify-center rounded-full ${isSameDay(day, new Date()) ? 'bg-blue-600 text-white' : ''}`}>
+                                                {format(day, 'd')}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Week Body */}
+                                <div className="grid grid-cols-7 flex-1 min-h-0 divide-x divide-gray-200 dark:divide-gray-800">
+                                    {eachDayOfInterval({
+                                        start: startOfWeek(currentDate),
+                                        end: endOfWeek(currentDate)
+                                    }).map(day => (
+                                        <div 
+                                            key={day.toISOString()} 
+                                            className={`
+                                                p-1 flex flex-col min-h-0 hover:bg-muted/20 transition-colors cursor-pointer
+                                                ${isSameDay(day, new Date()) ? 'bg-blue-50/30' : ''}
+                                            `}
+                                            onClick={() => {
+                                                setCurrentDate(day);
+                                                setNewEventOpen(true);
+                                            }}
+                                        >
+                                            <div className="space-y-1 flex-1 overflow-y-auto mt-1 custom-scrollbar">
+                                                {filteredEvents
+                                                    .filter(e => isSameDay(e.start, day))
+                                                    .map(event => (
+                                                        <div 
+                                                            key={event.id} 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedEvent(event);
+                                                            }}
+                                                            className="text-xs px-2 py-1 rounded text-white font-medium truncate cursor-pointer hover:opacity-90 shadow-sm mb-1"
+                                                            style={{ backgroundColor: event.color }}
+                                                            title={`${format(event.start, 'HH:mm')} - ${event.title}`}
+                                                        >
+                                                            <span className="opacity-80 text-[10px] mr-1 inline-block">
+                                                                {format(event.start, 'HH:mm')}
+                                                            </span>
+                                                            {event.title}
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {viewMode === 'day' && <DayView />}
+                    </div>
+                </div>
             </div>
 
             {/* Event Details Dialog */}
-            {selectedEvent && (
-                <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedEvent.color }}></div>
-                                {selectedEvent.title}
-                            </DialogTitle>
-                            <DialogDescription>
-                                {selectedEvent.type === 'tarefa' ? 'Tarefa do CRM' : 'Agendamento'}
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Clock className="w-4 h-4" />
-                                {format(selectedEvent.start, "PPP HH:mm", { locale: ptBR })}
-                                {!selectedEvent.allDay && ` - ${format(selectedEvent.end, "HH:mm")}`}
+            {selectedEvent && (() => {
+                const task = selectedEvent.original as Task;
+                const contato = (task as any).contato;
+                const oportunidade = (task as any).oportunidade;
+                
+                return (
+                    <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
+                        <DialogContent className="sm:max-w-[550px]">
+                            {/* Header com cor */}
+                            <div className="h-2 w-full rounded-t-lg -mt-6 -mx-6 mb-4" style={{ backgroundColor: selectedEvent.color }} />
+                            
+                            <DialogHeader>
+                                <DialogTitle className="flex items-center gap-3 text-xl">
+                                    {selectedEvent.title}
+                                </DialogTitle>
+                                <DialogDescription className="flex items-center gap-2">
+                                    <Badge 
+                                        variant="outline" 
+                                        style={{ borderColor: selectedEvent.color, color: selectedEvent.color }}
+                                    >
+                                        {(task as any).category?.name || 'Evento'}
+                                    </Badge>
+                                    {task.prioridade && (
+                                        <Badge variant={
+                                            task.prioridade === 'Urgente' ? 'destructive' :
+                                            task.prioridade === 'Alta' ? 'default' : 'secondary'
+                                        }>
+                                            {task.prioridade}
+                                        </Badge>
+                                    )}
+                                </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="space-y-4 py-2">
+                                {/* Data e hora */}
+                                <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 bg-muted/50 p-3 rounded-lg">
+                                    <Clock className="w-5 h-5" />
+                                    <div>
+                                        <div className="font-medium text-gray-900 dark:text-white">
+                                            {format(selectedEvent.start, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                                        </div>
+                                        <div>
+                                            {selectedEvent.allDay 
+                                                ? 'Dia inteiro'
+                                                : `${format(selectedEvent.start, "HH:mm")} - ${format(selectedEvent.end, "HH:mm")}`
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Descrição */}
+                                {(task.descricao || task.observacoes) && (
+                                    <div className="text-sm bg-gray-50 dark:bg-slate-800 p-3 rounded-lg">
+                                        <div className="flex items-center gap-2 text-gray-500 mb-1">
+                                            <AlignLeft className="w-4 h-4" />
+                                            <span className="font-medium">Descrição</span>
+                                        </div>
+                                        <p className="text-gray-700 dark:text-gray-300">
+                                            {task.descricao || task.observacoes}
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* Contato vinculado */}
+                                {contato && (
+                                    <div className="p-4 bg-blue-50/50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <User className="w-5 h-5 text-blue-600" />
+                                            <span className="font-semibold text-gray-900 dark:text-white">Contato Vinculado</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium text-gray-900 dark:text-white text-lg">
+                                                    {contato.nome_completo}
+                                                </span>
+                                                {contato.categoria && (
+                                                    <Badge variant="secondary">{contato.categoria}</Badge>
+                                                )}
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                                {contato.email && (
+                                                    <div className="flex items-center gap-2">
+                                                        <Mail className="w-4 h-4 text-blue-500" />
+                                                        <a href={`mailto:${contato.email}`} className="hover:underline truncate">
+                                                            {contato.email}
+                                                        </a>
+                                                    </div>
+                                                )}
+                                                {contato.telefone && (
+                                                    <div className="flex items-center gap-2">
+                                                        <Phone className="w-4 h-4 text-blue-500" />
+                                                        <a href={`tel:${contato.telefone}`} className="hover:underline">
+                                                            {contato.telefone}
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Oportunidade vinculada */}
+                                {oportunidade && (
+                                    <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-lg border border-emerald-100 dark:border-emerald-800">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <Briefcase className="w-5 h-5 text-emerald-600" />
+                                            <span className="font-semibold text-gray-900 dark:text-white">Oportunidade Vinculada</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            <div className="font-medium text-gray-900 dark:text-white text-lg">
+                                                {oportunidade.titulo}
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                                {oportunidade.contato?.nome_completo && (
+                                                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                                                        <User className="w-4 h-4 text-emerald-500" />
+                                                        <span>{oportunidade.contato.nome_completo}</span>
+                                                    </div>
+                                                )}
+                                                {oportunidade.produto?.nome && (
+                                                    <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                                                        <Tag className="w-4 h-4 text-emerald-500" />
+                                                        <span>{oportunidade.produto.nome}</span>
+                                                    </div>
+                                                )}
+                                                {oportunidade.valor && (
+                                                    <div className="flex items-center gap-2">
+                                                        <DollarSign className="w-4 h-4 text-emerald-500" />
+                                                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                                            R$ {Number(oportunidade.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {oportunidade.etapa?.nome && (
+                                                    <div className="flex items-center gap-2">
+                                                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">
+                                                            {oportunidade.etapa.nome}
+                                                        </Badge>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            {selectedEvent.type === 'agendamento' && (selectedEvent.original as Agendamento).descricao && (
-                                <div className="text-sm bg-gray-50 p-3 rounded-md">
-                                    {(selectedEvent.original as Agendamento).descricao}
-                                </div>
-                            )}
-                            {selectedEvent.type === 'tarefa' && (selectedEvent.original as Task).observacoes && (
-                                <div className="text-sm bg-gray-50 p-3 rounded-md">
-                                    {(selectedEvent.original as Task).observacoes}
-                                </div>
-                            )}
-                            {/* Links */}
-                            {selectedEvent.type === 'agendamento' && (selectedEvent.original as Agendamento).contato && (
-                                <div className="flex items-center gap-2 text-sm bg-blue-50/50 dark:bg-blue-900/20 p-2 rounded-md border border-blue-100 dark:border-blue-800">
-                                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                    <span className="text-gray-600 dark:text-gray-400">Contato:</span>
-                                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                                        {(selectedEvent.original as Agendamento).contato?.nome_completo}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                        <DialogFooter className="gap-2 sm:gap-0">
-                            {selectedEvent.type === 'tarefa' ? (
-                                <Button onClick={() => {
-                                    setSelectedEvent(null);
-                                    if ((selectedEvent.original as Task).oportunidade_id) {
-                                        onNavigate('opportunity-details', (selectedEvent.original as Task).oportunidade_id!);
-                                    }
-                                }}>
-                                    Ver Oportunidade
+
+                            <DialogFooter className="gap-2 sm:gap-0 flex-wrap">
+                                {task.oportunidade_id && (
+                                    <Button 
+                                        variant="outline"
+                                        onClick={() => {
+                                            setSelectedEvent(null);
+                                            onNavigate('opportunity-details', task.oportunidade_id!);
+                                        }}
+                                        className="gap-2"
+                                    >
+                                        <Briefcase className="w-4 h-4" />
+                                        Ver Oportunidade
+                                    </Button>
+                                )}
+                                <Button variant="destructive" onClick={handleDeleteEvent} className="gap-2">
+                                    <Trash2 className="w-4 h-4" />
+                                    Excluir
                                 </Button>
-                            ) : (
-                                <>
-                                    <Button variant="destructive" onClick={handleDeleteEvent} className="gap-2">
-                                        <Trash2 className="w-4 h-4" />
-                                        Excluir
-                                    </Button>
-                                    <Button onClick={() => setSelectedEvent(null)} className="gap-2">
-                                        <X className="w-4 h-4" />
-                                        Fechar
-                                    </Button>
-                                </>
-                            )}
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            )}
+                                <Button variant="outline" onClick={() => setSelectedEvent(null)} className="gap-2">
+                                    <X className="w-4 h-4" />
+                                    Fechar
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                );
+            })()}
         </div>
     );
 }

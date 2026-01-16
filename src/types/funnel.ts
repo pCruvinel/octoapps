@@ -23,6 +23,7 @@ export interface EtapaFunil {
   data_criacao: string;
   data_atualizacao: string;
   criado_por?: string | null;
+  funil_id?: string | null;
 }
 
 /**
@@ -34,6 +35,7 @@ export interface EtapaFunilInsert {
   ordem: number;
   tipo?: TipoEtapaFunil;
   criado_por?: string | null;
+  funil_id?: string | null;
 }
 
 /**

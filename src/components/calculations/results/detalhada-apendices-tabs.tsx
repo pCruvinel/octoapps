@@ -27,6 +27,8 @@ interface DetalhadaApendicesTabsProps {
     };
     // NOVO: Para exibir colunas de capitalização diária
     capitalizacao?: 'MENSAL' | 'DIARIA';
+    // NOVO: Indexador para exibir colunas de correção monetária
+    indexador?: string;
 }
 
 function formatCurrency(value: number | undefined): string {
@@ -60,13 +62,14 @@ function SituacaoBadge({ situacao }: { situacao?: SituacaoParcela }) {
     );
 }
 
-// Tabela AP01 com campos XTIR e colunas condicionais para capitalização diária
-function AP01Table({ data, capitalizacao }: { data: LinhaAmortizacaoDetalhada[]; capitalizacao?: 'MENSAL' | 'DIARIA' }) {
+// Tabela AP01 com campos XTIR e colunas condicionais para capitalização diária e correção monetária
+function AP01Table({ data, capitalizacao, indexador }: { data: LinhaAmortizacaoDetalhada[]; capitalizacao?: 'MENSAL' | 'DIARIA'; indexador?: string }) {
     if (!data || data.length === 0) {
         return <div className="text-center py-6 text-slate-500">Nenhum dado disponível</div>;
     }
 
     const isDiaria = capitalizacao === 'DIARIA';
+    const hasIndexador = indexador && indexador !== 'NENHUM';
 
     return (
         <div className="overflow-x-auto">
@@ -76,18 +79,24 @@ function AP01Table({ data, capitalizacao }: { data: LinhaAmortizacaoDetalhada[];
                         <th className="px-2 py-2 text-left font-medium text-slate-600">Nº</th>
                         <th className="px-2 py-2 text-left font-medium text-slate-600">Venc.</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Ant.</th>
+                        {hasIndexador && (
+                            <>
+                                <th className="px-2 py-2 text-right font-medium text-slate-600 bg-cyan-50">Índice {indexador}</th>
+                                <th className="px-2 py-2 text-right font-medium text-slate-600 bg-cyan-50">Correção</th>
+                            </>
+                        )}
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Juros</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Amort.</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Parcela</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Dev.</th>
-                        <th className="px-2 py-2 text-center font-medium text-slate-600">Dias</th>
                         {isDiaria && (
                             <>
+                                <th className="px-2 py-2 text-center font-medium text-slate-600">Dias</th>
                                 <th className="px-2 py-2 text-center font-medium text-slate-600 bg-amber-50">Dias Acum</th>
                                 <th className="px-2 py-2 text-right font-medium text-slate-600 bg-amber-50">Quociente</th>
+                                <th className="px-2 py-2 text-right font-medium text-slate-600">Fator NP</th>
                             </>
                         )}
-                        <th className="px-2 py-2 text-right font-medium text-slate-600">Fator NP</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -96,18 +105,28 @@ function AP01Table({ data, capitalizacao }: { data: LinhaAmortizacaoDetalhada[];
                             <td className="px-2 py-2 font-mono text-slate-500">{row.mes}</td>
                             <td className="px-2 py-2 text-slate-600">{formatDate(row.data)}</td>
                             <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.saldoAbertura)}</td>
+                            {hasIndexador && (
+                                <>
+                                    <td className="px-2 py-2 text-right font-mono text-cyan-700 bg-cyan-50/50">
+                                        {row.indiceCorrecao ? `${(row.indiceCorrecao * 100).toFixed(4)}%` : '-'}
+                                    </td>
+                                    <td className="px-2 py-2 text-right font-mono text-cyan-700 bg-cyan-50/50">
+                                        {formatCurrency(row.correcaoMonetaria)}
+                                    </td>
+                                </>
+                            )}
                             <td className="px-2 py-2 text-right font-mono text-orange-600">{formatCurrency(row.juros)}</td>
                             <td className="px-2 py-2 text-right font-mono text-blue-600">{formatCurrency(row.amortizacao)}</td>
                             <td className="px-2 py-2 text-right font-mono font-medium">{formatCurrency(row.parcelaTotal)}</td>
                             <td className="px-2 py-2 text-right font-mono font-medium">{formatCurrency(row.saldoDevedor)}</td>
-                            <td className="px-2 py-2 text-center font-mono text-slate-500">{row.diasEntreParcelas || 30}</td>
                             {isDiaria && (
                                 <>
+                                    <td className="px-2 py-2 text-center font-mono text-slate-500">{row.diasEntreParcelas || 30}</td>
                                     <td className="px-2 py-2 text-center font-mono text-amber-700 bg-amber-50/50">{row.diasAcumulados || '-'}</td>
                                     <td className="px-2 py-2 text-right font-mono text-amber-700 bg-amber-50/50">{row.quocienteDiario?.toFixed(6) || '-'}</td>
+                                    <td className="px-2 py-2 text-right font-mono text-slate-500">{row.fatorNaoPeriodico?.toFixed(6) || '-'}</td>
                                 </>
                             )}
-                            <td className="px-2 py-2 text-right font-mono text-slate-500">{row.fatorNaoPeriodico?.toFixed(6) || '-'}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -116,11 +135,13 @@ function AP01Table({ data, capitalizacao }: { data: LinhaAmortizacaoDetalhada[];
     );
 }
 
-// Tabela AP02 - Evolução Recalculada
-function AP02Table({ data }: { data: LinhaAmortizacaoDetalhada[] }) {
+// Tabela AP02 - Evolução Recalculada com colunas de correção monetária
+function AP02Table({ data, indexador }: { data: LinhaAmortizacaoDetalhada[]; indexador?: string }) {
     if (!data || data.length === 0) {
         return <div className="text-center py-6 text-slate-500">Nenhum dado disponível</div>;
     }
+
+    const hasIndexador = indexador && indexador !== 'NENHUM';
 
     return (
         <div className="overflow-x-auto">
@@ -130,6 +151,12 @@ function AP02Table({ data }: { data: LinhaAmortizacaoDetalhada[] }) {
                         <th className="px-2 py-2 text-left font-medium text-slate-600">Nº</th>
                         <th className="px-2 py-2 text-left font-medium text-slate-600">Vencimento</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Saldo Anterior</th>
+                        {hasIndexador && (
+                            <>
+                                <th className="px-2 py-2 text-right font-medium text-slate-600 bg-cyan-50">Índice {indexador}</th>
+                                <th className="px-2 py-2 text-right font-medium text-slate-600 bg-cyan-50">Correção</th>
+                            </>
+                        )}
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Juros</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Amortização</th>
                         <th className="px-2 py-2 text-right font-medium text-slate-600">Prestação Devida</th>
@@ -142,6 +169,16 @@ function AP02Table({ data }: { data: LinhaAmortizacaoDetalhada[] }) {
                             <td className="px-2 py-2 font-mono text-slate-500">{row.mes}</td>
                             <td className="px-2 py-2 text-slate-600">{formatDate(row.data)}</td>
                             <td className="px-2 py-2 text-right font-mono">{formatCurrency(row.saldoAbertura)}</td>
+                            {hasIndexador && (
+                                <>
+                                    <td className="px-2 py-2 text-right font-mono text-cyan-700 bg-cyan-50/50">
+                                        {row.indiceCorrecao ? `${(row.indiceCorrecao * 100).toFixed(4)}%` : '-'}
+                                    </td>
+                                    <td className="px-2 py-2 text-right font-mono text-cyan-700 bg-cyan-50/50">
+                                        {formatCurrency(row.correcaoMonetaria)}
+                                    </td>
+                                </>
+                            )}
                             <td className="px-2 py-2 text-right font-mono text-blue-600">{formatCurrency(row.juros)}</td>
                             <td className="px-2 py-2 text-right font-mono text-blue-600">{formatCurrency(row.amortizacao)}</td>
                             <td className="px-2 py-2 text-right font-mono font-medium text-blue-700">{formatCurrency(row.parcelaTotal)}</td>
@@ -352,6 +389,7 @@ export function DetalhadaApendicesTabs({
     ap05Descricao,
     parametros,
     capitalizacao,
+    indexador,
 }: DetalhadaApendicesTabsProps) {
     return (
         <Accordion type="multiple" defaultValue={['ap01']} className="w-full space-y-3">
@@ -364,7 +402,7 @@ export function DetalhadaApendicesTabs({
                         </div>
                         <div className="text-left">
                             <div className="font-medium">AP01 - Evolução Original (Cenário Banco)</div>
-                            <div className="text-sm text-slate-500">{ap01?.length || 0} parcelas | Taxa Pactuada{capitalizacao === 'DIARIA' ? ' | Cap. Diária' : ''}</div>
+                            <div className="text-sm text-slate-500">{ap01?.length || 0} parcelas | Taxa Pactuada{capitalizacao === 'DIARIA' ? ' | Cap. Diária' : ''}{indexador && indexador !== 'NENHUM' ? ` | ${indexador}` : ''}</div>
                         </div>
                         <span className="ml-auto mr-2 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded">
                             Cobrado
@@ -372,7 +410,7 @@ export function DetalhadaApendicesTabs({
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                    <AP01Table data={ap01 || []} capitalizacao={capitalizacao} />
+                    <AP01Table data={ap01 || []} capitalizacao={capitalizacao} indexador={indexador} />
                 </AccordionContent>
             </AccordionItem>
 
@@ -393,7 +431,7 @@ export function DetalhadaApendicesTabs({
                     </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-4 pb-4">
-                    <AP02Table data={ap02 || []} />
+                    <AP02Table data={ap02 || []} indexador={indexador} />
                 </AccordionContent>
             </AccordionItem>
 

@@ -13,14 +13,38 @@ const formatPercent = (value: number) =>
     (value || 0).toFixed(2).replace('.', ',') + '%';
 
 // ===== IMAGE VALIDATION =====
+// @react-pdf/renderer requires valid image URLs. We validate:
+// 1. URL-like strings (http/https)
+// 2. Data URIs (data:image/...)
+// 3. Supabase Storage URLs (always considered valid if they include supabase.co)
 const isValidImageUrl = (url: string | null | undefined): boolean => {
-    if (!url || typeof url !== 'string' || url.trim() === '') return false;
-    const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
-    const lowerUrl = url.toLowerCase();
-    const hasValidExtension = validExtensions.some(ext => lowerUrl.includes(ext));
-    const isDataUrl = lowerUrl.startsWith('data:image/');
-    const isSupabaseStorage = lowerUrl.includes('supabase') && lowerUrl.includes('storage');
-    return hasValidExtension || isDataUrl || isSupabaseStorage;
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+        console.log('[PDF Logo] Invalid URL: empty or null');
+        return false;
+    }
+    
+    const lowerUrl = url.toLowerCase().trim();
+    
+    // Accept data URIs
+    if (lowerUrl.startsWith('data:image/')) {
+        console.log('[PDF Logo] Valid data URI detected');
+        return true;
+    }
+    
+    // Accept valid HTTP/HTTPS URLs
+    if (lowerUrl.startsWith('http://') || lowerUrl.startsWith('https://')) {
+        // Check for Supabase storage or any URL with image extensions
+        const validExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.svg'];
+        const hasValidExtension = validExtensions.some(ext => lowerUrl.includes(ext));
+        const isSupabaseUrl = lowerUrl.includes('supabase.co') || lowerUrl.includes('supabase.in');
+        
+        const isValid = hasValidExtension || isSupabaseUrl;
+        console.log(`[PDF Logo] URL check: ${url.substring(0, 80)}... | extension: ${hasValidExtension} | supabase: ${isSupabaseUrl} | valid: ${isValid}`);
+        return isValid;
+    }
+    
+    console.log('[PDF Logo] URL does not start with http/https or data:image/');
+    return false;
 };
 
 interface TriagemImobiliarioTemplateProps {

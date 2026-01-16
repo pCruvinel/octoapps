@@ -147,37 +147,34 @@ export const usersService = {
 
   /**
    * Convidar novo usuário por email
-   * Usa função RPC que chama auth.admin.inviteUserByEmail
+   * Usa Edge Function 'invite-user'
    */
-  async inviteUser(userData: InviteUserData): Promise<string> {
-    const { data, error } = await supabase.rpc('invite_user_by_email', {
-      p_email: userData.email,
-      p_nome_completo: userData.nome_completo,
-      p_role_id: userData.role_id,
-      p_cargo: userData.cargo || null,
-      p_telefone: userData.telefone || null,
-      p_cpf: userData.cpf || null,
+  async inviteUser(userData: InviteUserData & { role_name: string, organization_id?: string }): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('invite-user', {
+      body: {
+        email: userData.email,
+        nome_completo: userData.nome_completo,
+        role: userData.role_name,
+        organization_id: userData.organization_id,
+        // Legacy fields if needed by backend, but EF logic ignores them mostly or handles them
+        role_id: userData.role_id,
+        cargo: userData.cargo,
+        telefone: userData.telefone,
+        cpf: userData.cpf,
+      }
     });
 
     if (error) {
       console.error('Erro ao convidar usuário:', error);
-      
-      // Mensagens de erro específicas
-      if (error.message?.includes('already registered')) {
-        throw new Error('Este e-mail já está cadastrado no sistema');
-      }
-      if (error.message?.includes('admin')) {
-        throw new Error('Você não tem permissão para convidar usuários');
-      }
-      
       throw new Error(error.message || 'Erro ao enviar convite');
     }
 
-    if (!data) {
-      throw new Error('Nenhum ID de usuário foi retornado');
+    if (!data?.user?.id) {
+       // If successful but no user/id returned (shouldn't happen with inviteUserByEmail)
+       throw new Error('Convite enviado, mas ID não retornado');
     }
 
-    return data as string;
+    return data.user.id;
   },
 
   /**
@@ -361,5 +358,51 @@ export const usersService = {
         nome: ur.roles.nome
       })) || []
     };
+  },
+
+  /**
+   * Adicionar role a um usuário
+   */
+  async addUserRole(userId: string, roleId: string): Promise<void> {
+    // Verificar se a role já está atribuída
+    const { data: existing } = await supabase
+      .from('user_roles')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('role_id', roleId)
+      .single();
+
+    if (existing) {
+      // Role já existe, não duplicar
+      return;
+    }
+
+    const { error } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: userId,
+        role_id: roleId,
+      });
+
+    if (error) {
+      console.error('Erro ao adicionar role:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remover role de um usuário
+   */
+  async removeUserRole(userId: string, roleId: string): Promise<void> {
+    const { error } = await supabase
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('role_id', roleId);
+
+    if (error) {
+      console.error('Erro ao remover role:', error);
+      throw error;
+    }
   },
 };

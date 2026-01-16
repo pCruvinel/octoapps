@@ -18,6 +18,8 @@ function OportunidadeDetailPage() {
           navigate({ to: '/contatos/$id', params: { id: navId } });
         } else if (route === 'calc-wizard') {
           navigate({ to: '/calc/wizard', search: { module: 'GERAL' } });
+        } else if (route === 'crm') {
+          navigate({ to: '/crm/oportunidades' });
         }
       }}
     />

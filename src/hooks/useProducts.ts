@@ -10,6 +10,7 @@ export interface ProductService {
     user_id: string;
     name: string;
     description?: string | null;
+    category?: string | null;
     default_fee_percentage?: number | null;
     active: boolean;
     ordem: number;
@@ -20,6 +21,7 @@ export interface ProductService {
 export interface ProductServiceInsert {
     name: string;
     description?: string | null;
+    category?: string | null;
     default_fee_percentage?: number | null;
     active?: boolean;
     ordem?: number;
@@ -28,6 +30,7 @@ export interface ProductServiceInsert {
 export interface ProductServiceUpdate {
     name?: string;
     description?: string | null;
+    category?: string | null;
     default_fee_percentage?: number | null;
     active?: boolean;
     ordem?: number;

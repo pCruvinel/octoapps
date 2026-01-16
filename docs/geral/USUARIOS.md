@@ -1,254 +1,151 @@
 # Documentação de Usuários - OctoApps
 
-> **Última Atualização:** 2026-01-08
+> **Última Atualização:** 2026-01-16
 
 ---
 
 ## Índice
 
-1. [Perfil: Administrador](#perfil-administrador)
-2. [Perfil: Colaborador](#perfil-colaborador)
-3. [Perfil: Perito Técnico](#perfil-perito-técnico)
-4. [Matriz de Permissões](#matriz-de-permissões)
-5. [Regras de Negócio](#regras-de-negócio)
+1. [Conceitos: Organização e Multi-tenancy](#conceitos-organização-e-multi-tenancy)
+2. [Perfil: Admin Master (Dono da Plataforma)](#perfil-admin-master-dono-da-plataforma)
+3. [Perfil: Gestor (Dono da Empresa)](#perfil-gestor-dono-da-empresa)
+4. [Perfil: Colaborador (Advogado, Assistente, Financeiro)](#perfil-colaborador-advogado-assistente-financeiro)
+5. [Perfil: Perito Técnico](#perfil-perito-técnico)
+6. [Matriz de Permissões](#matriz-de-permissões)
+7. [Regras de Negócio](#regras-de-negócio)
 
 ---
 
-## Perfil: Administrador
+## Conceitos: Organização e Multi-tenancy
+
+O OctoApps opera em um modelo **Multi-tenant**.
+- **Organização (Empresa)**: É a entidade legal (Escritório de Advocacia, Consultoria) que contrata o OctoApps.
+- **Isolamento**: Dados de uma organização (Clientes, Cálculos, Leads) são estritamente isolados e invisíveis para outras organizações.
+- **Membros**: Todo usuário (exceto Admin Master) pertence obrigatoriamente a uma única Organização.
+
+---
+
+## Perfil: Admin Master (Dono da Plataforma)
 
 ### Descrição
-- **Quem**: Sócios e gestores do escritório (ex: Paulo Guedes)
-- **Nível de Acesso**: Completo (CRUD total em todos os módulos)
-- **Responsabilidade Principal**: Gerenciar usuários, configurar funis do CRM, visualizar dashboards gerais
+- **Quem**: Donos do SaaS OctoApps (Super Usuários).
+- **Nível de Acesso**: Irrestrito Global.
+- **Responsabilidade**: Manutenção da plataforma, suporte técnico avançado, gestão de planos e assinaturas das organizações.
 
 ### O que PODE fazer
+- Acessar qualquer organização para fins de suporte (Impersonate).
+- Gerenciar assinaturas e bloqueios de inadimplentes.
+- Criar/Editar configurações globais do sistema.
 
-| Área | Ações Permitidas |
-|------|------------------|
-| **Gestão de Usuários** | Criar, editar, inativar qualquer usuário |
-| **Configuração de Negócio** | Alterar etapas do funil, definir metas |
-| **Visualização** | Ver todos os leads, cálculos e petições de todos os usuários |
-| **Operação** | Executar todas as funções operacionais |
+---
+
+## Perfil: Gestor (Dono da Empresa)
+
+*(Antigo Administrador)*
+
+### Descrição
+- **Quem**: Sócios e proprietários do escritório cliente (ex: Paulo Guedes).
+- **Nível de Acesso**: Total dentro da sua Organização.
+- **Responsabilidade**: Configurar dados da empresa (Logo, CNPJ), gerenciar equipe, assinar planos.
+
+### O que PODE fazer
+- **Gestão da Empresa**: Editar Razão Social, CNPJ, Logomarca, Cores do Relatório.
+- **Gestão de Equipe**: Convidar novos usuários (Advogados, Peritos) e definir seus cargos.
+- **Financeiro**: Acessar faturas e gestão de assinatura do OctoApps.
+- **Operacional**: Acesso completo a CRM, Cálculos e Petições.
 
 ### O que NÃO PODE fazer
-
-- Alterar estrutura do banco de dados (criar colunas/tabelas via interface)
-- Se auto-excluir (se for o único admin)
+- Acessar dados de outras Organizações.
+- Alterar estrutura do banco de dados global.
 
 ### Telas Exclusivas
-
-1. **Dashboard Administrativo** (`/dashboard`)
-   - KPIs consolidados
-   - Gráfico de pipeline
-   - Atividades recentes da equipe
-
+1. **Minha Empresa** (`/configuracoes/empresa`)
+   - Upload de Logo e dados cadastrais.
 2. **Gestão de Usuários** (`/usuarios`)
-   - Listagem de membros
-   - Convite por e-mail
-   - Gerenciamento de perfis
-
-3. **Configuração de Funil** (`/configuracoes/funil`)
-   - Criar/editar/excluir etapas
-   - Reordenação drag-and-drop
-
-4. **Permissões** (`/configuracoes/permissoes`)
-   - Matriz de permissões por usuário/módulo
+   - Convite e gestão de acessos.
 
 ---
 
-## Fluxo de Convite de Usuário
-
-### Diagrama de Sequência
-
-```mermaid
-sequenceDiagram
-    participant Admin
-    participant Sistema
-    participant Supabase as Supabase Auth
-    participant Email
-    participant Novo as Novo Usuário
-    
-    Admin->>Sistema: Preenche dados (nome, email, cargo, perfil)
-    Sistema->>Supabase: inviteUserByEmail()
-    Supabase->>Supabase: Cria usuário pendente
-    Supabase->>Email: Envia email de convite
-    Email->>Novo: Link de ativação
-    
-    Novo->>Sistema: Clica no link
-    Sistema->>Supabase: Valida token
-    Sistema->>Sistema: Redireciona para /setup-password
-    
-    Novo->>Sistema: Define senha
-    Sistema->>Supabase: updateUser({ password })
-    Sistema->>Sistema: Redireciona para /dashboard
-```
-
-### Estados do Usuário
-
-| Status | Descrição | Badge |
-|--------|-----------|-------|
-| `PENDENTE` | Convite enviado, aguardando ativação | 🟡 Amarelo |
-| `ATIVO` | Senha definida, acesso liberado | 🟢 Verde |
-| `INATIVO` | Desabilitado pelo admin | 🔴 Vermelho |
-
-### Campos do Perfil
-
-| Campo | Tipo | Obrigatório | Descrição |
-|-------|------|-------------|-----------|
-| `nome_completo` | TEXT | ✅ | Nome do usuário |
-| `email` | TEXT | ✅ | Email de login |
-| `cargo` | TEXT | ❌ | Cargo/função |
-| `telefone` | VARCHAR(20) | ❌ | Telefone com DDD |
-| `cpf` | VARCHAR(14) | ❌ | CPF formatado |
-| `ativo` | BOOLEAN | - | Status do usuário |
-
----
-
-## Perfil: Colaborador
+## Perfil: Colaborador (Advogado, Assistente, Financeiro)
 
 ### Descrição
-- **Quem**: Advogados, assistentes jurídicos, estagiários
-- **Nível de Acesso**: Operacional (foco em CRM e Cálculos básicos)
-- **Responsabilidade Principal**: Atendimento ao cliente, cadastro de oportunidades, execução de análises prévias
+- **Quem**: Funcionários do escritório.
+- **Cargos Específicos**:
+    - **Advogado**: Foco em petições e gestão de casos.
+    - **Assistente**: Foco em triagem, cadastro e atendimento inicial.
+    - **Financeiro**: Foco em honorários e fluxo de caixa (se houver módulo).
+- **Nível de Acesso**: Operacional (restrito à sua Organização).
 
-### O que PODE fazer
+### Permissões por Cargo
+| Cargo | CRM | Cálculos | Petições | Configurações |
+|-------|-----|----------|----------|---------------|
+| **Advogado** | ✅ Completo | ✅ Criar/Editar | ✅ Completo | ❌ |
+| **Assistente** | ✅ Completo | ✅ Criar (Lim.) | 🔵 Leitura | ❌ |
+| **Financeiro** | 🔵 Leitura | ❌ | ❌ | ❌ |
 
-| Área | Ações Permitidas |
-|------|------------------|
-| **CRM** | Criar, editar e mover leads; agendar tarefas |
-| **Cálculos** | Criar cálculos ilimitados, editar inputs, exportar relatórios |
-| **Petições** | Gerar documentos a partir de templates |
-| **Visualização** | Ver leads (todos ou apenas os próprios, conforme config) |
-
-### O que NÃO PODE fazer
-
-- Alterar etapas do funil de vendas
-- Criar novos usuários
-- Deletar histórico de vendas ganhas
-- Editar fórmulas de cálculo (apenas parâmetros)
-
-### Telas Principais
-
-1. **CRM Kanban** (`/crm/oportunidades`)
-   - Pipeline visual com cards
-   - Filtros por responsável/status
-   
-2. **Detalhes do Cliente** (`/crm/oportunidade/:id`)
-   - Abas: Visão Geral, Timeline, Cálculos, Documentos
-   
-3. **Novo Cálculo** (`/calc/wizard`)
-   - Seleção de tipo (Veículo, Imóvel, Cartão)
-   - Upload OCR
-   - Formulário dinâmico
-
-4. **Resultado de Análise** (`/calc/:id/resultado`)
-   - Comparativo Banco vs Recalculado
-   - Exportação PDF
+*(Nota: Detalhes finos configuráveis na Matriz de Permissões)*
 
 ---
 
 ## Perfil: Perito Técnico
 
 ### Descrição
-- **Quem**: Especialista financeiro/contábil (ex: Diego Nascimento)
-- **Nível de Acesso**: Foco no Módulo de Cálculos com poderes avançados
-- **Responsabilidade Principal**: Validar metodologias, ajustar parâmetros complexos, analisar casos de alta complexidade
+- **Quem**: Especialista financeiro/contábil contratado ou parceiro.
+- **Nível de Acesso**: Especializado no Módulo de Cálculos.
+- **Responsabilidade**: Validar cálculos complexos, criar premissas de cálculo.
 
 ### O que PODE fazer
-
-| Área | Ações Permitidas |
-|------|------------------|
-| **Edição Profunda** | Alterar qualquer parâmetro de cálculo (taxas, datas, valores, índices) |
-| **Validação** | Marcar cálculos como "Validado" (selo de qualidade) |
-| **Overrides** | Editar manualmente parcelas específicas no grid de resultados |
-| **Gestão de Modelos** | Criar/salvar presets de cálculo |
-
-### O que NÃO PODE fazer
-
-- Excluir usuários ou alterar configurações administrativas
-- Apagar histórico de quem criou o cálculo
-
-### Telas Especializadas
-
-1. **Central de Perícia** (`/calc/pericia`)
-   - Tabela filtrada de cálculos pendentes de validação
-   - Filtros avançados por tipo/margem de abusividade
-
-2. **Editor Avançado** (`/calc/:id/editar-avancado`)
-   - Grid de parcelas com edição inline
-   - Painel de parâmetros globais
-   - Recálculo em cascata
-
-3. **Reconstrutor de Cartão** (`/calc/cartao/:id`)
-   - Grid mensal de faturas
-   - Input massivo de dados
-   - Cálculo de indébito
+- **Edição Profunda**: Alterar índices, séries temporais e regras de negócio de um cálculo específico.
+- **Validação**: "Assinar" um cálculo como tecnicamente correto.
 
 ---
 
-## Matriz de Permissões
-
-### Por Módulo
-
-| Módulo | Admin | Colaborador | Perito |
-|--------|:-----:|:-----------:|:------:|
-| **CRM** | ✅ CRUD | ✅ CRUD | 🔵 Read |
-| **Contatos** | ✅ CRUD | ✅ CRUD | 🔵 Read |
-| **Cálculos** | ✅ CRUD | ✅ CRU* | ✅ CRUD+ |
-| **Petições** | ✅ CRUD | ✅ CRU | ✅ CRU |
-| **Usuários** | ✅ CRUD | ❌ | ❌ |
-| **Configurações** | ✅ | ❌ | ❌ |
-
-**Legenda:**
-- ✅ CRUD = Create, Read, Update, Delete
-- 🔵 Read = Apenas leitura
-- CRU* = Pode deletar apenas rascunhos
-- CRUD+ = Inclui validação e override
-
-### Acesso Visual
+## Fluxo de Convite e Organização
 
 ```mermaid
-graph LR
-    Admin[Admin] --> Dashboard
-    Admin --> CRM
-    Admin --> Calc[Cálculos]
-    Admin --> Users[Usuários]
-    Admin --> Config[Configurações]
+sequenceDiagram
+    participant Gestor
+    participant Sistema
+    participant Email
+    participant NovoUser as Novo Usuário
     
-    Colab[Colaborador] --> CRM
-    Colab --> Calc
-    Colab --> Petitions[Petições]
+    Gestor->>Sistema: Convida "joao@email.com" como "Advogado"
+    Sistema->>Sistema: Cria registro de convite vinculado à Org do Gestor
+    Sistema->>Email: Envia link de cadastro
     
-    Perito --> Calc
-    Perito --> Pericia[Central Perícia]
-    
-    style Admin fill:#3b82f6
-    style Colab fill:#22c55e
-    style Perito fill:#f59e0b
+    NovoUser->>Email: Clica no link
+    NovoUser->>Sistema: Cria senha
+    Sistema->>Sistema: Cria Perfil vinculado à Org do Gestor
+    Sistema->>Sistema: Atribui cargo "Advogado"
 ```
 
 ---
 
-## Regras de Negócio
+## Matriz de Permissões (Resumo)
 
-### RN-001: Imutabilidade do Admin Principal
-> O sistema não permite que o usuário logado exclua ou inative a si mesmo, nem altere seu próprio perfil para nível inferior.
+| Recurso | Admin Master | Gestor | Advogado | Perito | Assistente |
+|---------|:------------:|:------:|:--------:|:------:|:----------:|
+| **Dados da Empresa** | ✅ | ✅ | 🔵 | 🔵 | 🔵 |
+| **Usuários** | ✅ Global | ✅ da Org | ❌ | ❌ | ❌ |
+| **Cálculos (Básico)** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Cálculos (Avançado)**| ✅ | ✅ | ⚠️ | ✅ | ❌ |
+| **Financeiro (SaaS)** | ✅ | ✅ | ❌ | ❌ | ❌ |
 
-### RN-002: Integridade do Funil de Vendas
-> Etapas do funil só podem ser excluídas se estiverem vazias (sem oportunidades ativas, perdidas ou ganhas).
-
-### RN-003: Campos Estáticos
-> Nenhum perfil pode criar novos campos de dados via interface. Alterações estruturais requerem intervenção do desenvolvedor.
-
-### RN-004: Bloqueio de Edição de Fórmulas (Colaborador)
-> O Colaborador pode editar parâmetros de entrada (taxas, datas, valores), mas nunca a lógica da fórmula de cálculo.
-
-### RN-005: Imutabilidade do Parecer Emitido (Perito)
-> Após o Perito validar um cálculo, ele é travado para edição por outros perfis. Apenas Perito ou Admin podem destravá-lo.
-
-### RN-006: Restrição de Exclusão (Colaborador)
-> O Colaborador pode excluir cálculos/rascunhos, mas não pode excluir Cliente/Oportunidade que já avançou para etapas de "Fechamento" ou "Venda".
+**Legenda:**
+- ✅ Acesso Total
+- 🔵 Apenas Leitura
+- ⚠️ Acesso Parcial/Restrito
+- ❌ Sem Acesso
 
 ---
 
-*Documentação de Usuários - OctoApps*
+## Regras de Negócio Adicionais
+
+### RN-USER-01: Unicidade de Organização
+> Um e-mail de usuário só pode estar vinculado a **uma** Organização por vez. Para participar de múltiplas, deve usar e-mails diferentes ou (futuramente) recurso de multi-org.
+
+### RN-USER-02: Herança de Configurações
+> Todos os relatórios gerados por Colaboradores ou Peritos usam automaticamente o Logo e Cabeçalho definidos pelo **Gestor** da Organização.
+
+### RN-USER-03: Proteção de Admin Master
+> Nenhum usuário (nem mesmo Gestor) pode atribuir a si mesmo ou a outros o cargo de Admin Master. Este cargo é atribuído apenas via banco de dados/infra.

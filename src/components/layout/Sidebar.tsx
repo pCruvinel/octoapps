@@ -15,7 +15,10 @@ import {
   List,
   Calendar,
   Package,
-  BarChart3
+  BarChart3,
+  Sparkles,
+  PieChart,
+  Tag,
 } from 'lucide-react';
 import { useState } from 'react';
 import LogoAzuk from '../../assets/Logo azuk.svg';
@@ -41,9 +44,9 @@ const routeMap: Record<string, string> = {
   'peticoes': '/peticoes',
   'users': '/users',
   'permissions': '/permissions',
-  'settings-general': '/settings/general',
-  'settings-documents': '/settings/documents',
   'settings-ocr': '/settings/ocr',
+  'settings-documents': '/settings/documents',
+  'settings-event-categories': '/settings/event-categories',
 };
 
 export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
@@ -51,16 +54,26 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   const { canRead } = usePermissions();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({
+    executive: true, 
     settings: false,
     calculations: false,
     crm: false,
+    sistema: false,
   });
 
   const toggleMenu = (menu: string) => {
     setExpandedMenus(prev => ({ ...prev, [menu]: !prev[menu] }));
   };
 
-  const isAdmin = profile?.roles?.includes('Administrador') || false;
+  const isAdmin = 
+    profile?.roles?.includes('Administrador') || 
+    profile?.roles?.includes('Admin Master') ||
+    profile?.roles?.includes('Gestor') ||
+    profile?.role === 'Gestor' || 
+    profile?.role === 'Admin Master' || 
+    profile?.role === 'Administrador' ||
+    false;
+
 
   // Check if current path matches route
   const isActive = (route: string) => {
@@ -69,7 +82,17 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
   };
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard Geral', icon: LayoutDashboard, route: 'dashboard', adminOnly: false, module: null },
+    {
+      id: 'executive',
+      label: 'Painel Executivo',
+      icon: LayoutDashboard,
+      adminOnly: false,
+      module: null,
+      submenu: [
+        { id: 'dashboard', label: 'Visão Geral', route: 'dashboard', icon: PieChart },
+        { id: 'users', label: 'Usuários', route: 'users', icon: Users, adminOnly: true },
+      ]
+    },
     {
       id: 'crm',
       label: 'CRM',
@@ -96,18 +119,16 @@ export function Sidebar({ isMobileOpen, onMobileClose }: SidebarProps) {
       ]
     },
     { id: 'peticoes', label: 'Geração de Petições', icon: FileText, route: 'peticoes', adminOnly: false, module: 'petitions' as const },
-    { id: 'users', label: 'Usuários', icon: Users, route: 'users', adminOnly: true, module: null },
-    // { id: 'permissions', label: 'Permissões', icon: Shield, route: 'permissions', adminOnly: true, module: null },
     {
-      id: 'settings',
-      label: 'Configurações',
+      id: 'sistema',
+      label: 'Sistema',
       icon: Settings,
       adminOnly: true,
       module: null,
       submenu: [
-        { id: 'settings-general', label: 'Opções Gerais', route: 'settings-general' },
-        { id: 'settings-documents', label: 'Documentos', route: 'settings-documents' },
-        { id: 'settings-ocr', label: 'OCR & IA', route: 'settings-ocr' },
+        { id: 'settings-documents', label: 'Documentos', route: 'settings-documents', icon: FileText, adminOnly: true },
+        { id: 'settings-ocr', label: 'OCR & IA', route: 'settings-ocr', icon: Sparkles, adminOnly: true },
+        { id: 'settings-event-categories', label: 'Categorias de Eventos', route: 'settings-event-categories', icon: Tag, adminOnly: true },
       ]
     },
   ];

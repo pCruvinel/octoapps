@@ -18,6 +18,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { CurrencyInput } from '@/components/ui/currency-input';
 // import { TipoOperacaoSelect } from '@/components/shared/TipoOperacaoSelect'; // Replaced to fix value type
 import { useTiposOperacao } from '../../hooks/useTiposOperacao';
+import { ContactCombobox } from '../shared/ContactCombobox';
 import { toast } from 'sonner';
 import { supabase } from '../../lib/supabase';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
@@ -25,6 +26,8 @@ import { useTasks } from '../../hooks/useTasks';
 import { useAgendamentos } from '../../hooks/useAgendamentos';
 import { useAuth } from '../../hooks/useAuth';
 import { useProducts } from '../../hooks/useProducts';
+import { useOportunidadeProdutos } from '../../hooks/useOportunidadeProdutos';
+import { ProductMultiSelect } from '../shared/ProductMultiSelect';
 import type { Opportunity } from '../../types/opportunity';
 import type { Contact } from '../../types/contact';
 import type { TipoTarefa } from '../../types/task';
@@ -63,7 +66,7 @@ interface Attachment {
 
 const editFormSchema = z.object({
   contato_id: z.string().min(1, 'Selecione um contato'),
-  produto_servico_id: z.string().optional(), // v2: produto do catálogo
+  produto_servico_ids: z.array(z.string()).optional().default([]), // v2: produtos N:N
   tipo_operacao: z.string().optional(), // legado - mantido para compatibilidade
   valor_proposta: z.number().optional().default(0),
   valor_causa: z.number().optional().default(0),
@@ -94,6 +97,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
   const { createAgendamento } = useAgendamentos();
   const { user } = useAuth();
   const { activeProducts, loading: loadingProducts } = useProducts();
+  const { produtos, loadProdutos, syncProdutos, loading: loadingOpsProducts } = useOportunidadeProdutos(opportunityId || undefined);
 
   // Custom Hook for Operation Types (names) - legado
   const { tiposOperacao, loading: loadingTipos } = useTiposOperacao({
@@ -109,7 +113,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
 
   // Data States
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+
   const [profiles, setProfiles] = useState<any[]>([]);
 
   // Loading States
@@ -146,7 +150,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
     resolver: zodResolver(editFormSchema),
     defaultValues: {
       contato_id: '',
-      produto_servico_id: '',
+      produto_servico_ids: [],
       tipo_operacao: '',
       valor_proposta: 0,
       valor_causa: 0,
@@ -162,11 +166,12 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
   useEffect(() => {
     if (opportunityId) {
       loadOpportunity();
-      loadContacts();
+
       loadProfiles();
       loadTasksByOpportunity(opportunityId);
+      loadProdutos(opportunityId);
     }
-  }, [opportunityId, loadTasksByOpportunity]);
+  }, [opportunityId, loadTasksByOpportunity, loadProdutos]);
 
   useEffect(() => {
     if (opportunityId) {
@@ -181,7 +186,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
     if (isEditDialogOpen && opportunity) {
       editForm.reset({
         contato_id: opportunity.contato_id || '',
-        produto_servico_id: opportunity.produto_servico_id || '',
+        produto_servico_ids: produtos.map(p => p.produto_servico_id),
         tipo_operacao: opportunity.tipo_acao || '', 
         valor_proposta: opportunity.valor_proposta || 0,
         valor_causa: opportunity.valor_causa || 0,
@@ -191,7 +196,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         observacoes: opportunity.observacoes || '',
       });
     }
-  }, [isEditDialogOpen, opportunity, editForm]);
+  }, [isEditDialogOpen, opportunity, editForm, produtos]);
 
 
   // --- Loaders ---
@@ -289,18 +294,7 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
     }
   };
 
-  const loadContacts = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('contatos')
-        .select('id, nome_completo, email, telefone_principal')
-        .eq('ativo', true)
-        .order('nome_completo', { ascending: true });
 
-      if (error) throw error;
-      setContacts(data || []);
-    } catch (error: any) { console.error(error); }
-  };
 
   const loadProfiles = async () => {
     try {
@@ -324,11 +318,11 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         .from('oportunidades')
         .update({
           contato_id: values.contato_id,
-          produto_servico_id: values.produto_servico_id || null,
-          tipo_acao: values.tipo_operacao || null, // legado
+          produto_servico_id: values.produto_servico_ids?.[0] || null, // Legacy singular
+          tipo_acao: values.tipo_operacao || null, 
           valor_proposta: values.valor_proposta,
           valor_causa: values.valor_causa,
-          valor_estimado: values.valor_proposta, // Mantém sincronizado com honorários por enquanto
+          valor_estimado: values.valor_proposta,
           responsavel_id: values.responsavel_id,
           origem: values.origem,
           observacoes: values.observacoes,
@@ -338,9 +332,13 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
 
       if (error) throw error;
 
+      // Sync N:N Products
+      await syncProdutos(values.produto_servico_ids || []);
+
       // Log activity (non-blocking)
       const responsavelNome = profiles.find(p => p.id === values.responsavel_id)?.nome_completo || null;
-      const produtoNome = activeProducts.find(p => p.id === values.produto_servico_id)?.name || null;
+      const selectedIds = values.produto_servico_ids || [];
+      const produtoNome = activeProducts.filter(p => selectedIds.includes(p.id)).map(p => p.name).join(', ') || null;
       supabase.from('log_atividades').insert({
         user_id: user?.id,
         acao: 'EDITAR_OPORTUNIDADE',
@@ -354,8 +352,8 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
         },
         dados_novos: {
           tipo_acao: values.tipo_operacao,
-          produto_servico_id: values.produto_servico_id,
-          produto_servico: produtoNome,
+          produto_servico_id: values.produto_servico_ids?.[0] || null,
+          produtos_ids: values.produto_servico_ids,
           valor_proposta: values.valor_proposta,
           valor_causa: values.valor_causa,
           responsavel: responsavelNome
@@ -1010,10 +1008,13 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Contato</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl><SelectTrigger className="w-full"><SelectValue placeholder="Selecione..." /></SelectTrigger></FormControl>
-                          <SelectContent>{contacts.map(c => (<SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>))}</SelectContent>
-                        </Select>
+                        <FormControl>
+                          <ContactCombobox
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Selecione o contato..."
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1024,30 +1025,18 @@ export function OpportunityDetails({ opportunityId, onNavigate, onBack }: Opport
                 <div className="col-span-1">
                   <FormField
                     control={editForm.control}
-                    name="produto_servico_id"
+                    name="produto_servico_ids"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Produto / Serviço</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger className="w-full" disabled={loadingProducts}>
-                              <SelectValue placeholder="Selecione o produto" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {loadingProducts ? (
-                              <SelectItem value="loading" disabled>Carregando...</SelectItem>
-                            ) : activeProducts.length === 0 ? (
-                              <SelectItem value="empty" disabled>Nenhum produto cadastrado</SelectItem>
-                            ) : (
-                              activeProducts.map(product => (
-                                <SelectItem key={product.id} value={product.id}>
-                                  {product.name}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Produtos / Serviços</FormLabel>
+                        <FormControl>
+                          <ProductMultiSelect
+                            products={activeProducts}
+                            selectedValues={field.value || []}
+                            onChange={field.onChange}
+                            placeholder="Selecione os serviços..."
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

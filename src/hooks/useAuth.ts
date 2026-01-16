@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -15,6 +15,8 @@ interface UserProfile {
   telefone: string | null;
   cargo: string | null;
   roles?: string[];
+  role?: string | null;
+  organization_id?: string | null;
 }
 
 export function useAuth() {
@@ -24,13 +26,61 @@ export function useAuth() {
     loading: true,
   });
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  
+  // Refs para evitar chamadas duplicadas
+  const lastLoadedUserIdRef = useRef<string | null>(null);
+  const isLoadingProfileRef = useRef(false);
+
+  const loadUserProfile = useCallback(async (userId: string) => {
+    // Evitar carregamento duplicado
+    if (isLoadingProfileRef.current || lastLoadedUserIdRef.current === userId) {
+      return;
+    }
+
+    try {
+      isLoadingProfileRef.current = true;
+      lastLoadedUserIdRef.current = userId;
+
+      // Get profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      // Get roles
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('roles(nome)')
+        .eq('user_id', userId);
+
+      const roles = userRoles?.map((ur: any) => ur.roles.nome) || [];
+
+      if (profileData) {
+        setProfile({
+          ...profileData,
+          roles,
+          role: profileData.role,
+          organization_id: profileData.organization_id
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    } finally {
+      isLoadingProfileRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthState({
-        user: session?.user ?? null,
         session,
+        user: session?.user ?? null,
         loading: false,
       });
 
@@ -39,113 +89,30 @@ export function useAuth() {
       }
     });
 
-    // Listen for auth changes
+    // Listen for changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'TOKEN_REFRESHED') {
-        // Token renovado com sucesso
-        setAuthState({
-          user: session?.user ?? null,
-          session,
-          loading: false,
-        });
-      } else if (event === 'SIGNED_OUT') {
-        // Limpar estado local
-        setAuthState({ user: null, session: null, loading: false });
-        setProfile(null);
-      } else if (event === 'USER_UPDATED') {
-        // Atualizar dados do usuário
-        if (session?.user) {
-          loadUserProfile(session.user.id);
-        }
-      } else {
-        // Outros eventos
-        setAuthState({
-          user: session?.user ?? null,
-          session,
-          loading: false,
-        });
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setAuthState({
+        session,
+        user: session?.user ?? null,
+        loading: false,
+      });
 
-        if (session?.user) {
-          loadUserProfile(session.user.id);
-        } else {
-          setProfile(null);
+      if (session?.user) {
+        // Resetar ref quando sessão muda (logout/login)
+        if (lastLoadedUserIdRef.current !== session.user.id) {
+          lastLoadedUserIdRef.current = null;
         }
+        loadUserProfile(session.user.id);
+      } else {
+        setProfile(null);
+        lastLoadedUserIdRef.current = null;
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
-
-  // Verificação periódica de renovação de token
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (session) {
-        const expiresAt = session.expires_at;
-        if (!expiresAt) return;
-
-        const now = Math.floor(Date.now() / 1000);
-        const timeUntilExpiry = expiresAt - now;
-
-        // Se faltam menos de 5 minutos para expirar, tenta renovar
-        if (timeUntilExpiry < 300) {
-          const { error } = await supabase.auth.refreshSession();
-
-          if (error) {
-            // Se não conseguir renovar, faz logout
-            await signOut();
-          }
-        }
-      }
-    };
-
-    // Verifica a cada 1 minuto
-    const interval = setInterval(checkSession, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadUserProfile = async (userId: string) => {
-    try {
-      // Get profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (profileError) throw profileError;
-
-      // Get user roles
-      let roles: string[] = [];
-      try {
-        const { data: userRolesData, error: rolesError } = await supabase
-          .from('user_roles')
-          .select('role_id, roles(nome)')
-          .eq('user_id', userId);
-
-        if (rolesError) {
-          console.error('Error loading user roles:', rolesError);
-        } else if (userRolesData) {
-          roles = userRolesData
-            .map((ur: any) => ur.roles?.nome)
-            .filter((nome: string | null) => nome !== null);
-        }
-      } catch (rolesError) {
-        console.error('Error fetching roles:', rolesError);
-      }
-
-      setProfile({
-        ...profileData,
-        roles,
-      });
-    } catch (error) {
-      console.error('Error loading user profile:', error);
-    }
-  };
+  }, [loadUserProfile]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {

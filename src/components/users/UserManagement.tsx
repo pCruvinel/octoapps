@@ -15,6 +15,7 @@ import { usersService, type UserWithRole, type Role } from '../../services/users
 import { USER_STATUS_COLORS } from '../../types/permissions';
 import { isValidEmail } from '../ui/utils';
 import { formatPhone, formatCpf } from '../../lib/formatters';
+import { useAuth } from '../../hooks/useAuth';
 
 interface UserManagementProps {
   onNavigate: (page: string, id?: string) => void;
@@ -107,6 +108,9 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
     setEmailError('');
   };
 
+
+  const { profile } = useAuth();
+
   const handleInviteUser = async () => {
     if (!inviteData.nome_completo || !inviteData.email || !inviteData.role_id) {
       toast.error('Preencha os campos obrigatórios: Nome, E-mail e Perfil');
@@ -119,13 +123,27 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
       return;
     }
 
+    // Encontrar nome do role selecionado
+    const selectedRole = roles.find(r => r.id === inviteData.role_id);
+    if (!selectedRole) {
+      toast.error('Perfil selecionado inválido');
+      return;
+    }
+
     try {
       setInviting(true);
+
+      // Determinar organization_id
+      // Se for Gestor ou Admin Master enviando, usar a organização do perfil (se existir)
+      // Futuramente para Admin Master poderia ter um seletor de organização
+      const organizationId = profile?.organization_id || undefined;
 
       await usersService.inviteUser({
         nome_completo: inviteData.nome_completo,
         email: inviteData.email,
         role_id: inviteData.role_id,
+        role_name: selectedRole.nome, // Passar o nome do role para a Edge Function
+        organization_id: organizationId,
         cargo: inviteData.cargo || undefined,
         telefone: inviteData.telefone || undefined,
         cpf: inviteData.cpf || undefined,
@@ -293,43 +311,50 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
   };
 
   return (
-    <div className="p-4 lg:p-8">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Gerenciamento de Usuários</h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          Gerencie os usuários e suas permissões no sistema
-        </p>
-      </div>
+    <div className="h-full flex flex-col">
+      {/* Header Container - Deep Ocean Standard */}
+      <div className="px-4 pt-4 pb-2 lg:px-6 lg:pt-6 lg:pb-3 border-b border-border mb-6">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          {/* Left Side: Title + Description */}
+          <div className="flex flex-col">
+            <h1 className="text-foreground font-bold text-2xl whitespace-nowrap">
+              Gerenciamento de Usuários
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Gerencie os usuários e suas permissões no sistema
+            </p>
+          </div>
 
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative w-full sm:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Buscar por nome, email, cargo..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
+          {/* Right Side: Filters + Actions */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full xl:w-auto">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, email, cargo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
 
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onNavigate('permissions')}
-            className="gap-2"
-          >
-            <Shield className="w-4 h-4" />
-            Permissões
-          </Button>
-
-          <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Convidar Usuário
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => onNavigate('permissions')}
+                className="gap-2"
+              >
+                <Shield className="w-4 h-4" />
+                Permissões
               </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[550px]">
+
+              <Dialog open={isInviteDialogOpen} onOpenChange={setIsInviteDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2">
+                    <Plus className="w-4 h-4" />
+                    Convidar Usuário
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[550px]">
               <DialogHeader>
                 <DialogTitle>Convidar Novo Usuário</DialogTitle>
                 <DialogDescription>
@@ -451,10 +476,14 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+      {/* Content Container */}
+      <div className="flex-1 px-4 lg:px-6">
+        <div className="border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -482,25 +511,25 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
+                        <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
                           {user.avatar_url ? (
                             <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                           ) : (
-                            <User className="w-5 h-5 text-gray-500" />
+                            <User className="w-5 h-5 text-muted-foreground" />
                           )}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-medium text-gray-900 dark:text-white truncate">
+                          <div className="font-medium text-foreground truncate">
                             {user.nome_completo}
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                          <div className="text-sm text-muted-foreground truncate">
                             {user.email}
                           </div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-gray-600 dark:text-gray-300">
+                      <span className="text-sm text-muted-foreground">
                         {user.cargo || '-'}
                       </span>
                     </TableCell>
@@ -519,7 +548,7 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1">
+                          <button className="text-muted-foreground hover:text-foreground p-1">
                             <MoreVertical className="w-4 h-4" />
                           </button>
                         </DropdownMenuTrigger>
@@ -567,11 +596,12 @@ export function UserManagement({ onNavigate }: UserManagementProps) {
 
       {!loading && filteredUsers.length === 0 && (
         <div className="text-center py-12">
-          <p className="text-gray-500 dark:text-gray-400">
+          <p className="text-muted-foreground">
             Nenhum usuário encontrado
           </p>
         </div>
       )}
+      </div>
 
       {/* View Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>

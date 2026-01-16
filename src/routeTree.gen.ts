@@ -15,12 +15,14 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedTriagemRouteImport } from './routes/_authenticated/triagem'
 import { Route as AuthenticatedPermissionsRouteImport } from './routes/_authenticated/permissions'
+import { Route as AuthenticatedIaInsightsRouteImport } from './routes/_authenticated/ia-insights'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedPeticoesIndexRouteImport } from './routes/_authenticated/peticoes/index'
-import { Route as AuthenticatedSettingsProductsRouteImport } from './routes/_authenticated/settings/products'
 import { Route as AuthenticatedSettingsOcrRouteImport } from './routes/_authenticated/settings/ocr'
 import { Route as AuthenticatedSettingsGeneralRouteImport } from './routes/_authenticated/settings/general'
+import { Route as AuthenticatedSettingsEventCategoriesRouteImport } from './routes/_authenticated/settings/event-categories'
 import { Route as AuthenticatedSettingsDocumentsRouteImport } from './routes/_authenticated/settings/documents'
+import { Route as AuthenticatedSettingsCompanyRouteImport } from './routes/_authenticated/settings/company'
 import { Route as AuthenticatedCrmServicesRouteImport } from './routes/_authenticated/crm/services'
 import { Route as AuthenticatedCrmOportunidadesArquivadasRouteImport } from './routes/_authenticated/crm/oportunidades-arquivadas'
 import { Route as AuthenticatedCrmOportunidadesRouteImport } from './routes/_authenticated/crm/oportunidades'
@@ -36,6 +38,7 @@ import { Route as AuthenticatedCalcResultsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCalcListaRouteImport } from './routes/_authenticated/calc/lista'
 import { Route as AuthenticatedPeticoesEditorIdRouteImport } from './routes/_authenticated/peticoes/editor.$id'
 import { Route as AuthenticatedCrmOportunidadeIdRouteImport } from './routes/_authenticated/crm/oportunidade.$id'
+import { Route as AuthenticatedCrmEtapaIdRouteImport } from './routes/_authenticated/crm/etapa.$id'
 import { Route as AuthenticatedCalcRelatorioIdRouteImport } from './routes/_authenticated/calc/relatorio.$id'
 
 const LoginRoute = LoginRouteImport.update({
@@ -68,6 +71,11 @@ const AuthenticatedPermissionsRoute =
     path: '/permissions',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedIaInsightsRoute = AuthenticatedIaInsightsRouteImport.update({
+  id: '/ia-insights',
+  path: '/ia-insights',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -77,12 +85,6 @@ const AuthenticatedPeticoesIndexRoute =
   AuthenticatedPeticoesIndexRouteImport.update({
     id: '/peticoes/',
     path: '/peticoes/',
-    getParentRoute: () => AuthenticatedRoute,
-  } as any)
-const AuthenticatedSettingsProductsRoute =
-  AuthenticatedSettingsProductsRouteImport.update({
-    id: '/settings/products',
-    path: '/settings/products',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsOcrRoute =
@@ -97,10 +99,22 @@ const AuthenticatedSettingsGeneralRoute =
     path: '/settings/general',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsEventCategoriesRoute =
+  AuthenticatedSettingsEventCategoriesRouteImport.update({
+    id: '/settings/event-categories',
+    path: '/settings/event-categories',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedSettingsDocumentsRoute =
   AuthenticatedSettingsDocumentsRouteImport.update({
     id: '/settings/documents',
     path: '/settings/documents',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsCompanyRoute =
+  AuthenticatedSettingsCompanyRouteImport.update({
+    id: '/settings/company',
+    path: '/settings/company',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedCrmServicesRoute =
@@ -190,6 +204,11 @@ const AuthenticatedCrmOportunidadeIdRoute =
     path: '/crm/oportunidade/$id',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedCrmEtapaIdRoute = AuthenticatedCrmEtapaIdRouteImport.update({
+  id: '/crm/etapa/$id',
+  path: '/crm/etapa/$id',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedCalcRelatorioIdRoute =
   AuthenticatedCalcRelatorioIdRouteImport.update({
     id: '/calc/relatorio/$id',
@@ -200,6 +219,7 @@ const AuthenticatedCalcRelatorioIdRoute =
 export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/ia-insights': typeof AuthenticatedIaInsightsRoute
   '/permissions': typeof AuthenticatedPermissionsRoute
   '/triagem': typeof AuthenticatedTriagemRoute
   '/users': typeof AuthenticatedUsersRoute
@@ -217,18 +237,21 @@ export interface FileRoutesByFullPath {
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/crm/services': typeof AuthenticatedCrmServicesRoute
+  '/settings/company': typeof AuthenticatedSettingsCompanyRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
+  '/settings/event-categories': typeof AuthenticatedSettingsEventCategoriesRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/settings/ocr': typeof AuthenticatedSettingsOcrRoute
-  '/settings/products': typeof AuthenticatedSettingsProductsRoute
   '/peticoes': typeof AuthenticatedPeticoesIndexRoute
   '/calc/relatorio/$id': typeof AuthenticatedCalcRelatorioIdRoute
+  '/crm/etapa/$id': typeof AuthenticatedCrmEtapaIdRoute
   '/crm/oportunidade/$id': typeof AuthenticatedCrmOportunidadeIdRoute
   '/peticoes/editor/$id': typeof AuthenticatedPeticoesEditorIdRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/ia-insights': typeof AuthenticatedIaInsightsRoute
   '/permissions': typeof AuthenticatedPermissionsRoute
   '/triagem': typeof AuthenticatedTriagemRoute
   '/users': typeof AuthenticatedUsersRoute
@@ -246,12 +269,14 @@ export interface FileRoutesByTo {
   '/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/crm/services': typeof AuthenticatedCrmServicesRoute
+  '/settings/company': typeof AuthenticatedSettingsCompanyRoute
   '/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
+  '/settings/event-categories': typeof AuthenticatedSettingsEventCategoriesRoute
   '/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/settings/ocr': typeof AuthenticatedSettingsOcrRoute
-  '/settings/products': typeof AuthenticatedSettingsProductsRoute
   '/peticoes': typeof AuthenticatedPeticoesIndexRoute
   '/calc/relatorio/$id': typeof AuthenticatedCalcRelatorioIdRoute
+  '/crm/etapa/$id': typeof AuthenticatedCrmEtapaIdRoute
   '/crm/oportunidade/$id': typeof AuthenticatedCrmOportunidadeIdRoute
   '/peticoes/editor/$id': typeof AuthenticatedPeticoesEditorIdRoute
 }
@@ -260,6 +285,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/ia-insights': typeof AuthenticatedIaInsightsRoute
   '/_authenticated/permissions': typeof AuthenticatedPermissionsRoute
   '/_authenticated/triagem': typeof AuthenticatedTriagemRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
@@ -277,12 +303,14 @@ export interface FileRoutesById {
   '/_authenticated/crm/oportunidades': typeof AuthenticatedCrmOportunidadesRoute
   '/_authenticated/crm/oportunidades-arquivadas': typeof AuthenticatedCrmOportunidadesArquivadasRoute
   '/_authenticated/crm/services': typeof AuthenticatedCrmServicesRoute
+  '/_authenticated/settings/company': typeof AuthenticatedSettingsCompanyRoute
   '/_authenticated/settings/documents': typeof AuthenticatedSettingsDocumentsRoute
+  '/_authenticated/settings/event-categories': typeof AuthenticatedSettingsEventCategoriesRoute
   '/_authenticated/settings/general': typeof AuthenticatedSettingsGeneralRoute
   '/_authenticated/settings/ocr': typeof AuthenticatedSettingsOcrRoute
-  '/_authenticated/settings/products': typeof AuthenticatedSettingsProductsRoute
   '/_authenticated/peticoes/': typeof AuthenticatedPeticoesIndexRoute
   '/_authenticated/calc/relatorio/$id': typeof AuthenticatedCalcRelatorioIdRoute
+  '/_authenticated/crm/etapa/$id': typeof AuthenticatedCrmEtapaIdRoute
   '/_authenticated/crm/oportunidade/$id': typeof AuthenticatedCrmOportunidadeIdRoute
   '/_authenticated/peticoes/editor/$id': typeof AuthenticatedPeticoesEditorIdRoute
 }
@@ -291,6 +319,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/login'
     | '/dashboard'
+    | '/ia-insights'
     | '/permissions'
     | '/triagem'
     | '/users'
@@ -308,18 +337,21 @@ export interface FileRouteTypes {
     | '/crm/oportunidades'
     | '/crm/oportunidades-arquivadas'
     | '/crm/services'
+    | '/settings/company'
     | '/settings/documents'
+    | '/settings/event-categories'
     | '/settings/general'
     | '/settings/ocr'
-    | '/settings/products'
     | '/peticoes'
     | '/calc/relatorio/$id'
+    | '/crm/etapa/$id'
     | '/crm/oportunidade/$id'
     | '/peticoes/editor/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
     | '/dashboard'
+    | '/ia-insights'
     | '/permissions'
     | '/triagem'
     | '/users'
@@ -337,12 +369,14 @@ export interface FileRouteTypes {
     | '/crm/oportunidades'
     | '/crm/oportunidades-arquivadas'
     | '/crm/services'
+    | '/settings/company'
     | '/settings/documents'
+    | '/settings/event-categories'
     | '/settings/general'
     | '/settings/ocr'
-    | '/settings/products'
     | '/peticoes'
     | '/calc/relatorio/$id'
+    | '/crm/etapa/$id'
     | '/crm/oportunidade/$id'
     | '/peticoes/editor/$id'
   id:
@@ -350,6 +384,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/dashboard'
+    | '/_authenticated/ia-insights'
     | '/_authenticated/permissions'
     | '/_authenticated/triagem'
     | '/_authenticated/users'
@@ -367,12 +402,14 @@ export interface FileRouteTypes {
     | '/_authenticated/crm/oportunidades'
     | '/_authenticated/crm/oportunidades-arquivadas'
     | '/_authenticated/crm/services'
+    | '/_authenticated/settings/company'
     | '/_authenticated/settings/documents'
+    | '/_authenticated/settings/event-categories'
     | '/_authenticated/settings/general'
     | '/_authenticated/settings/ocr'
-    | '/_authenticated/settings/products'
     | '/_authenticated/peticoes/'
     | '/_authenticated/calc/relatorio/$id'
+    | '/_authenticated/crm/etapa/$id'
     | '/_authenticated/crm/oportunidade/$id'
     | '/_authenticated/peticoes/editor/$id'
   fileRoutesById: FileRoutesById
@@ -426,6 +463,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPermissionsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/ia-insights': {
+      id: '/_authenticated/ia-insights'
+      path: '/ia-insights'
+      fullPath: '/ia-insights'
+      preLoaderRoute: typeof AuthenticatedIaInsightsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -438,13 +482,6 @@ declare module '@tanstack/react-router' {
       path: '/peticoes'
       fullPath: '/peticoes'
       preLoaderRoute: typeof AuthenticatedPeticoesIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/settings/products': {
-      id: '/_authenticated/settings/products'
-      path: '/settings/products'
-      fullPath: '/settings/products'
-      preLoaderRoute: typeof AuthenticatedSettingsProductsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings/ocr': {
@@ -461,11 +498,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsGeneralRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings/event-categories': {
+      id: '/_authenticated/settings/event-categories'
+      path: '/settings/event-categories'
+      fullPath: '/settings/event-categories'
+      preLoaderRoute: typeof AuthenticatedSettingsEventCategoriesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings/documents': {
       id: '/_authenticated/settings/documents'
       path: '/settings/documents'
       fullPath: '/settings/documents'
       preLoaderRoute: typeof AuthenticatedSettingsDocumentsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings/company': {
+      id: '/_authenticated/settings/company'
+      path: '/settings/company'
+      fullPath: '/settings/company'
+      preLoaderRoute: typeof AuthenticatedSettingsCompanyRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/crm/services': {
@@ -573,6 +624,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCrmOportunidadeIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/crm/etapa/$id': {
+      id: '/_authenticated/crm/etapa/$id'
+      path: '/crm/etapa/$id'
+      fullPath: '/crm/etapa/$id'
+      preLoaderRoute: typeof AuthenticatedCrmEtapaIdRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/calc/relatorio/$id': {
       id: '/_authenticated/calc/relatorio/$id'
       path: '/calc/relatorio/$id'
@@ -585,6 +643,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedIaInsightsRoute: typeof AuthenticatedIaInsightsRoute
   AuthenticatedPermissionsRoute: typeof AuthenticatedPermissionsRoute
   AuthenticatedTriagemRoute: typeof AuthenticatedTriagemRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
@@ -602,18 +661,21 @@ interface AuthenticatedRouteChildren {
   AuthenticatedCrmOportunidadesRoute: typeof AuthenticatedCrmOportunidadesRoute
   AuthenticatedCrmOportunidadesArquivadasRoute: typeof AuthenticatedCrmOportunidadesArquivadasRoute
   AuthenticatedCrmServicesRoute: typeof AuthenticatedCrmServicesRoute
+  AuthenticatedSettingsCompanyRoute: typeof AuthenticatedSettingsCompanyRoute
   AuthenticatedSettingsDocumentsRoute: typeof AuthenticatedSettingsDocumentsRoute
+  AuthenticatedSettingsEventCategoriesRoute: typeof AuthenticatedSettingsEventCategoriesRoute
   AuthenticatedSettingsGeneralRoute: typeof AuthenticatedSettingsGeneralRoute
   AuthenticatedSettingsOcrRoute: typeof AuthenticatedSettingsOcrRoute
-  AuthenticatedSettingsProductsRoute: typeof AuthenticatedSettingsProductsRoute
   AuthenticatedPeticoesIndexRoute: typeof AuthenticatedPeticoesIndexRoute
   AuthenticatedCalcRelatorioIdRoute: typeof AuthenticatedCalcRelatorioIdRoute
+  AuthenticatedCrmEtapaIdRoute: typeof AuthenticatedCrmEtapaIdRoute
   AuthenticatedCrmOportunidadeIdRoute: typeof AuthenticatedCrmOportunidadeIdRoute
   AuthenticatedPeticoesEditorIdRoute: typeof AuthenticatedPeticoesEditorIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedIaInsightsRoute: AuthenticatedIaInsightsRoute,
   AuthenticatedPermissionsRoute: AuthenticatedPermissionsRoute,
   AuthenticatedTriagemRoute: AuthenticatedTriagemRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
@@ -633,12 +695,15 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCrmOportunidadesArquivadasRoute:
     AuthenticatedCrmOportunidadesArquivadasRoute,
   AuthenticatedCrmServicesRoute: AuthenticatedCrmServicesRoute,
+  AuthenticatedSettingsCompanyRoute: AuthenticatedSettingsCompanyRoute,
   AuthenticatedSettingsDocumentsRoute: AuthenticatedSettingsDocumentsRoute,
+  AuthenticatedSettingsEventCategoriesRoute:
+    AuthenticatedSettingsEventCategoriesRoute,
   AuthenticatedSettingsGeneralRoute: AuthenticatedSettingsGeneralRoute,
   AuthenticatedSettingsOcrRoute: AuthenticatedSettingsOcrRoute,
-  AuthenticatedSettingsProductsRoute: AuthenticatedSettingsProductsRoute,
   AuthenticatedPeticoesIndexRoute: AuthenticatedPeticoesIndexRoute,
   AuthenticatedCalcRelatorioIdRoute: AuthenticatedCalcRelatorioIdRoute,
+  AuthenticatedCrmEtapaIdRoute: AuthenticatedCrmEtapaIdRoute,
   AuthenticatedCrmOportunidadeIdRoute: AuthenticatedCrmOportunidadeIdRoute,
   AuthenticatedPeticoesEditorIdRoute: AuthenticatedPeticoesEditorIdRoute,
 }

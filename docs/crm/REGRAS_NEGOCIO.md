@@ -18,8 +18,37 @@
 | RN-CRM-008 | Log de Atividades | Geral |
 | RN-CRM-009 | Filtro de Contatos Inativos | Kanban |
 | RN-CRM-010 | Validação de Arquivos | Anexos |
+| RN-CRM-011 | Catálogo de Produtos e Serviços | Oportunidades |
 
 ---
+
+## RN-CRM-011: Catálogo de Produtos e Serviços
+
+### Descrição
+Oportunidades devem ser vinculadas a um **Produto ou Serviço** do catálogo para padronizar nomenclaturas e percentuais de honorários.
+
+### Regras
+1. A vinculação é opcional, mas recomendada.
+2. Ao selecionar um serviço, o `% Honorários` é preenchido automaticamente (se definido).
+3. Serviços inativos não aparecem para seleção em novas oportunidades.
+
+### Implementação
+
+```typescript
+// useProducts.ts
+const { data } = await supabase
+  .from('products_services')
+  .select('*')
+  .eq('active', true)
+  .order('ordem');
+```
+
+### Banco de Dados
+
+```sql
+ALTER TABLE oportunidades 
+ADD COLUMN produto_servico_id UUID REFERENCES products_services(id);
+```
 
 ## RN-CRM-001: Categorias de Contato
 

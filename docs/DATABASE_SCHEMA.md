@@ -524,7 +524,10 @@
 | `responsavel_id` | `uuid` | YES | — |
 | `estagio` | `text` | YES | — |
 | `etapa_funil_id` | `uuid` | YES | — |
-| `valor` | `numeric` | YES | — |
+| `valor_estimado` | `numeric` | YES | — |
+| `valor_causa` | `numeric` | YES | — |
+| `valor_proposta` | `numeric` | YES | — |
+| `produto_servico_id` | `uuid` | YES | — |
 | `probabilidade` | `integer` | YES | `50` |
 | `data_previsao` | `date` | YES | — |
 | `observacoes` | `text` | YES | — |
@@ -533,6 +536,30 @@
 
 **Primary Key:** `id`  
 **RLS:** Enabled
+**Foreign Keys:**
+- `oportunidades_produto_servico_id_fkey` → `products_services.id`
+
+---
+
+### `products_services`
+> Catálogo de produtos e serviços
+
+| Column | Type | Nullable | Default |
+| :--- | :--- | :--- | :--- |
+| `id` | `uuid` | NO | `gen_random_uuid()` |
+| `user_id` | `uuid` | NO | — |
+| `name` | `text` | NO | — |
+| `description` | `text` | YES | — |
+| `default_fee_percentage` | `numeric` | YES | — |
+| `active` | `boolean` | YES | `true` |
+| `ordem` | `integer` | YES | — |
+| `created_at` | `timestamptz` | YES | `now()` |
+| `updated_at` | `timestamptz` | YES | `now()` |
+
+**Primary Key:** `id`
+**RLS:** Enabled
+**Foreign Keys:**
+- `products_services_user_id_fkey` → `auth.users.id`
 
 ---
 

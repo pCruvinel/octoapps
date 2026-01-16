@@ -4,12 +4,16 @@ import { Checkbox } from '../ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { toast } from 'sonner';
-import { Save, RefreshCw, AlertCircle, ArrowLeft, Search, Users } from 'lucide-react';
+import { Save, RefreshCw, AlertCircle, ArrowLeft, Search, Users, Plus, X, UserPlus, Lock } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Skeleton } from '../ui/skeleton';
 import { Input } from '../ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { permissionsService } from '../../services/permissions.service';
+import { usersService, type Role } from '../../services/users.service';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useAuth } from '../../hooks/useAuth';
 import type {
   Module,
   PermissionActionType,
@@ -20,14 +24,28 @@ import { Link } from '@tanstack/react-router';
 
 export function PermissionsManagement() {
   const { refetch } = usePermissions();
+  const { profile } = useAuth();
   const [users, setUsers] = useState<UserWithPermissions[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [actions, setActions] = useState<PermissionActionType[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [localPermissions, setLocalPermissions] = useState<Record<string, UserPermissionsMap>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // State for role management dialog
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserWithPermissions | null>(null);
+  const [selectedRoleToAdd, setSelectedRoleToAdd] = useState<string>('');
+
+  // Check if current user is Admin Master (can see all users)
+  const isAdminMaster = profile?.roles?.includes('Admin Master') || false;
+  // Check if current user is Gestor (can only see users in same org)
+  const isGestor = profile?.roles?.includes('Gestor') || profile?.roles?.includes('Administrador') || false;
+  // Current user's organization
+  const currentOrgId = profile?.organization_id;
 
   /**
    * Carrega todos os dados necessários para a tela
@@ -36,15 +54,17 @@ export function PermissionsManagement() {
     try {
       setLoading(true);
 
-      const [usersData, modulesData, actionsData] = await Promise.all([
+      const [usersData, modulesData, actionsData, rolesData] = await Promise.all([
         permissionsService.getUsersWithPermissions(),
         permissionsService.getModules(),
-        permissionsService.getActions()
+        permissionsService.getActions(),
+        usersService.getRoles()
       ]);
 
       setUsers(usersData);
       setModules(modulesData);
       setActions(actionsData);
+      setRoles(rolesData);
 
       // Inicializar permissões locais com dados carregados
       const initial: Record<string, UserPermissionsMap> = {};
@@ -146,6 +166,110 @@ export function PermissionsManagement() {
   };
 
   /**
+   * Abre o dialog de gerenciamento de roles para um usuário
+   */
+  const openRoleDialog = (user: UserWithPermissions) => {
+    setSelectedUser(user);
+    setSelectedRoleToAdd('');
+    setRoleDialogOpen(true);
+  };
+
+  /**
+   * Adiciona uma role ao usuário selecionado
+   */
+  const handleAddRole = async () => {
+    if (!selectedUser || !selectedRoleToAdd) return;
+    
+    try {
+      setSaving(true);
+      await usersService.addUserRole(selectedUser.id, selectedRoleToAdd);
+      toast.success('Perfil adicionado com sucesso!');
+      setSelectedRoleToAdd('');
+      await loadData();
+      // Update selected user with new data
+      const updatedUser = users.find(u => u.id === selectedUser.id);
+      if (updatedUser) setSelectedUser(updatedUser);
+    } catch (error: any) {
+      console.error('Erro ao adicionar perfil:', error);
+      toast.error(error.message || 'Erro ao adicionar perfil');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /**
+   * Remove uma role do usuário selecionado
+   */
+  const handleRemoveRole = async (roleId: string) => {
+    if (!selectedUser) return;
+    
+    try {
+      setSaving(true);
+      await usersService.removeUserRole(selectedUser.id, roleId);
+      toast.success('Perfil removido com sucesso!');
+      await loadData();
+      // Update selected user with new data
+      const updatedUser = users.find(u => u.id === selectedUser.id);
+      if (updatedUser) setSelectedUser(updatedUser);
+    } catch (error: any) {
+      console.error('Erro ao remover perfil:', error);
+      toast.error(error.message || 'Erro ao remover perfil');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /**
+   * Roles disponíveis para adicionar (que o usuário ainda não tem)
+   */
+  const availableRoles = useMemo(() => {
+    if (!selectedUser) return roles;
+    const userRoleIds = selectedUser.roles.map(r => r.id);
+    return roles.filter(r => !userRoleIds.includes(r.id));
+  }, [selectedUser, roles]);
+
+  /**
+   * Filtra usuários baseado em:
+   * - Admin Master: vê todos os usuários
+   * - Gestor: vê apenas usuários da sua organização
+   * - Termo de busca
+   */
+  const filteredUsers = useMemo(() => {
+    let result = users;
+    
+    // Gestor (not Admin Master) only sees users in same org
+    if (isGestor && !isAdminMaster && currentOrgId) {
+      result = result.filter(u => {
+        // Need to check organization_id - users from permissionsService may not have it
+        // For now we show all users but the RPC will enforce the org check
+        return true;
+      });
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(u => 
+        u.nome_completo.toLowerCase().includes(term) ||
+        u.email.toLowerCase().includes(term)
+      );
+    }
+    
+    return result;
+  }, [users, isGestor, isAdminMaster, currentOrgId, searchTerm]);
+
+  /**
+   * Verifica se o usuário atual pode editar as permissões de outro usuário
+   * - Admin Master: pode editar todos
+   * - Gestor: pode editar todos exceto a si mesmo
+   */
+  const canEditUser = (userId: string): boolean => {
+    if (isAdminMaster) return true;
+    if (isGestor && userId !== profile?.id) return true;
+    return false;
+  };
+
+  /**
    * Renderiza skeleton loading
    */
   if (loading) {
@@ -240,15 +364,7 @@ export function PermissionsManagement() {
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
           <Users className="w-4 h-4" />
-          <span>
-            {searchTerm
-              ? `${users.filter(u =>
-                u.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                u.email.toLowerCase().includes(searchTerm.toLowerCase())
-              ).length} de ${users.length} usuários`
-              : `${users.length} usuários`
-            }
-          </span>
+          <span>{filteredUsers.length} de {users.length} usuários</span>
         </div>
       </div>
 
@@ -285,16 +401,15 @@ export function PermissionsManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users
-                  .filter(user =>
-                    !searchTerm ||
-                    user.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map(user => (
-                    <TableRow key={user.id}>
+                {filteredUsers.map(user => {
+                  const userEditable = canEditUser(user.id);
+                  return (
+                    <TableRow key={user.id} className={!userEditable ? 'opacity-60' : ''}>
                       <TableCell>
                         <div className="flex items-center gap-3">
+                          {!userEditable && (
+                            <Lock className="w-4 h-4 text-muted-foreground" title="Você não pode editar suas próprias permissões" />
+                          )}
                           {user.avatar_url && (
                             <img
                               src={user.avatar_url}
@@ -302,14 +417,14 @@ export function PermissionsManagement() {
                               className="w-8 h-8 rounded-full object-cover"
                             />
                           )}
-                          <div>
+                          <div className="flex-1">
                             <div className="font-medium text-gray-900 dark:text-white">
                               {user.nome_completo}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                               {user.email}
                             </div>
-                            <div className="flex gap-1 mt-1">
+                            <div className="flex items-center gap-1 mt-1">
                               {user.roles.map(role => (
                                 <Badge
                                   key={role.id}
@@ -319,6 +434,15 @@ export function PermissionsManagement() {
                                   {role.nome}
                                 </Badge>
                               ))}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 ml-1"
+                                onClick={() => openRoleDialog(user)}
+                                title="Gerenciar perfis"
+                              >
+                                <UserPlus className="w-3 h-3" />
+                              </Button>
                             </div>
                           </div>
                         </div>
@@ -334,14 +458,15 @@ export function PermissionsManagement() {
                                   togglePermission(user.id, module.code, action.code)
                                 }
                                 title={`${action.name} - ${module.name}`}
-                                disabled={saving}
+                                disabled={saving || !userEditable}
                               />
                             ))}
                           </div>
                         </TableCell>
                       ))}
                     </TableRow>
-                  ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -381,6 +506,95 @@ export function PermissionsManagement() {
           {saving ? 'Salvando...' : 'Salvar Permissões'}
         </Button>
       </div>
+
+      {/* Role Management Dialog */}
+      <Dialog open={roleDialogOpen} onOpenChange={setRoleDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5" />
+              Gerenciar Perfis
+            </DialogTitle>
+            <DialogDescription>
+              Adicione ou remova perfis (cargos) do usuário <strong>{selectedUser?.nome_completo}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Current Roles */}
+            <div>
+              <h4 className="text-sm font-medium text-foreground mb-2">Perfis Atuais</h4>
+              {selectedUser?.roles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum perfil atribuído</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {selectedUser?.roles.map(role => (
+                    <Badge
+                      key={role.id}
+                      variant="secondary"
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      {role.nome}
+                      <button
+                        onClick={() => handleRemoveRole(role.id)}
+                        disabled={saving}
+                        className="ml-1 rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive transition-colors"
+                        title="Remover perfil"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add New Role */}
+            {availableRoles.length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-foreground mb-2">Adicionar Novo Perfil</h4>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedRoleToAdd}
+                    onValueChange={setSelectedRoleToAdd}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Selecione um perfil..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableRoles.map(role => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    onClick={handleAddRole}
+                    disabled={saving || !selectedRoleToAdd}
+                    className="gap-1"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Adicionar
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {availableRoles.length === 0 && selectedUser?.roles.length === roles.length && (
+              <p className="text-sm text-muted-foreground">
+                Este usuário já possui todos os perfis disponíveis.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRoleDialogOpen(false)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

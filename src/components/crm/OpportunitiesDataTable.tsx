@@ -82,6 +82,46 @@ export function OpportunitiesDataTable({
     );
   }, [opportunities]);
 
+  // Group opportunities by etapa (stage)
+  const groupedByEtapa = useMemo(() => {
+    const groups: Map<string, {
+      etapa: { id: string; nome: string; cor: string } | null;
+      opportunities: Opportunity[];
+      totals: { count: number; valorProposta: number; valorCausa: number };
+    }> = new Map();
+
+    // Create groups based on etapa order
+    etapas.forEach(etapa => {
+      groups.set(etapa.id, {
+        etapa,
+        opportunities: [],
+        totals: { count: 0, valorProposta: 0, valorCausa: 0 }
+      });
+    });
+
+    // Add a "Sem Etapa" group for opportunities without etapa
+    groups.set('sem-etapa', {
+      etapa: null,
+      opportunities: [],
+      totals: { count: 0, valorProposta: 0, valorCausa: 0 }
+    });
+
+    // Distribute opportunities into groups
+    sortedOpportunities.forEach(opp => {
+      const etapaId = opp.etapa_funil_id || 'sem-etapa';
+      const group = groups.get(etapaId);
+      if (group) {
+        group.opportunities.push(opp);
+        group.totals.count += 1;
+        group.totals.valorProposta += opp.valor_proposta || 0;
+        group.totals.valorCausa += opp.valor_causa || 0;
+      }
+    });
+
+    // Filter out empty groups and convert to array
+    return Array.from(groups.values()).filter(g => g.opportunities.length > 0);
+  }, [sortedOpportunities, etapas]);
+
   if (loading) {
     return (
       <div className="border rounded-lg overflow-hidden bg-card">
@@ -126,96 +166,149 @@ export function OpportunitiesDataTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedOpportunities.map((opp) => {
-            const etapa = getEtapa(opp.etapa_funil_id);
-            return (
+          {groupedByEtapa.map((group) => (
+            <>
+              {/* Group Header Row */}
               <TableRow 
-                key={opp.id} 
-                className="group cursor-pointer hover:bg-muted/50"
-                onClick={() => onNavigate('crm/oportunidade', opp.id)}
+                key={`header-${group.etapa?.id || 'sem-etapa'}`} 
+                className="bg-muted/30 hover:bg-muted/40"
               >
-                <TableCell className="font-medium text-foreground">
-                  <div className="flex flex-col">
-                    <span className="truncate max-w-[250px]">{opp.titulo}</span>
-                    {opp.produto_servico && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {opp.produto_servico.name}
-                      </span>
+                <TableCell colSpan={8} className="py-3">
+                  <div className="flex items-center gap-3">
+                    {group.etapa ? (
+                      <Badge
+                        variant="outline"
+                        className="font-semibold px-3 py-1"
+                        style={{
+                          backgroundColor: `${group.etapa.cor}20`,
+                          color: group.etapa.cor,
+                          borderColor: group.etapa.cor,
+                        }}
+                      >
+                        {group.etapa.nome}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="font-semibold px-3 py-1">
+                        Sem Etapa
+                      </Badge>
                     )}
+                    <span className="text-sm text-muted-foreground">
+                      {group.totals.count} {group.totals.count === 1 ? 'oportunidade' : 'oportunidades'}
+                    </span>
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <span className="truncate block max-w-[150px]">
-                    {opp.contatos?.nome_completo || '-'}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {etapa ? (
-                    <Badge
-                      variant="outline"
-                      style={{
-                        backgroundColor: `${etapa.cor}20`,
-                        color: etapa.cor,
-                        borderColor: etapa.cor,
-                      }}
-                    >
-                      {etapa.nome}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm text-foreground/80">
-                  {formatCurrency(opp.valor_proposta)}
-                </TableCell>
-                <TableCell className="text-right font-mono text-sm text-foreground/80">
-                  {formatCurrency(opp.valor_causa)}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <span className="truncate block max-w-[100px]">
-                    {opp.responsavel?.nome_completo || '-'}
-                  </span>
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {formatDate(opp.data_criacao)}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onNavigate('crm/oportunidade', opp.id)}>
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Abrir Detalhes
-                      </DropdownMenuItem>
-                      {onArchive && (
-                        <DropdownMenuItem onClick={() => onArchive(opp)}>
-                          <Archive className="w-4 h-4 mr-2" />
-                          Arquivar
-                        </DropdownMenuItem>
-                      )}
-                      {onDelete && (
-                        <DropdownMenuItem
-                          onClick={() => onDelete(opp)}
-                          className="text-red-600 dark:text-red-400"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
               </TableRow>
-            );
-          })}
+
+              {/* Opportunity Rows */}
+              {group.opportunities.map((opp) => {
+                const etapa = getEtapa(opp.etapa_funil_id);
+                return (
+                  <TableRow 
+                    key={opp.id} 
+                    className="group cursor-pointer hover:bg-muted/50"
+                    onClick={() => onNavigate('crm/oportunidade', opp.id)}
+                  >
+                    <TableCell className="font-medium text-foreground">
+                      <div className="flex flex-col">
+                        <span className="truncate max-w-[250px]">{opp.titulo}</span>
+                        {opp.produto_servico && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {opp.produto_servico.name}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <span className="truncate block max-w-[150px]">
+                        {opp.contatos?.nome_completo || '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {etapa ? (
+                        <Badge
+                          variant="outline"
+                          style={{
+                            backgroundColor: `${etapa.cor}20`,
+                            color: etapa.cor,
+                            borderColor: etapa.cor,
+                          }}
+                        >
+                          {etapa.nome}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm text-foreground/80">
+                      {formatCurrency(opp.valor_proposta)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm text-foreground/80">
+                      {formatCurrency(opp.valor_causa)}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      <span className="truncate block max-w-[100px]">
+                        {opp.responsavel?.nome_completo || '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {formatDate(opp.data_criacao)}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => onNavigate('crm/oportunidade', opp.id)}>
+                            <ExternalLink className="w-4 h-4 mr-2" />
+                            Abrir Detalhes
+                          </DropdownMenuItem>
+                          {onArchive && (
+                            <DropdownMenuItem onClick={() => onArchive(opp)}>
+                              <Archive className="w-4 h-4 mr-2" />
+                              Arquivar
+                            </DropdownMenuItem>
+                          )}
+                          {onDelete && (
+                            <DropdownMenuItem
+                              onClick={() => onDelete(opp)}
+                              className="text-red-600 dark:text-red-400"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+
+              {/* Group Subtotal Row */}
+              <TableRow 
+                key={`subtotal-${group.etapa?.id || 'sem-etapa'}`} 
+                className="bg-muted/50 border-b-2"
+              >
+                <TableCell colSpan={3} className="text-sm font-medium text-muted-foreground">
+                  Subtotal: {group.totals.count} {group.totals.count === 1 ? 'oportunidade' : 'oportunidades'}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-medium">
+                  {formatCurrency(group.totals.valorProposta)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm font-medium">
+                  {formatCurrency(group.totals.valorCausa)}
+                </TableCell>
+                <TableCell colSpan={3}></TableCell>
+              </TableRow>
+            </>
+          ))}
         </TableBody>
         <TableFooter>
           <TableRow className="bg-muted font-medium">

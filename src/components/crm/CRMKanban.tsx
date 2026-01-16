@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
-import { Plus, Loader2, FileText, Zap, MoreHorizontal, Layers, Archive, Settings2, LayoutGrid, List } from 'lucide-react';
+import { Plus, Loader2, FileText, Zap, MoreHorizontal, Layers, Archive, Settings2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Label } from '../ui/label';
@@ -15,6 +15,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useEtapasFunil } from '../../hooks/useEtapasFunil';
+import { useFunis } from '../../hooks/useFunis';
+import type { EtapaFunil } from '../../types/funnel';
 import type { Opportunity } from '../../types/opportunity';
 import type { Contact } from '../../types/contact';
 import {
@@ -31,7 +33,9 @@ import { useKanbanDnd } from '../../hooks/useKanbanDnd';
 import { OpportunityCard } from './OpportunityCard';
 import { NewLeadDialog } from './NewLeadDialog';
 import { KanbanFiltersBar, KanbanFilters } from './KanbanFilters';
-import { OpportunitiesDataTable } from './OpportunitiesDataTable';
+// EtapaDetailSheet removido - agora usa visualização inline com EtapaOpportunitiesTable
+import { EtapaOpportunitiesTable } from './EtapaOpportunitiesTable';
+import { ContactCombobox } from '../shared/ContactCombobox';
 
 interface CRMKanbanProps {
   onNavigate: (route: string, id?: string) => void;
@@ -40,13 +44,26 @@ interface CRMKanbanProps {
 export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const { user } = useAuth();
   const { canCreate, canUpdate, canDelete } = usePermissions();
-  const { etapas, loading: loadingEtapas } = useEtapasFunil();
+  const { funis, funilAtivo, setFunilAtivo, loading: loadingFunis } = useFunis();
+  const { etapas, loading: loadingEtapas } = useEtapasFunil({ funilId: funilAtivo });
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingOpportunities, setLoadingOpportunities] = useState(true);
+
+  // Estado para controlar qual etapa está expandida (null = Kanban view)
+  const [expandedEtapaId, setExpandedEtapaId] = useState<string | null>(null);
+
+  // Derivar a etapa expandida dos dados já carregados
+  const expandedEtapa = expandedEtapaId 
+    ? etapas.find(e => e.id === expandedEtapaId) 
+    : null;
+
+
+
+
 
   // Edit Opportunity State
   const initialFormState = {
@@ -62,15 +79,12 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
   const [editOpportunity, setEditOpportunity] = useState(initialFormState);
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [opportunityCounts, setOpportunityCounts] = useState<Record<string, { comments: number; attachments: number }>>({});
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [opportunityCounts, setOpportunityCounts] = useState<Record<string, { comments: number; attachments: number }>>({}); 
+
   const [profiles, setProfiles] = useState<any[]>([]);
 
   // Filtros do Kanban (v2)
   const [kanbanFilters, setKanbanFilters] = useState<KanbanFilters>({});
-  
-  // View mode: 'kanban' ou 'table'
-  const [viewMode, setViewMode] = useState<'kanban' | 'table'>('kanban');
 
   // DND Hook
   const { handleDragEnd, handleDragStart, activeId } = useKanbanDnd(opportunities, setOpportunities);
@@ -81,12 +95,15 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     })
   );
 
-  // Load data when user changes
+  // Load data when user ID changes (not entire user object)
   useEffect(() => {
+    if (!user?.id) return;
+    
     loadOpportunities();
-    loadContacts();
+
     loadProfiles();
-  }, [user]);
+    // ensureDefaultFunil já é chamado automaticamente pelo useFunis
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadOpportunities = async () => {
     try {
@@ -186,26 +203,7 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     }
   };
 
-  const loadContacts = async () => {
-    try {
-      if (!user) {
-        setContacts([]);
-        return;
-      }
 
-      const { data, error } = await supabase
-        .from('contatos')
-        .select('id, nome_completo, email')
-        .eq('ativo', true)
-        .or(`criado_por.eq.${user.id},responsavel_id.eq.${user.id}`)
-        .order('nome_completo');
-
-      if (error) throw error;
-      setContacts(data || []);
-    } catch (error) {
-      console.error('Error loading contacts:', error);
-    }
-  };
 
   const loadProfiles = async () => {
     try {
@@ -442,36 +440,18 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     return filtered;
   };
 
-  // Get all filtered opportunities for table view (applies same filters but across all stages)
-  const getFilteredOpportunitiesForTable = () => {
-    let filtered = [...opportunities];
-    
-    // Date filter
-    if (kanbanFilters.dateRange?.from) {
-      const fromDate = kanbanFilters.dateRange.from;
-      const toDate = kanbanFilters.dateRange.to || fromDate;
-      filtered = filtered.filter(opp => {
-        const oppDate = new Date(opp.data_criacao);
-        return oppDate >= fromDate && oppDate <= toDate;
-      });
-    }
-    
-    // Product filter (multi-select)
-    if (kanbanFilters.productIds && kanbanFilters.productIds.length > 0) {
-      filtered = filtered.filter(opp => 
-        opp.produto_servico_id && kanbanFilters.productIds!.includes(opp.produto_servico_id)
-      );
-    }
-    
-    // Responsible filter (multi-select)
-    if (kanbanFilters.responsibleIds && kanbanFilters.responsibleIds.length > 0) {
-      filtered = filtered.filter(opp => 
-        opp.responsavel_id && kanbanFilters.responsibleIds!.includes(opp.responsavel_id)
-      );
-    }
-    
-    return filtered;
+  // Handler para navegar para visualização detalhada de uma etapa
+  // Handler para expandir visualização detalhada de uma etapa (View Toggle)
+  const handleEtapaClick = (etapa: EtapaFunil) => {
+    setExpandedEtapaId(etapa.id);
   };
+
+  // Handler para voltar ao Kanban
+  const handleBackToKanban = () => {
+    setExpandedEtapaId(null);
+  };
+
+
 
   // Find the active opportunity for DragOverlay
   const activeOpportunity = activeId ? opportunities.find(o => o.id === activeId) : null;
@@ -480,29 +460,38 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
     <div className="h-full flex flex-col">
       <div className="px-4 pt-4 pb-2 lg:px-6 lg:pt-6 lg:pb-2 border-b border-border">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-foreground font-bold text-2xl whitespace-nowrap">
-              Pipeline de Oportunidades
-            </h1>
-            <p className="text-muted-foreground text-sm">
-              Gerencie e acompanhar suas oportunidades de negócio
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* View Mode Tabs */}
-            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'kanban' | 'table')} className="hidden sm:block">
-              <TabsList className="h-9 bg-muted">
-                <TabsTrigger value="kanban" className="gap-1.5 text-xs">
-                  <LayoutGrid className="w-3.5 h-3.5" />
-                  Kanban
-                </TabsTrigger>
-                <TabsTrigger value="table" className="gap-1.5 text-xs">
-                  <List className="w-3.5 h-3.5" />
-                  Tabela
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+          <div className="flex items-center gap-4">
+            {/* Funis Tabs */}
+            {funis.length > 1 ? (
+              <Tabs value={funilAtivo || ''} onValueChange={setFunilAtivo}>
+                <TabsList className="h-10 bg-muted">
+                  {funis.map(f => (
+                    <TabsTrigger key={f.id} value={f.id} className="gap-2 px-4">
+                      <div
+                        className="w-2.5 h-2.5 rounded-full"
+                        style={{ backgroundColor: f.cor }}
+                      />
+                      {f.nome}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <h1 className="text-foreground font-bold text-2xl whitespace-nowrap flex items-center gap-2">
+                  {funis[0] && (
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: funis[0].cor }}
+                    />
+                  )}
+                  {funis[0]?.nome || 'Pipeline de Oportunidades'}
+                </h1>
+                <p className="text-muted-foreground text-sm">
+                  Gerencie e acompanhe suas oportunidades de negócio
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full xl:w-auto">
@@ -540,7 +529,7 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={() => onNavigate('etapas-funil')}>
                     <Layers className="w-4 h-4 mr-2" />
-                    Etapas do Funil
+                    Funil & Etapas
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onNavigate('campos-oportunidade')}>
                     <Settings2 className="w-4 h-4 mr-2" />
@@ -560,28 +549,42 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
             open={isCreateDialogOpen}
             onOpenChange={setIsCreateDialogOpen}
             onSuccess={loadOpportunities}
-            contacts={contacts}
+
             profiles={profiles}
+            funilId={funilAtivo}
           />
 
         </div>
       </div>
 
       <div className="flex-1 overflow-x-auto p-4 lg:p-6">
-        {loadingOpportunities || loadingEtapas ? (
+        {loadingOpportunities || loadingEtapas || loadingFunis ? (
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
           </div>
-        ) : viewMode === 'table' ? (
-          /* DataTable View */
-          <OpportunitiesDataTable
-            opportunities={getFilteredOpportunitiesForTable()}
-            loading={loadingOpportunities}
-            onNavigate={onNavigate}
-            onDelete={handleOpenDelete}
-            onArchive={handleArchiveOpportunity}
-            etapas={etapas}
+        ) : expandedEtapaId && expandedEtapa ? (
+          /* DataTable View - Etapa Expandida */
+          <EtapaOpportunitiesTable
+            etapa={expandedEtapa}
+            opportunities={getStageOpportunities(expandedEtapa.id)}
+            onSelectOpportunity={(id) => onNavigate('opportunity-details', id)}
+            onBack={handleBackToKanban}
           />
+        ) : etapas.length === 0 ? (
+          /* Empty State - Funil sem etapas */
+          <div className="flex flex-col items-center justify-center h-64 bg-white rounded-xl border border-dashed border-slate-300">
+            <Layers className="h-12 w-12 text-slate-300 mb-4" />
+            <h3 className="text-lg font-semibold text-slate-700 mb-2">
+              Nenhuma etapa configurada
+            </h3>
+            <p className="text-sm text-slate-500 text-center max-w-sm mb-4">
+              Este funil ainda não possui etapas. Configure as etapas para começar a gerenciar suas oportunidades.
+            </p>
+            <Button onClick={() => onNavigate('etapas-funil')} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Criar Etapas
+            </Button>
+          </div>
         ) : (
           /* Kanban View */
           <DndContext
@@ -598,6 +601,7 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
                     key={etapa.id}
                     etapa={etapa}
                     opportunities={etapaOpps}
+                    onHeaderClick={() => handleEtapaClick(etapa)}
                   >
                     {etapaOpps.map(opp => (
                       <SortableOpportunityCard
@@ -657,13 +661,10 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-contato_id">Contato</Label>
-              <Select
+              <ContactCombobox
                 value={editOpportunity.contato_id}
-                onValueChange={(value) => setEditOpportunity(prev => ({ ...prev, contato_id: value }))}
-              >
-                <SelectTrigger id="edit-contato_id"><SelectValue placeholder="Selecione um contato" /></SelectTrigger>
-                <SelectContent>{contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.nome_completo}</SelectItem>)}</SelectContent>
-              </Select>
+                onChange={(value) => setEditOpportunity(prev => ({ ...prev, contato_id: value }))}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-tipo_acao">Tipo de Ação</Label>
@@ -738,6 +739,9 @@ export function CRMKanban({ onNavigate }: CRMKanbanProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+
+
     </div>
   );
 }

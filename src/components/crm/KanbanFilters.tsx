@@ -89,12 +89,12 @@ export function KanbanFiltersBar({
 
     const getProductLabel = () => {
         const count = filters.productIds?.length || 0;
-        if (count === 0) return 'Produto';
+        if (count === 0) return 'Serviços';
         if (count === 1) {
             const product = activeProducts.find(p => p.id === filters.productIds?.[0]);
-            return product?.name || 'Produto';
+            return product?.name || 'Serviços';
         }
-        return `${count} produtos`;
+        return `${count} serviços`;
     };
 
     const getResponsibleLabel = () => {
@@ -155,14 +155,14 @@ export function KanbanFiltersBar({
                 </PopoverTrigger>
                 <PopoverContent className="w-[220px] p-0" align="start">
                     <div className="p-2 border-b">
-                        <p className="text-xs text-gray-500 font-medium">Selecione os produtos</p>
+                        <p className="text-xs text-gray-500 font-medium">Selecione os serviços</p>
                     </div>
                     <ScrollArea className="h-[200px]">
                         <div className="p-2 space-y-1">
                             {loadingProducts ? (
                                 <p className="text-sm text-gray-500 p-2">Carregando...</p>
                             ) : activeProducts.length === 0 ? (
-                                <p className="text-sm text-gray-500 p-2">Nenhum produto cadastrado</p>
+                                <p className="text-sm text-gray-500 p-2">Nenhum serviço cadastrado</p>
                             ) : (
                                 activeProducts.map((product: ProductService) => (
                                     <label

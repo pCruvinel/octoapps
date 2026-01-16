@@ -2,12 +2,13 @@
 
 ## 🚀 Tecnologias
 
-- **Next.js 15** - Framework React com App Router
+- **Vite 6** - Build Tool
 - **React 18** - Biblioteca para interfaces
 - **TypeScript** - Tipagem estática
 - **Tailwind CSS 4.0** - Estilização
 - **Shadcn/ui** - Componentes UI
 - **Supabase** - Backend e banco de dados
+- **TanStack Router** - Roteamento
 
 ## 📦 Instalação
 
@@ -21,25 +22,23 @@ npm install
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000) no navegador.
+Abra [http://localhost:5173](http://localhost:5173) no navegador.
 
 ## 📁 Estrutura do Projeto
 
 ```
-/app                      # App Router do Next.js
-  /layout.tsx            # Layout raiz
-  /page.tsx              # Página inicial (Dashboard)
-  /providers.tsx         # Contextos globais (tema, usuário)
-  /(dashboard)           # Grupo de rotas protegidas
-    /layout.tsx          # Layout com Sidebar/Topbar
-    /contacts            # Módulo de contatos
-    /crm                 # Pipeline Kanban
-    /calculations        # Cálculos revisionais
-    /peticoes            # Geração de petições
-    /users               # Gestão de usuários
-    /permissions         # Gerenciamento de permissões
-    /settings-general    # Configurações gerais
-    /settings-funnel     # Configurações do funil
+/src
+  /routes                # TanStack Router File-based Routes
+    /__root.tsx          # Wrapper raiz
+    /index.tsx           # Página inicial (Dashboard)
+    /_authenticated      # Grupo de rotas protegidas
+      /dashboard.tsx     # Dashboard Principal
+      /contacts.tsx      # Módulo de contatos
+      /crm               # Pipeline Kanban
+      /calculations      # Cálculos revisionais
+      /peticoes          # Geração de petições
+      /users             # Gestão de usuários
+      /settings          # Configurações do sistema
 
 /components              # Componentes React
   /calculations         # Componentes de cálculos

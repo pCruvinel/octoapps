@@ -7,10 +7,16 @@ import type {
   EtapaFunilEstatisticas,
 } from '../types/funnel';
 
+interface UseEtapasFunilOptions {
+  funilId?: string | null;
+}
+
 /**
  * Hook para gerenciar CRUD de Etapas do Funil
+ * @param options.funilId - Se fornecido, filtra apenas etapas deste funil
  */
-export function useEtapasFunil() {
+export function useEtapasFunil(options?: UseEtapasFunilOptions) {
+  const funilId = options?.funilId;
   const [etapas, setEtapas] = useState<EtapaFunil[]>([]);
   const [estatisticas, setEstatisticas] = useState<EtapaFunilEstatisticas[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,17 +24,26 @@ export function useEtapasFunil() {
 
   /**
    * Buscar todas as etapas do funil (apenas ativas)
+   * Se funilId foi fornecido nas options, filtra por ele
    */
-  const getEtapas = useCallback(async () => {
+  const getEtapas = useCallback(async (overrideFunilId?: string | null) => {
     try {
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
+      const targetFunilId = overrideFunilId !== undefined ? overrideFunilId : funilId;
+
+      let query = supabase
         .from('etapas_funil')
         .select('*')
-        .eq('ativo', true)
-        .order('ordem', { ascending: true });
+        .eq('ativo', true);
+
+      // Filtrar por funil se fornecido
+      if (targetFunilId) {
+        query = query.eq('funil_id', targetFunilId);
+      }
+
+      const { data, error: fetchError } = await query.order('ordem', { ascending: true });
 
       if (fetchError) throw fetchError;
 
@@ -42,7 +57,7 @@ export function useEtapasFunil() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [funilId]);
 
   /**
    * Buscar estatísticas das etapas (com contadores de oportunidades)
@@ -89,16 +104,26 @@ export function useEtapasFunil() {
 
   /**
    * Criar nova etapa
+   * @param etapa - Dados da etapa (deve incluir funil_id se o hook foi inicializado com funilId)
    */
   const createEtapa = useCallback(async (etapa: EtapaFunilInsert) => {
     try {
       setError(null);
 
-      // Obter ordem automática (última posição + 1)
-      const { data: ultimaEtapa } = await supabase
+      // Usar funil_id do parâmetro ou do hook
+      const targetFunilId = etapa.funil_id || funilId;
+
+      // Obter ordem automática (última posição + 1) dentro do funil
+      let ultimaEtapaQuery = supabase
         .from('etapas_funil')
         .select('ordem')
-        .eq('ativo', true)
+        .eq('ativo', true);
+      
+      if (targetFunilId) {
+        ultimaEtapaQuery = ultimaEtapaQuery.eq('funil_id', targetFunilId);
+      }
+
+      const { data: ultimaEtapa } = await ultimaEtapaQuery
         .order('ordem', { ascending: false })
         .limit(1)
         .single();
@@ -108,12 +133,22 @@ export function useEtapasFunil() {
       // Obter ID do usuário atual
       const { data: { user } } = await supabase.auth.getUser();
 
+      // Gerar slug a partir do nome
+      const slug = etapa.nome
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/[^a-z0-9]+/g, '-') // Substitui caracteres especiais por hífen
+        .replace(/^-+|-+$/g, ''); // Remove hífens do início e fim
+
       const { data, error: insertError } = await supabase
         .from('etapas_funil')
         .insert({
           ...etapa,
+          slug,
           ordem: novaOrdem,
           criado_por: user?.id,
+          funil_id: targetFunilId || null,
         })
         .select()
         .single();
@@ -253,11 +288,11 @@ export function useEtapasFunil() {
   }, []);
 
   /**
-   * Carregar etapas ao montar o componente
+   * Carregar etapas ao montar o componente ou quando funilId mudar
    */
   useEffect(() => {
     getEtapas();
-  }, [getEtapas]);
+  }, [getEtapas, funilId]);
 
   return {
     // Estados

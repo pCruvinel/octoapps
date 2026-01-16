@@ -9,6 +9,7 @@ interface DroppableColumnProps {
     etapa: EtapaFunil;
     opportunities: Opportunity[];
     children: React.ReactNode;
+    onHeaderClick?: () => void;
 }
 
 // Helper to convert hex to rgba
@@ -24,7 +25,8 @@ function hexToRgba(hex: string, alpha: number): string {
 export function DroppableColumn({
     etapa,
     opportunities,
-    children
+    children,
+    onHeaderClick
 }: DroppableColumnProps) {
     const { setNodeRef } = useDroppable({ id: etapa.id });
 
@@ -54,11 +56,13 @@ export function DroppableColumn({
     return (
         <div className="flex-1 min-w-[280px] max-w-[350px] flex flex-col h-full max-h-full">
             <div
-                className="mb-4 flex-shrink-0 rounded-lg px-3 py-2 border"
+                className="mb-4 flex-shrink-0 rounded-lg px-3 py-2 border cursor-pointer hover:opacity-90 transition-opacity"
                 style={{
                     backgroundColor: etapa.cor ? hexToRgba(etapa.cor, 0.2) : 'rgba(243, 244, 246, 0.2)',
                     borderColor: etapa.cor ? hexToRgba(etapa.cor, 0.3) : 'rgba(203, 213, 225, 0.3)'
                 }}
+                onClick={onHeaderClick}
+                title="Ver oportunidades desta etapa"
             >
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">

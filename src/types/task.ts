@@ -1,6 +1,35 @@
 // =====================================================
-// TYPES: Tarefas e Interações
+// TYPES: Tarefas e Interações (V2 - Smart Events)
 // =====================================================
+
+/**
+ * Tipo de recorrência
+ */
+export type RecorrenciaTipo = 
+  | 'diaria' 
+  | 'semanal' 
+  | 'quinzenal' 
+  | 'mensal' 
+  | 'anual';
+
+/**
+ * Categoria de evento/tarefa
+ */
+export interface EventCategory {
+  id: string;
+  organization_id?: string | null;
+  name: string;
+  description?: string | null;
+  color: string;
+  icon: string;
+  is_system: boolean;
+  is_all_day: boolean;
+  default_duration_minutes: number;
+  ordem: number;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 /**
  * Tipo de tarefa/interação
@@ -36,7 +65,7 @@ export type PrioridadeTarefa =
   | 'Urgente';
 
 /**
- * Interface completa da tabela tarefas
+ * Interface completa da tabela tarefas (V2)
  */
 export interface Task {
   id: string;
@@ -46,45 +75,57 @@ export interface Task {
   status: StatusTarefa;
   prioridade: PrioridadeTarefa;
 
-  // Relacionamentos
+  // V2: Categoria
+  category_id?: string | null;
+  category?: EventCategory | null;
+  cor?: string | null;
+
+  // Relacionamentos CRM
   contato_id?: string | null;
   oportunidade_id?: string | null;
+  caso_id?: string | null;
   projeto_id?: string | null;
   tarefa_pai_id?: string | null;
 
   // Responsáveis e participantes
   responsavel_id: string;
+  criado_por?: string | null;
   participantes_ids?: string[];
 
-  // Datas e tempo
+  // V2: Datas expandidas (com hora)
   data_inicio?: string | null;
+  data_fim?: string | null;
   data_vencimento?: string | null;
   data_conclusao?: string | null;
-  duracao_estimada?: number | null; // em minutos
-  tempo_gasto?: number | null; // em minutos
+  is_all_day?: boolean;
+  local?: string | null;
+
+  // Tempo
+  duracao_estimada?: number | null;
+  tempo_gasto?: number | null;
 
   // Notificações e lembretes
-  lembrete_antecedencia?: number | null; // em minutos
-  lembrete_enviado: boolean;
+  lembrete_antecedencia?: number | null;
+  lembrete_enviado?: boolean;
 
-  // Recorrência
-  recorrente: boolean;
-  recorrencia_tipo?: 'Diária' | 'Semanal' | 'Quinzenal' | 'Mensal' | 'Anual' | null;
+  // V2: Recorrência
+  recorrente?: boolean;
+  recorrencia_tipo?: RecorrenciaTipo | null;
   recorrencia_fim?: string | null;
+  recorrencia_parent_id?: string | null;
 
   // Checklist e progresso
-  checklist?: any; // JSONB
-  progresso: number;
+  checklist?: any;
+  progresso?: number;
 
   // Metadata
   tags?: string[];
-  anexos?: any; // JSONB
+  anexos?: any;
   observacoes?: string | null;
-  ordem: number;
-  ativo: boolean;
-  data_criacao: string;
-  data_atualizacao: string;
-  criado_por?: string | null;
+  ordem?: number;
+  ativo?: boolean;
+  data_criacao?: string;
+  data_atualizacao?: string;
 
   // Relações (quando usar JOIN)
   responsavel?: {
@@ -96,28 +137,59 @@ export interface Task {
     id: string;
     nome_completo: string;
   } | null;
+  oportunidade?: {
+    id: string;
+    titulo: string;
+  } | null;
 }
 
+
 /**
- * Interface para inserção de nova tarefa (INSERT)
+ * Interface para inserção de nova tarefa (INSERT) - V2
  */
 export interface TaskInsert {
   titulo: string;
-  tipo: TipoTarefa;
+  tipo?: TipoTarefa;
+  
+  // V2: Categoria
+  category_id?: string | null;
+  cor?: string | null;
+  
+  // Relacionamentos
   oportunidade_id?: string | null;
   contato_id?: string | null;
-  responsavel_id: string;
+  caso_id?: string | null;
+  
+  // Responsáveis
+  responsavel_id?: string;
+  criado_por?: string | null;
+  participantes_ids?: string[];
+  
+  // V2: Datas expandidas
+  data_inicio?: string | null;
+  data_fim?: string | null;
   data_vencimento?: string | null;
+  is_all_day?: boolean;
+  local?: string | null;
+  
+  // Conteúdo
+  descricao?: string | null;
   observacoes?: string | null;
   prioridade?: PrioridadeTarefa;
   status?: StatusTarefa;
-  criado_por?: string | null;
-  participantes_ids?: string[];
+  
+  // Lembretes
   lembrete_antecedencia?: number | null;
+  
+  // V2: Recorrência
+  recorrente?: boolean;
+  recorrencia_tipo?: RecorrenciaTipo | null;
+  recorrencia_fim?: string | null;
+  recorrencia_parent_id?: string | null;
 }
 
 /**
- * Interface para atualização de tarefa (UPDATE)
+ * Interface para atualização de tarefa (UPDATE) - V2
  */
 export interface TaskUpdate {
   titulo?: string;
@@ -125,13 +197,34 @@ export interface TaskUpdate {
   tipo?: TipoTarefa;
   status?: StatusTarefa;
   prioridade?: PrioridadeTarefa;
+  
+  // V2: Categoria
+  category_id?: string | null;
+  cor?: string | null;
+  
+  // V2: Datas expandidas
+  data_inicio?: string | null;
+  data_fim?: string | null;
   data_vencimento?: string | null;
   data_conclusao?: string | null;
+  is_all_day?: boolean;
+  
+  // Relacionamentos
+  contato_id?: string | null;
+  oportunidade_id?: string | null;
+  
+  // Conteúdo
   observacoes?: string | null;
   progresso?: number;
   participantes_ids?: string[];
   lembrete_antecedencia?: number | null;
+  
+  // V2: Recorrência
+  recorrente?: boolean;
+  recorrencia_tipo?: RecorrenciaTipo | null;
+  recorrencia_fim?: string | null;
 }
+
 
 /**
  * Interface para dados do formulário
